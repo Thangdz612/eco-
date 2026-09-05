@@ -20,6 +20,7 @@ import {
   Sun,
   Moon,
   Monitor,
+  HelpCircle,
 } from 'lucide-react';
 import { UserLocation, ThemeMode } from '../types';
 
@@ -29,6 +30,7 @@ interface SettingsModalProps {
   userLocation?: UserLocation | null;
   onRefreshLocation?: () => void;
   onOpenDartApk?: () => void;
+  onOpenInstallGuide?: () => void;
   themeMode?: ThemeMode;
   onThemeChange?: (mode: ThemeMode) => void;
   systemTheme?: 'light' | 'dark';
@@ -48,6 +50,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   userLocation,
   onRefreshLocation,
   onOpenDartApk,
+  onOpenInstallGuide,
   themeMode = 'system',
   onThemeChange,
   systemTheme = 'light',
@@ -799,21 +802,34 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </pre>
               </div>
 
-              {onOpenDartApk && (
-                <div className="pt-2 text-center">
+              <div className="pt-2 flex flex-col sm:flex-row gap-2 justify-center">
+                {onOpenDartApk && (
                   <button
                     type="button"
                     onClick={() => {
                       onClose();
                       onOpenDartApk();
                     }}
-                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#0D47A1] hover:bg-[#1565C0] text-white text-xs font-bold shadow-xs transition-all cursor-pointer"
+                    className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-[#0D47A1] hover:bg-[#1565C0] text-white text-xs font-bold shadow-xs transition-all cursor-pointer"
                   >
                     <Smartphone className="w-4 h-4" />
-                    <span>Mở bảng xuất mã Dart & hướng dẫn build APK</span>
+                    <span>Mã nguồn Dart Flutter & APK</span>
                   </button>
-                </div>
-              )}
+                )}
+                {onOpenInstallGuide && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onOpenInstallGuide();
+                    }}
+                    className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-xs transition-all cursor-pointer"
+                  >
+                    <HelpCircle className="w-4 h-4" />
+                    <span>Hướng dẫn cài đặt lên điện thoại</span>
+                  </button>
+                )}
+              </div>
             </div>
           )}
         </div>
