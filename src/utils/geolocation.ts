@@ -46,6 +46,17 @@ export function findNearestDistrict(lat: number, lng: number): { districtId: str
 }
 
 /**
+ * Check if the application is embedded in an iframe (e.g. AI Studio preview)
+ */
+export function isRunningInIframe(): boolean {
+  try {
+    return window.self !== window.top;
+  } catch (_e) {
+    return true;
+  }
+}
+
+/**
  * Requests browser/device geolocation with a 2-stage strategy (High Accuracy -> Network Fallback)
  * and rich error diagnostics for permission issues or timeouts.
  */
@@ -66,7 +77,7 @@ export async function getCurrentUserLocation(): Promise<UserLocation> {
         timestamp: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
         isRealGps: false,
         status: 'unsupported',
-        errorMessage: 'Trình duyệt hoặc môi trường này chưa hỗ trợ tính năng định vị vị trí.',
+        errorMessage: 'Trình duyệt hoặc thiết bị này chưa hỗ trợ tính năng định vị GPS.',
       });
       return;
     }
@@ -96,14 +107,19 @@ export async function getCurrentUserLocation(): Promise<UserLocation> {
     // Helper to handle final failure with informative message
     const handleFinalError = (err: GeolocationPositionError) => {
       let status: 'denied' | 'timeout' | 'unavailable' = 'unavailable';
+      const inIframe = isRunningInIframe();
       let msg = 'Không thể lấy tín hiệu GPS của thiết bị.';
 
       if (err.code === 1) { // PERMISSION_DENIED
         status = 'denied';
-        msg = 'Bạn chưa cấp quyền truy cập vị trí (Vui lòng bật quyền Vị trí trên trình duyệt hoặc cài đặt ứng dụng).';
+        if (inIframe) {
+          msg = 'Khung xem trước (iFrame) bị trình duyệt chặn hộp thoại cấp quyền vị trí. Vui lòng mở trong Tab mới hoặc chọn thủ công phường/xã.';
+        } else {
+          msg = 'Quyền vị trí bị chặn trong cài đặt trình duyệt. Hãy bấm biểu tượng 🔒 cạnh URL để cho phép, hoặc chọn thủ công xã/phường.';
+        }
       } else if (err.code === 2) { // POSITION_UNAVAILABLE
         status = 'unavailable';
-        msg = 'Tín hiệu GPS không khả dụng (Vui lòng bật định vị Vị trí / Location trên điện thoại).';
+        msg = 'Tín hiệu GPS không khả dụng (Vui lòng bật tính năng Vị trí / GPS trong cài đặt thiết bị).';
       } else if (err.code === 3) { // TIMEOUT
         status = 'timeout';
         msg = 'Hết thời gian chờ phản hồi GPS. Vui lòng thử lại ngoài trời hoặc tự chọn phường/xã từ danh sách.';

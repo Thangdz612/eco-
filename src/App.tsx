@@ -14,7 +14,7 @@ import { NotificationsModal } from './components/NotificationsModal';
 import { InstallGuideModal } from './components/InstallGuideModal';
 import { LocationModal } from './components/LocationModal';
 import { SettingsModal } from './components/SettingsModal';
-import { getCurrentUserLocation } from './utils/geolocation';
+import { getCurrentUserLocation, isRunningInIframe } from './utils/geolocation';
 import { 
   getSystemTheme, 
   getStoredThemeMode, 
@@ -183,13 +183,25 @@ export default function App() {
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
               {locationBannerMessage.startsWith('⚠️') && (
-                <button
-                  type="button"
-                  onClick={() => setIsDistrictPickerOpen(true)}
-                  className="text-[10.5px] px-2 py-0.5 rounded-md bg-amber-200/80 dark:bg-amber-800/80 text-amber-900 dark:text-amber-100 font-semibold hover:bg-amber-300 dark:hover:bg-amber-700 cursor-pointer transition-colors"
-                >
-                  Chọn xã/phường
-                </button>
+                <>
+                  {isRunningInIframe() && (
+                    <button
+                      type="button"
+                      onClick={() => window.open(window.location.href, '_blank')}
+                      className="text-[10px] px-2 py-0.5 rounded-md bg-blue-100 dark:bg-blue-900/80 text-blue-900 dark:text-blue-200 font-semibold hover:bg-blue-200 cursor-pointer transition-colors"
+                      title="Mở toàn màn hình để cấp quyền GPS"
+                    >
+                      Mở tab mới ↗
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setIsDistrictPickerOpen(true)}
+                    className="text-[10.5px] px-2 py-0.5 rounded-md bg-amber-200/80 dark:bg-amber-800/80 text-amber-900 dark:text-amber-100 font-semibold hover:bg-amber-300 dark:hover:bg-amber-700 cursor-pointer transition-colors"
+                  >
+                    Chọn xã/phường
+                  </button>
+                </>
               )}
               <button
                 type="button"
@@ -297,6 +309,7 @@ export default function App() {
         onRefreshLocation={() => handleLocateUser(true, false)}
         onSelectDistrict={(id) => setSelectedDistrictId(id)}
         currentDistrict={currentDistrict}
+        onOpenDistrictPicker={() => setIsDistrictPickerOpen(true)}
       />
 
       <NotificationsModal

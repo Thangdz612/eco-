@@ -1,6 +1,6 @@
 import express from 'express';
 import path from 'path';
-import { createServer as createViteServer } from 'vite';
+import fs from 'fs';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 
@@ -20,12 +20,17 @@ function getGeminiClient(): GoogleGenAI {
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const isProduction = process.env.NODE_ENV === 'production';
+  // In development, the container ingress proxy routes external traffic strictly to port 3000.
+  // In deployed Cloud Run production, Cloud Run routes traffic to process.env.PORT (defaults to 8080).
+  const PORT = isProduction
+    ? (process.env.PORT ? parseInt(process.env.PORT, 10) : 8080)
+    : 3000;
 
   app.use(express.json());
 
-  // API routes first
-  app.get('/api/health', (_req, res) => {
+  // Readiness & liveness health check routes for Cloud Run rollout
+  app.get(['/api/health', '/health', '/healthz'], (_req, res) => {
     res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
@@ -48,23 +53,34 @@ async function startServer() {
     }
   });
 
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== 'production') {
+  // Vite middleware for development vs static serve for production
+  if (!isProduction) {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
+    const distPath = fs.existsSync(path.join(process.cwd(), 'dist'))
+      ? path.join(process.cwd(), 'dist')
+      : path.resolve(__dirname);
     app.use(express.static(distPath));
     app.get('*', (_req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://0.0.0.0:${PORT}`);
+  const server = app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running on http://0.0.0.0:${PORT} (NODE_ENV: ${process.env.NODE_ENV || 'development'})`);
+  });
+
+  process.on('SIGTERM', () => {
+    console.log('Received SIGTERM, closing server...');
+    server.close(() => {
+      console.log('Server gracefully terminated.');
+      process.exit(0);
+    });
   });
 }
 

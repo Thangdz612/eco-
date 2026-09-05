@@ -21,8 +21,10 @@ import {
   Moon,
   Monitor,
   HelpCircle,
+  ExternalLink,
 } from 'lucide-react';
 import { UserLocation, ThemeMode } from '../types';
+import { isRunningInIframe } from '../utils/geolocation';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -629,6 +631,31 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             Tọa độ: {userLocation.lat.toFixed(4)}°N, {userLocation.lng.toFixed(4)}°E (Độ cao: {userLocation.altitude || 12}m)
                           </span>
                           <span className="text-emerald-700 dark:text-emerald-400 font-bold">{userLocation.nearestDistrictName}</span>
+                        </div>
+                      )}
+
+                      {/* Detailed unblocking helper if permission is denied or in iframe */}
+                      {geoStatus === 'denied' && (
+                        <div className="mt-2.5 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-[11.5px] text-amber-900 dark:text-amber-200 space-y-2">
+                          <div className="font-bold flex items-center gap-1.5 text-amber-800 dark:text-amber-300">
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                            <span>Quyền vị trí đang bị chặn</span>
+                          </div>
+                          <p className="leading-relaxed">
+                            {isRunningInIframe()
+                              ? 'Trình duyệt chặn xin quyền vị trí trong khung xem trước (iFrame). Vui lòng mở ứng dụng trong Tab mới để trình duyệt hiện thông báo cấp quyền.'
+                              : 'Bạn có thể mở lại bằng cách nhấp biểu tượng 🔒 hoặc ⚙️ bên trái thanh địa chỉ URL > chọn "Cho phép" ở mục Vị trí > Tải lại trang (F5).'}
+                          </p>
+                          {isRunningInIframe() && (
+                            <button
+                              type="button"
+                              onClick={() => window.open(window.location.href, '_blank')}
+                              className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                              <span>Mở trong Tab mới để cấp quyền</span>
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
