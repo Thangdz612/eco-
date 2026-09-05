@@ -1,0 +1,510 @@
+import React, { useState, useEffect } from 'react';
+import {
+  Shield,
+  MapPin,
+  Bell,
+  HardDrive,
+  Sliders,
+  Sparkles,
+  Info,
+  Sun,
+  Moon,
+  Monitor,
+  ExternalLink,
+  Smartphone,
+  Download,
+  BookOpen,
+  CheckCircle2,
+  AlertCircle,
+  RotateCw,
+  Trash2,
+} from 'lucide-react';
+import { UserLocation, ThemeMode } from '../types';
+import { isRunningInIframe } from '../utils/geolocation';
+
+interface SettingsTabProps {
+  userLocation?: UserLocation | null;
+  onRefreshLocation?: () => void;
+  onOpenDartApk?: () => void;
+  onOpenInstallGuide?: () => void;
+  themeMode?: ThemeMode;
+  onThemeChange?: (mode: ThemeMode) => void;
+  systemTheme?: 'light' | 'dark';
+}
+
+export interface AppPreferences {
+  tempUnit: 'C' | 'F';
+  altitudeUnit: 'm' | 'ft';
+  refreshRate: '15s' | '30s' | '60s' | 'manual';
+  gpsHighAccuracy: boolean;
+  offlineAutoSync: boolean;
+}
+
+export const SettingsTab: React.FC<SettingsTabProps> = ({
+  userLocation,
+  onRefreshLocation,
+  onOpenDartApk,
+  onOpenInstallGuide,
+  themeMode = 'system',
+  onThemeChange,
+  systemTheme = 'light',
+}) => {
+  const [geoStatus, setGeoStatus] = useState<'granted' | 'prompt' | 'denied' | 'checking'>('checking');
+  const [notifStatus, setNotifStatus] = useState<'granted' | 'default' | 'denied'>('default');
+  const [storageStatus, setStorageStatus] = useState<string>('2.6 MB / 50 MB khả dụng');
+  const [statusFeedback, setStatusFeedback] = useState<string | null>(null);
+
+  const [preferences, setPreferences] = useState<AppPreferences>(() => {
+    try {
+      const saved = localStorage.getItem('eco_app_preferences');
+      if (saved) return JSON.parse(saved);
+    } catch (_e) {
+      // ignore
+    }
+    return {
+      tempUnit: 'C',
+      altitudeUnit: 'm',
+      refreshRate: '30s',
+      gpsHighAccuracy: true,
+      offlineAutoSync: true,
+    };
+  });
+
+  const savePreferences = (newPrefs: Partial<AppPreferences>) => {
+    const updated = { ...preferences, ...newPrefs };
+    setPreferences(updated);
+    try {
+      localStorage.setItem('eco_app_preferences', JSON.stringify(updated));
+    } catch (_e) {
+      // ignore
+    }
+  };
+
+  useEffect(() => {
+    // Check Geolocation permission
+    if (navigator.permissions && navigator.permissions.query) {
+      navigator.permissions
+        .query({ name: 'geolocation' as PermissionName })
+        .then((result) => {
+          setGeoStatus(result.state as 'granted' | 'prompt' | 'denied');
+          result.onchange = () => {
+            setGeoStatus(result.state as 'granted' | 'prompt' | 'denied');
+          };
+        })
+        .catch(() => {
+          setGeoStatus(userLocation ? 'granted' : 'prompt');
+        });
+    } else {
+      setGeoStatus(userLocation ? 'granted' : 'prompt');
+    }
+
+    // Check Notifications permission
+    if ('Notification' in window) {
+      setNotifStatus(Notification.permission);
+    }
+
+    // Check Storage
+    if (navigator.storage && navigator.storage.estimate) {
+      navigator.storage.estimate().then((est) => {
+        const usageMb = ((est.usage || 2700000) / (1024 * 1024)).toFixed(1);
+        const quotaMb = ((est.quota || 52428800) / (1024 * 1024)).toFixed(0);
+        setStorageStatus(`${usageMb} MB / ${quotaMb} MB khả dụng`);
+      });
+    }
+  }, [userLocation]);
+
+  const handleRequestGeo = async () => {
+    setStatusFeedback(null);
+    if (onRefreshLocation) {
+      onRefreshLocation();
+    }
+    if (isRunningInIframe()) {
+      setStatusFeedback('Nếu trình duyệt chặn yêu cầu GPS trong khung xem trước, vui lòng nhấn "Mở tab mới" bên dưới.');
+    }
+  };
+
+  const handleRequestNotification = async () => {
+    if (!('Notification' in window)) {
+      setStatusFeedback('Trình duyệt không hỗ trợ Web Notifications');
+      return;
+    }
+    try {
+      const permission = await Notification.requestPermission();
+      setNotifStatus(permission);
+      if (permission === 'granted') {
+        setStatusFeedback('Đã bật quyền nhận thông báo cảnh báo thời tiết & môi trường!');
+        setTimeout(() => setStatusFeedback(null), 3500);
+      } else {
+        setStatusFeedback('Quyền thông báo bị từ chối trong trình duyệt.');
+        setTimeout(() => setStatusFeedback(null), 3500);
+      }
+    } catch (_err) {
+      setStatusFeedback('Không thể yêu cầu quyền thông báo');
+    }
+  };
+
+  const handleClearCache = () => {
+    try {
+      localStorage.removeItem('eco_app_notes');
+      localStorage.removeItem('eco_app_preferences');
+      setStatusFeedback('Đã xóa bộ nhớ đệm và khôi phục cài đặt mặc định thành công!');
+      setTimeout(() => setStatusFeedback(null), 3000);
+    } catch (_e) {
+      setStatusFeedback('Lỗi khi xóa bộ nhớ đệm');
+    }
+  };
+
+  const inIframe = isRunningInIframe();
+
+  return (
+    <div className="p-4 space-y-4 pb-20 animate-in fade-in duration-200">
+      {/* Settings Header Title */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-xl bg-[#0D47A1]/10 dark:bg-blue-900/40 text-[#0D47A1] dark:text-blue-400 flex items-center justify-center">
+            <Sliders className="w-5 h-5 stroke-[2.2]" />
+          </div>
+          <div>
+            <h2 className="text-[18px] font-extrabold text-[#0F172A] dark:text-white tracking-tight">
+              Cài Đặt Ứng Dụng
+            </h2>
+            <p className="text-[12px] text-[#64748B] dark:text-slate-400">
+              Giao diện, quyền GPS, đơn vị đo & quản lý hệ thống
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Feedback Banner */}
+      {statusFeedback && (
+        <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-xs text-blue-900 dark:text-blue-200 flex items-start gap-2 animate-in fade-in">
+          <Info className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+          <div className="leading-snug">{statusFeedback}</div>
+        </div>
+      )}
+
+      {/* Section 1: Giao diện sáng / tối */}
+      <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Sun className="w-4 h-4 text-amber-500" />
+            <h3 className="text-sm font-bold text-[#0F172A] dark:text-white">
+              Chế Độ Giao Diện
+            </h3>
+          </div>
+          <span className="text-[11px] text-[#64748B] dark:text-slate-400">
+            {themeMode === 'system'
+              ? `Tự động (${systemTheme === 'dark' ? 'Tối' : 'Sáng'})`
+              : themeMode === 'dark'
+              ? 'Chế độ tối'
+              : 'Chế độ sáng'}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2">
+          <button
+            type="button"
+            onClick={() => onThemeChange && onThemeChange('system')}
+            className={`p-2.5 rounded-xl border flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
+              themeMode === 'system'
+                ? 'bg-white dark:bg-slate-900 border-[#0D47A1] dark:border-blue-500 shadow-xs'
+                : 'bg-white/60 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+            }`}
+          >
+            <Monitor className="w-4 h-4 text-[#0D47A1] dark:text-blue-400" />
+            <span className="text-[11px] font-bold">Theo máy</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onThemeChange && onThemeChange('light')}
+            className={`p-2.5 rounded-xl border flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
+              themeMode === 'light'
+                ? 'bg-white dark:bg-slate-900 border-amber-500 shadow-xs text-amber-700 dark:text-amber-400'
+                : 'bg-white/60 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+            }`}
+          >
+            <Sun className="w-4 h-4 text-amber-500" />
+            <span className="text-[11px] font-bold">Giao diện sáng</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onThemeChange && onThemeChange('dark')}
+            className={`p-2.5 rounded-xl border flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
+              themeMode === 'dark'
+                ? 'bg-white dark:bg-slate-900 border-indigo-500 shadow-xs text-indigo-700 dark:text-indigo-400'
+                : 'bg-white/60 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+            }`}
+          >
+            <Moon className="w-4 h-4 text-indigo-400" />
+            <span className="text-[11px] font-bold">Giao diện tối</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Section 2: Quyền vị trí & GPS */}
+      <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <MapPin className="w-4 h-4 text-red-500" />
+            <h3 className="text-sm font-bold text-[#0F172A] dark:text-white">
+              Quyền Vị Trí & GPS
+            </h3>
+          </div>
+          <span
+            className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+              geoStatus === 'granted' || userLocation?.isRealGps
+                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                : geoStatus === 'denied'
+                ? 'bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300'
+                : 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+            }`}
+          >
+            {geoStatus === 'granted' || userLocation?.isRealGps
+              ? 'Đã cấp quyền GPS'
+              : geoStatus === 'denied'
+              ? 'Đang bị chặn'
+              : 'Chưa cấp quyền'}
+          </span>
+        </div>
+
+        <p className="text-[12px] text-[#64748B] dark:text-slate-400 leading-relaxed">
+          Định vị GPS giúp tự động đo độ cao thực tế so với mực nước biển, độ ẩm, áp suất và gán trạm quan trắc gần nhất trong 168+ xã phường.
+        </p>
+
+        {userLocation && (
+          <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs grid grid-cols-2 gap-2">
+            <div>
+              <span className="text-[#64748B] dark:text-slate-400 block text-[10px]">Trạm gần nhất</span>
+              <span className="font-bold text-[#0F172A] dark:text-white truncate block">
+                {userLocation.nearestDistrictName}
+              </span>
+            </div>
+            <div>
+              <span className="text-[#64748B] dark:text-slate-400 block text-[10px]">Khoảng cách</span>
+              <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                {userLocation.distanceKm === 0 ? 'Tại điểm trạm' : `Cách ~${userLocation.distanceKm} km`}
+              </span>
+            </div>
+          </div>
+        )}
+
+        <div className="flex flex-wrap gap-2 pt-1">
+          <button
+            type="button"
+            onClick={handleRequestGeo}
+            className="flex-1 py-2 px-3 rounded-xl bg-[#0D47A1] dark:bg-blue-600 hover:bg-[#1565C0] text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-98 transition-all"
+          >
+            <RotateCw className="w-3.5 h-3.5" />
+            <span>Kích hoạt định vị GPS</span>
+          </button>
+
+          {inIframe && (
+            <button
+              type="button"
+              onClick={() => window.open(window.location.href, '_blank')}
+              className="py-2 px-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-900/80 transition-all"
+              title="Mở tab mới nếu iFrame chặn cấp quyền"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              <span>Mở Tab mới</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Section 3: Cấu hình đơn vị & tần suất */}
+      <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 space-y-3">
+        <div className="flex items-center gap-2">
+          <Sliders className="w-4 h-4 text-[#0D47A1] dark:text-blue-400" />
+          <h3 className="text-sm font-bold text-[#0F172A] dark:text-white">
+            Đơn Vị & Tần Suất Quan Trắc
+          </h3>
+        </div>
+
+        <div className="space-y-2.5 text-xs">
+          <div className="flex items-center justify-between p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+            <span className="text-slate-700 dark:text-slate-300 font-medium">Đơn vị nhiệt độ</span>
+            <div className="flex bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg">
+              <button
+                type="button"
+                onClick={() => savePreferences({ tempUnit: 'C' })}
+                className={`px-2.5 py-1 rounded-md font-bold text-xs cursor-pointer transition-all ${
+                  preferences.tempUnit === 'C'
+                    ? 'bg-[#0D47A1] text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400'
+                }`}
+              >
+                °C
+              </button>
+              <button
+                type="button"
+                onClick={() => savePreferences({ tempUnit: 'F' })}
+                className={`px-2.5 py-1 rounded-md font-bold text-xs cursor-pointer transition-all ${
+                  preferences.tempUnit === 'F'
+                    ? 'bg-[#0D47A1] text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400'
+                }`}
+              >
+                °F
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+            <span className="text-slate-700 dark:text-slate-300 font-medium">Đơn vị độ cao địa hình</span>
+            <div className="flex bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg">
+              <button
+                type="button"
+                onClick={() => savePreferences({ altitudeUnit: 'm' })}
+                className={`px-2.5 py-1 rounded-md font-bold text-xs cursor-pointer transition-all ${
+                  preferences.altitudeUnit === 'm'
+                    ? 'bg-[#0D47A1] text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400'
+                }`}
+              >
+                Mét (m)
+              </button>
+              <button
+                type="button"
+                onClick={() => savePreferences({ altitudeUnit: 'ft' })}
+                className={`px-2.5 py-1 rounded-md font-bold text-xs cursor-pointer transition-all ${
+                  preferences.altitudeUnit === 'ft'
+                    ? 'bg-[#0D47A1] text-white shadow-xs'
+                    : 'text-slate-600 dark:text-slate-400'
+                }`}
+              >
+                Feet (ft)
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+            <span className="text-slate-700 dark:text-slate-300 font-medium">GPS độ chính xác cao (Vệ tinh)</span>
+            <input
+              type="checkbox"
+              checked={preferences.gpsHighAccuracy}
+              onChange={(e) => savePreferences({ gpsHighAccuracy: e.target.checked })}
+              className="w-4 h-4 text-[#0D47A1] rounded cursor-pointer"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Section 4: Quyền Thông Báo Cảnh Báo */}
+      <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Bell className="w-4 h-4 text-amber-500" />
+            <h3 className="text-sm font-bold text-[#0F172A] dark:text-white">
+              Cảnh Báo & Thông Báo Môi Trường
+            </h3>
+          </div>
+          <span
+            className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+              notifStatus === 'granted'
+                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
+            }`}
+          >
+            {notifStatus === 'granted' ? 'Đã bật thông báo' : 'Chưa bật'}
+          </span>
+        </div>
+
+        <p className="text-[12px] text-[#64748B] dark:text-slate-400 leading-relaxed">
+          Nhận tin tức tức thì khi triều cường dâng cao ngập tuyến đường, tia cực tím UV đạt ngưỡng nguy hại hoặc ô nhiễm bụi mịn AQI vượt chuẩn.
+        </p>
+
+        <button
+          type="button"
+          onClick={handleRequestNotification}
+          className="w-full py-2 px-3 rounded-xl bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-100 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all"
+        >
+          <Bell className="w-3.5 h-3.5" />
+          <span>{notifStatus === 'granted' ? 'Cập nhật cài đặt thông báo' : 'Bật nhận thông báo cảnh báo'}</span>
+        </button>
+      </div>
+
+      {/* Section 5: Xuất APK & Hướng dẫn cài đặt */}
+      <div className="p-4 rounded-2xl bg-linear-to-r from-blue-50 to-emerald-50 dark:from-blue-950/30 dark:to-emerald-950/30 border border-blue-200 dark:border-blue-900/50 space-y-3">
+        <div className="flex items-center gap-2">
+          <Smartphone className="w-4 h-4 text-[#0D47A1] dark:text-blue-400" />
+          <h3 className="text-sm font-bold text-[#0F172A] dark:text-white">
+            Cài Đặt Lên Điện Thoại & Xuất APK
+          </h3>
+        </div>
+
+        <p className="text-[12px] text-slate-600 dark:text-slate-300 leading-relaxed">
+          Ứng dụng hỗ trợ chạy cài đặt trực tiếp như một ứng dụng Native trên Android & iOS (PWA), hoặc xuất mã nguồn Dart Flutter để build file APK.
+        </p>
+
+        <div className="grid grid-cols-2 gap-2 pt-1">
+          {onOpenInstallGuide && (
+            <button
+              type="button"
+              onClick={onOpenInstallGuide}
+              className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-[#0D47A1] text-[#0D47A1] dark:text-blue-400 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition-all"
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>Hướng dẫn cài đặt</span>
+            </button>
+          )}
+
+          {onOpenDartApk && (
+            <button
+              type="button"
+              onClick={onOpenDartApk}
+              className="p-2.5 rounded-xl bg-[#0D47A1] dark:bg-blue-600 hover:bg-[#1565C0] text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition-all"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Xuất mã nguồn APK</span>
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Section 6: Bộ nhớ đệm & Dọn dẹp */}
+      <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <HardDrive className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+            <h3 className="text-sm font-bold text-[#0F172A] dark:text-white">
+              Bộ Nhớ Đệm Ngoại Tuyến (Offline)
+            </h3>
+          </div>
+          <span className="text-[11px] text-[#64748B] dark:text-slate-400 font-mono">
+            {storageStatus}
+          </span>
+        </div>
+
+        <p className="text-[12px] text-[#64748B] dark:text-slate-400 leading-relaxed">
+          Lưu trữ ngoại tuyến dữ liệu 168+ xã phường, ghi chú nhật ký môi trường và cấu hình cá nhân không cần mạng Internet.
+        </p>
+
+        <button
+          type="button"
+          onClick={handleClearCache}
+          className="py-2 px-3 rounded-xl border border-red-200 dark:border-red-900/60 text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+          <span>Xóa bộ nhớ đệm & Đặt lại mặc định</span>
+        </button>
+      </div>
+
+      {/* Section 7: Thông tin ứng dụng */}
+      <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 text-center space-y-1">
+        <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-slate-800 dark:text-slate-200">
+          <Shield className="w-4 h-4 text-emerald-600" />
+          <span>EcoApp - Môi Trường & Thời Tiết v2.4</span>
+        </div>
+        <p className="text-[11px] text-slate-500 dark:text-slate-400">
+          Mạng lưới quan trắc 168+ xã phường (TP. Hồ Chí Minh & Bình Dương)
+        </p>
+        <p className="text-[10.5px] text-slate-400 dark:text-slate-500 pt-1">
+          Tích hợp giám sát thời tiết, độ cao địa hình, phát triển doanh nghiệp & bảo vệ môi trường
+        </p>
+      </div>
+    </div>
+  );
+};

@@ -1,4 +1,4 @@
-export type TabType = 'weather' | 'environment' | 'enterprise' | 'protection';
+export type TabType = 'weather' | 'environment' | 'enterprise' | 'protection' | 'settings';
 
 export type DeviceScreenType = 'mobile' | 'mobile-lg' | 'tablet' | 'desktop' | 'responsive';
 

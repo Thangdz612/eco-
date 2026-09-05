@@ -7,6 +7,7 @@ import { WeatherTab } from './components/WeatherTab';
 import { EnvironmentTab } from './components/EnvironmentTab';
 import { EnterpriseTab } from './components/EnterpriseTab';
 import { ProtectionTab } from './components/ProtectionTab';
+import { SettingsTab } from './components/SettingsTab';
 import { DetailModal } from './components/DetailModal';
 import { DartApkModal } from './components/DartApkModal';
 import { DistrictModal } from './components/DistrictModal';
@@ -154,7 +155,7 @@ export default function App() {
           districtName={currentDistrict.name}
           onOpenDistrictPicker={() => setIsDistrictPickerOpen(true)}
           onOpenNotifications={() => setIsNotificationsOpen(true)}
-          onOpenSettings={() => setIsSettingsOpen(true)}
+          onOpenSettings={() => setCurrentTab('settings')}
           onOpenLocation={() => handleLocateUser(false, true)}
           userLocation={userLocation}
           themeMode={themeMode}
@@ -247,6 +248,18 @@ export default function App() {
             <ProtectionTab
               data={currentDistrict}
               onOpenDetail={(content) => setActiveModalContent(content)}
+            />
+          )}
+
+          {currentTab === 'settings' && (
+            <SettingsTab
+              userLocation={userLocation}
+              onRefreshLocation={() => handleLocateUser(true, false)}
+              onOpenDartApk={() => setIsDartApkOpen(true)}
+              onOpenInstallGuide={() => setIsInstallGuideOpen(true)}
+              themeMode={themeMode}
+              onThemeChange={setThemeMode}
+              systemTheme={systemTheme}
             />
           )}
 
