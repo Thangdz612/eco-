@@ -15,6 +15,15 @@ interface DistrictModalProps {
 
 type AdminTypeFilter = 'all' | 'phường' | 'xã' | 'đặc khu';
 
+function removeVietnameseTones(str: string): string {
+  return str
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLowerCase();
+}
+
 export const DistrictModal: React.FC<DistrictModalProps> = ({
   isOpen,
   selectedDistrictId,
@@ -29,6 +38,15 @@ export const DistrictModal: React.FC<DistrictModalProps> = ({
 
   const allDistricts = useMemo(() => Object.values(DISTRICTS_DATA), []);
 
+  const counts = useMemo(() => {
+    return {
+      all: allDistricts.length,
+      phuong: allDistricts.filter((d) => d.adminType === 'phường').length,
+      xa: allDistricts.filter((d) => d.adminType === 'xã').length,
+      dacKhu: allDistricts.filter((d) => d.adminType === 'đặc khu').length,
+    };
+  }, [allDistricts]);
+
   const filteredDistricts = useMemo(() => {
     return allDistricts.filter((item) => {
       // Group filter
@@ -41,12 +59,18 @@ export const DistrictModal: React.FC<DistrictModalProps> = ({
         return false;
       }
 
-      // Search term
+      // Search term with accent-insensitive search
       if (searchTerm.trim()) {
         const query = searchTerm.toLowerCase().trim();
-        const matchName = item.name.toLowerCase().includes(query);
-        const matchSub = item.subTitle.toLowerCase().includes(query);
-        const matchGroup = item.districtGroup?.toLowerCase().includes(query);
+        const queryNoTone = removeVietnameseTones(searchTerm.trim());
+
+        const nameNoTone = removeVietnameseTones(item.name);
+        const subNoTone = removeVietnameseTones(item.subTitle);
+        const groupNoTone = removeVietnameseTones(item.districtGroup || '');
+
+        const matchName = item.name.toLowerCase().includes(query) || nameNoTone.includes(queryNoTone);
+        const matchSub = item.subTitle.toLowerCase().includes(query) || subNoTone.includes(queryNoTone);
+        const matchGroup = item.districtGroup?.toLowerCase().includes(query) || groupNoTone.includes(queryNoTone);
         return matchName || matchSub || matchGroup;
       }
 
@@ -70,10 +94,10 @@ export const DistrictModal: React.FC<DistrictModalProps> = ({
             </div>
             <div>
               <h3 className="text-[16px] sm:text-[17px] font-extrabold text-[#0F172A] dark:text-slate-100 leading-tight">
-                168 Đơn vị hành chính cấp xã TP.HCM
+                Danh sách Đơn vị hành chính cấp xã TP.HCM
               </h3>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-                Nghị quyết 1685/NQ-UBTVQH15 (113 Phường • 54 Xã • 1 Đặc khu)
+                {counts.all} Đơn vị (Gồm Phường Long Nguyên, Phường Tây Nam, Bến Cát...)
               </p>
             </div>
           </div>
@@ -106,7 +130,9 @@ export const DistrictModal: React.FC<DistrictModalProps> = ({
                 <div className="text-left">
                   <div className="text-[12.5px] font-bold">Định vị GPS vị trí của tôi</div>
                   <div className="text-[11px] text-blue-100 dark:text-blue-200 line-clamp-1">
-                    {userLocation ? `Gần nhất: ${userLocation.nearestDistrictName}` : 'Tự động xác định xã/phường gần nhất'}
+                    {userLocation?.isRealGps
+                      ? `Trạm gần nhất: ${userLocation.nearestDistrictName}`
+                      : 'Tự động xác định xã/phường gần vị trí thực tế của bạn'}
                   </div>
                 </div>
               </div>
@@ -124,7 +150,7 @@ export const DistrictModal: React.FC<DistrictModalProps> = ({
               id="search-ward-input"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Tìm kiếm phường, xã, thị trấn, quận..."
+              placeholder="Tìm kiếm Long Nguyên, Tây Nam, Bến Cát, Củ Chi..."
               className="w-full pl-9 pr-8 py-2 text-[13px] bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 transition-all"
             />
             {searchTerm && (
@@ -140,19 +166,17 @@ export const DistrictModal: React.FC<DistrictModalProps> = ({
 
           {/* Type filter pills: Tất cả, Phường, Xã, Đặc khu */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
-            {(
-              [
-                { id: 'all', label: 'Tất cả (168)' },
-                { id: 'phường', label: 'Phường (113)' },
-                { id: 'xã', label: 'Xã (54)' },
-                { id: 'đặc khu', label: 'Đặc khu (1)' },
-              ] as const
-            ).map((tab) => (
+            {[
+              { id: 'all', label: `Tất cả (${counts.all})` },
+              { id: 'phường', label: `Phường (${counts.phuong})` },
+              { id: 'xã', label: `Xã (${counts.xa})` },
+              { id: 'đặc khu', label: `Đặc khu (${counts.dacKhu})` },
+            ].map((tab) => (
               <button
                 key={tab.id}
                 type="button"
                 id={`filter-type-${tab.id}`}
-                onClick={() => setAdminTypeFilter(tab.id)}
+                onClick={() => setAdminTypeFilter(tab.id as AdminTypeFilter)}
                 className={`text-[11.5px] px-2.5 py-1 rounded-lg font-semibold whitespace-nowrap transition-all cursor-pointer ${
                   adminTypeFilter === tab.id
                     ? 'bg-[#0D47A1] dark:bg-blue-600 text-white shadow-xs'

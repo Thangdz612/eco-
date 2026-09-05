@@ -95,20 +95,30 @@ export default function App() {
     try {
       const loc = await getCurrentUserLocation();
       setUserLocation(loc);
-      if (autoSwitchDistrict && loc.nearestDistrictId) {
-        setSelectedDistrictId(loc.nearestDistrictId);
+      if (loc.isRealGps) {
+        if (autoSwitchDistrict && loc.nearestDistrictId) {
+          setSelectedDistrictId(loc.nearestDistrictId);
+        }
+        setLocationBannerMessage(
+          `🎯 Đã định vị: ${loc.nearestDistrictName} (cách ~${loc.distanceKm} km, sai số ±${loc.accuracy}m)`
+        );
+      } else {
+        setLocationBannerMessage(
+          `⚠️ ${loc.errorMessage || 'Chưa lấy được tín hiệu GPS thực tế. Hãy chọn phường/xã từ danh sách.'}`
+        );
       }
-      setLocationBannerMessage(
-        `Đã định vị: ${loc.lat.toFixed(4)}°N, ${loc.lng.toFixed(4)}°E (Trạm gần nhất: ${loc.nearestDistrictName})`
-      );
       setTimeout(() => {
         setLocationBannerMessage(null);
-      }, 5000);
+      }, 8000);
       if (showModal) {
         setIsLocationModalOpen(true);
       }
     } catch (e) {
       console.error('Location error:', e);
+      setLocationBannerMessage('⚠️ Không thể kích hoạt GPS. Vui lòng kiểm tra quyền vị trí trên thiết bị.');
+      setTimeout(() => {
+        setLocationBannerMessage(null);
+      }, 8000);
     } finally {
       setIsLocating(false);
     }
@@ -154,20 +164,41 @@ export default function App() {
 
         {/* Floating GPS Notification Banner if locating or recently located */}
         {locationBannerMessage && (
-          <div className="mx-4 mb-2 p-2.5 rounded-xl bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-200 text-xs flex items-center justify-between animate-in fade-in slide-in-from-top-1 z-10 shrink-0">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-              <span className="font-semibold text-[11px] leading-tight">
+          <div
+            className={`mx-4 mb-2 p-2.5 rounded-xl border text-xs flex items-center justify-between animate-in fade-in slide-in-from-top-1 z-10 shrink-0 ${
+              locationBannerMessage.startsWith('⚠️')
+                ? 'bg-amber-50 dark:bg-amber-950/70 border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200'
+                : 'bg-blue-50 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-200'
+            }`}
+          >
+            <div className="flex items-center gap-2 pr-2">
+              <span
+                className={`w-2 h-2 rounded-full shrink-0 ${
+                  locationBannerMessage.startsWith('⚠️') ? 'bg-amber-500' : 'bg-emerald-500 animate-ping'
+                }`}
+              />
+              <span className="font-medium text-[11px] leading-tight">
                 {locationBannerMessage}
               </span>
             </div>
-            <button
-              type="button"
-              onClick={() => setLocationBannerMessage(null)}
-              className="text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-200 font-bold ml-1 text-xs cursor-pointer"
-            >
-              ✕
-            </button>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {locationBannerMessage.startsWith('⚠️') && (
+                <button
+                  type="button"
+                  onClick={() => setIsDistrictPickerOpen(true)}
+                  className="text-[10.5px] px-2 py-0.5 rounded-md bg-amber-200/80 dark:bg-amber-800/80 text-amber-900 dark:text-amber-100 font-semibold hover:bg-amber-300 dark:hover:bg-amber-700 cursor-pointer transition-colors"
+                >
+                  Chọn xã/phường
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setLocationBannerMessage(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-bold p-1 text-xs cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
           </div>
         )}
 

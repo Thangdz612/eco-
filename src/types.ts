@@ -14,6 +14,8 @@ export interface UserLocation {
   distanceKm: number;
   timestamp: string;
   isRealGps: boolean;
+  status?: 'success' | 'denied' | 'timeout' | 'unavailable' | 'unsupported';
+  errorMessage?: string;
 }
 
 export interface DistrictData {
