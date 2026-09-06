@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sun, Globe, Store, Leaf, Settings } from 'lucide-react';
+import { Sun, Globe, Store, Leaf } from 'lucide-react';
 import { TabType } from '../types';
 
 interface BottomNavProps {
@@ -29,11 +29,6 @@ export const BottomNav: React.FC<BottomNavProps> = ({ currentTab, onSelectTab })
       label: 'Bảo vệ MT',
       icon: Leaf,
     },
-    {
-      id: 'settings' as TabType,
-      label: 'Cài đặt',
-      icon: Settings,
-    },
   ];
 
   return (
@@ -54,8 +49,6 @@ export const BottomNav: React.FC<BottomNavProps> = ({ currentTab, onSelectTab })
           activeTextColor = 'text-[#4338CA] dark:text-indigo-400';
         } else if (tab.id === 'environment') {
           activeTextColor = 'text-[#0284C7] dark:text-sky-400';
-        } else if (tab.id === 'settings') {
-          activeTextColor = 'text-[#0D47A1] dark:text-blue-400';
         }
 
         return (

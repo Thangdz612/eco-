@@ -24,6 +24,7 @@ import {
   resolveActiveTheme, 
   applyThemeClass 
 } from './utils/theme';
+import { syncWeatherNotificationsOnline, getStorageConfig } from './utils/weatherNotificationStorage';
 import { ChevronUp } from 'lucide-react';
 
 export default function App() {
@@ -53,6 +54,23 @@ export default function App() {
   const [locationBannerMessage, setLocationBannerMessage] = useState<string | null>(null);
 
   const currentDistrict = DISTRICTS_DATA[selectedDistrictId] || DISTRICTS_DATA['quan-1'];
+
+  // Auto-sync weather notifications (±3 days) when device is online
+  useEffect(() => {
+    const tryAutoSync = () => {
+      const config = getStorageConfig();
+      if (config.autoSyncWhenOnline && (typeof navigator === 'undefined' || navigator.onLine)) {
+        syncWeatherNotificationsOnline(currentDistrict.id, currentDistrict.name);
+      }
+    };
+
+    tryAutoSync();
+
+    window.addEventListener('online', tryAutoSync);
+    return () => {
+      window.removeEventListener('online', tryAutoSync);
+    };
+  }, [currentDistrict.id, currentDistrict.name]);
 
   // Sync theme changes to document
   useEffect(() => {
@@ -334,7 +352,12 @@ export default function App() {
         isOpen={isNotificationsOpen}
         onClose={() => setIsNotificationsOpen(false)}
         districtName={currentDistrict.name}
+        districtId={currentDistrict.id}
         onOpenPermissionsGuide={() => setIsPermissionsGuideOpen(true)}
+        onOpenSettings={() => {
+          setIsNotificationsOpen(false);
+          setIsSettingsOpen(true);
+        }}
       />
 
       <SettingsModal
@@ -350,6 +373,8 @@ export default function App() {
           setStoredThemeMode(mode);
         }}
         systemTheme={systemTheme}
+        districtId={currentDistrict.id}
+        districtName={currentDistrict.name}
       />
 
       <DevicePermissionsGuideModal
