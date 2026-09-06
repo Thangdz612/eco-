@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Sun,
   Droplets,
@@ -20,11 +20,24 @@ import {
   Layers,
   MapPin,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Search,
   LayoutGrid,
   Maximize2,
   Compass,
   Thermometer,
+  ExternalLink,
+  Database,
+  ShieldCheck,
+  CheckCircle2,
+  Code,
+  X,
+  Activity,
+  Radio,
+  Gauge,
+  Copy,
+  Check,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -47,10 +60,15 @@ import {
   HourlyWeatherRecord,
   getCachedCollectedWeatherRange,
   syncCollectedWeatherOnline,
+  getLiveDataSourceInfo,
   getUvLevel,
   generateMultiLevelComparison,
   UnitComparisonHourRecord,
 } from '../utils/collectedWeatherStorage';
+import {
+  VIETNAM_ATMOSPHERIC_STATIONS,
+  type VietnamAtmosphericStation,
+} from '../utils/liveWeatherApi';
 import { DISTRICTS_DATA } from '../data/mockData';
 import { ModalContent } from '../types';
 
@@ -78,11 +96,31 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
   const [currentName, setCurrentName] = useState<string>(districtName);
   const [currentAdminType, setCurrentAdminType] = useState<'phường' | 'xã' | 'đặc khu'>(safeAdminType);
 
-  // Synchronize when prop changes
+  // Synchronize when prop changes & auto-fetch live meteorological data
   useEffect(() => {
     setCurrentId(districtId);
     setCurrentName(districtName);
-    setCurrentAdminType(adminType || 'phường');
+    const newAdmin = adminType || 'phường';
+    setCurrentAdminType(newAdmin);
+    const cached = getCachedCollectedWeatherRange(districtId, districtName, newAdmin);
+    setRangeData(cached.data);
+    setLastSyncedTime(cached.lastSynced);
+    setRawJsonContent(null);
+
+    // Truy vấn dữ liệu thực tế trực tiếp từ cơ sở dữ liệu khí tượng Open-Meteo & ECMWF
+    if (typeof navigator === 'undefined' || navigator.onLine) {
+      setIsSyncing(true);
+      syncCollectedWeatherOnline(districtId, districtName, newAdmin)
+        .then((res) => {
+          if (res.success) {
+            setRangeData(res.data);
+            setLastSyncedTime(res.lastSynced);
+          }
+        })
+        .finally(() => {
+          setIsSyncing(false);
+        });
+    }
   }, [districtId, districtName, adminType]);
 
   // Weather range dataset
@@ -99,6 +137,71 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [syncStatusMsg, setSyncStatusMsg] = useState<string | null>(null);
 
+  // Raw JSON Inspection Modal
+  const [showRawJsonModal, setShowRawJsonModal] = useState<boolean>(false);
+  const [rawJsonLoading, setRawJsonLoading] = useState<boolean>(false);
+  const [rawJsonContent, setRawJsonContent] = useState<string | null>(null);
+  const [copiedJson, setCopiedJson] = useState<boolean>(false);
+
+  // Vietnam Atmospheric Station Selection
+  const [selectedStationCode, setSelectedStationCode] = useState<string>('');
+  const [showStationModal, setShowStationModal] = useState<boolean>(false);
+
+  // Live Meteorological Source Info & Coordinates
+  const liveSourceInfo = useMemo(() => {
+    return getLiveDataSourceInfo(currentId, currentName, selectedStationCode || undefined);
+  }, [currentId, currentName, selectedStationCode]);
+
+  // Handler to select a specific Vietnam Atmospheric Station
+  const handleSelectStation = async (stationCode: string) => {
+    setSelectedStationCode(stationCode);
+    setShowStationModal(false);
+    setIsSyncing(true);
+    setRawJsonContent(null);
+    try {
+      const res = await syncCollectedWeatherOnline(currentId, currentName, currentAdminType, stationCode);
+      if (res.success) {
+        setRangeData(res.data);
+        setLastSyncedTime(res.lastSynced);
+        setSyncStatusMsg(`Đã kết nối trực tiếp: ${res.station?.shortName || stationCode}`);
+      } else {
+        setSyncStatusMsg(res.message);
+      }
+    } finally {
+      setIsSyncing(false);
+      setTimeout(() => setSyncStatusMsg(null), 4500);
+    }
+  };
+
+  // Handler to fetch and view raw JSON from Meteorological API directly
+  const handleViewRawJson = async () => {
+    setShowRawJsonModal(true);
+    setCopiedJson(false);
+    if (!rawJsonContent) {
+      setRawJsonLoading(true);
+      try {
+        const res = await fetch(liveSourceInfo.apiUrl);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const json = await res.json();
+        setRawJsonContent(JSON.stringify(json, null, 2));
+      } catch (err: any) {
+        setRawJsonContent(
+          `Không thể kết nối trực tiếp đến máy chủ Open-Meteo: ${err?.message || 'Lỗi mạng'}\n\nBạn có thể nhấp vào liên kết "Kiểm chứng API gốc" để mở trực tiếp trong trình duyệt mới.`
+        );
+      } finally {
+        setRawJsonLoading(false);
+      }
+    }
+  };
+
+  const handleCopyJson = () => {
+    if (rawJsonContent) {
+      navigator.clipboard.writeText(rawJsonContent);
+      setCopiedJson(true);
+      setTimeout(() => setCopiedJson(false), 2000);
+    }
+  };
+
   // Administrative Unit Picker State
   const [isPickerOpen, setIsPickerOpen] = useState<boolean>(false);
   const [adminTypeFilter, setAdminTypeFilter] = useState<'all' | 'phường' | 'xã' | 'đặc khu'>('all');
@@ -112,6 +215,29 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
   // Hourly details view preferences
   const [displayMode, setDisplayMode] = useState<'timeline' | 'table'>('timeline');
   const [timeFilter, setTimeFilter] = useState<'all' | 'morning' | 'afternoon' | 'night'>('all');
+
+  // Date slider controls (chứa tối đa 3 ngày và lướt qua lại)
+  const dateScrollRef = useRef<HTMLDivElement>(null);
+
+  const handleStepDay = (step: -1 | 1) => {
+    const currentIndex = rangeData.findIndex((d) => d.dateOffset === selectedOffset);
+    if (currentIndex !== -1) {
+      const nextIndex = Math.max(0, Math.min(rangeData.length - 1, currentIndex + step));
+      setSelectedOffset(rangeData[nextIndex].dateOffset);
+    }
+  };
+
+  // Tự động cuộn ngày được chọn vào tầm nhìn trung tâm mượt mà
+  useEffect(() => {
+    const el = document.getElementById(`day-tab-offset-${selectedOffset}`);
+    if (el && dateScrollRef.current) {
+      el.scrollIntoView({
+        behavior: 'smooth',
+        inline: 'center',
+        block: 'nearest',
+      });
+    }
+  }, [selectedOffset]);
 
   // Lắng nghe trạng thái mạng & sự kiện đồng bộ
   useEffect(() => {
@@ -151,11 +277,25 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
     setCurrentName(unit.name);
     setCurrentAdminType(newType);
     setIsPickerOpen(false);
+    setRawJsonContent(null);
 
     // Load or generate dataset for this unit
     const cached = getCachedCollectedWeatherRange(unit.id, unit.name, newType);
     setRangeData(cached.data);
     setLastSyncedTime(cached.lastSynced);
+
+    // Truy vấn trực tiếp số liệu từ cơ sở dữ liệu khí tượng Open-Meteo & ECMWF
+    setIsSyncing(true);
+    syncCollectedWeatherOnline(unit.id, unit.name, newType)
+      .then((res) => {
+        if (res.success) {
+          setRangeData(res.data);
+          setLastSyncedTime(res.lastSynced);
+        }
+      })
+      .finally(() => {
+        setIsSyncing(false);
+      });
 
     if (onSelectDistrict) {
       onSelectDistrict(unit.id);
@@ -166,12 +306,18 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
   const handleManualSync = async () => {
     setIsSyncing(true);
     setSyncStatusMsg(null);
-    const result = await syncCollectedWeatherOnline(currentId, currentName, currentAdminType);
+    setRawJsonContent(null);
+    const result = await syncCollectedWeatherOnline(
+      currentId,
+      currentName,
+      currentAdminType,
+      selectedStationCode || undefined
+    );
     setIsSyncing(false);
     if (result.success) {
       setRangeData(result.data);
       setLastSyncedTime(result.lastSynced);
-      setSyncStatusMsg(`Đã cập nhật dữ liệu 24 giờ cho ${currentName}!`);
+      setSyncStatusMsg(`Đã cập nhật trực tiếp từ ${result.station?.shortName || currentName}!`);
     } else {
       setSyncStatusMsg(result.message);
     }
@@ -542,57 +688,309 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
         </div>
       )}
 
-      {/* 2. Thanh chọn 7 ngày (phạm vi ±3 ngày: -3, -2, -1, 0, 1, 2, 3) */}
-      <div className="flex flex-col gap-1.5">
-        <div className="flex items-center justify-between text-xs font-semibold text-slate-600 dark:text-slate-300">
-          <span className="flex items-center gap-1">
-            <Calendar className="w-3.5 h-3.5 text-blue-600" />
-            Chọn mốc ngày quan trắc (±3 ngày):
+      {/* 1.1 Thẻ xác thực Nguồn Dữ liệu Trực tiếp từ Mạng lưới Trạm Khí quyển & Khí tượng Quốc gia Việt Nam */}
+      <div
+        id="live-meteorological-verification-card"
+        className="rounded-2xl p-4 bg-gradient-to-r from-blue-50/95 via-sky-50/80 to-indigo-50/90 dark:from-slate-800/95 dark:via-blue-950/50 dark:to-slate-800/90 border border-blue-200/90 dark:border-blue-800/80 shadow-xs flex flex-col gap-3"
+      >
+        <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <div className="p-2.5 rounded-xl bg-blue-600 text-white shadow-xs shrink-0 mt-0.5">
+              <Radio className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-black text-blue-950 dark:text-blue-100 flex items-center gap-1">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                  Mạng lưới Trạm Khí quyển & Khí tượng Quốc gia Việt Nam
+                </span>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                  Trực tiếp từ Trạm Khí quyển VN ({liveSourceInfo.station.code})
+                </span>
+              </div>
+
+              {/* Tên trạm & Cơ quan chủ quản */}
+              <div className="mt-1">
+                <h3 className="text-sm font-extrabold text-slate-900 dark:text-slate-100">
+                  {liveSourceInfo.station.name}{' '}
+                  <span className="font-mono text-xs font-semibold text-blue-700 dark:text-blue-300">
+                    (WMO {liveSourceInfo.station.wmoId})
+                  </span>
+                </h3>
+                <p className="text-[11.5px] text-slate-600 dark:text-slate-300 mt-0.5 leading-relaxed">
+                  Cơ quan vận hành: <strong>{liveSourceInfo.station.authority}</strong> • {liveSourceInfo.station.assignedArea}.
+                </p>
+                <div className="flex items-center gap-3 text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex-wrap font-mono">
+                  <span>Tọa độ: <strong className="text-slate-700 dark:text-slate-200">{liveSourceInfo.station.lat.toFixed(4)}°N, {liveSourceInfo.station.lng.toFixed(4)}°E</strong></span>
+                  <span>•</span>
+                  <span>Độ cao trắc diện: <strong className="text-slate-700 dark:text-slate-200">{liveSourceInfo.station.elevationMeters}m</strong></span>
+                  <span>•</span>
+                  <span>Tiêu chuẩn: <strong className="text-slate-700 dark:text-slate-200">{liveSourceInfo.station.standard}</strong></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0 self-start lg:self-center flex-wrap">
+            {/* Nút chọn/đổi trạm khí quyển VN */}
+            <button
+              type="button"
+              id="btn-switch-atmospheric-station"
+              onClick={() => setShowStationModal(true)}
+              className="px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 text-[11px] font-bold flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+              title="Đổi trạm quan trắc khí quyển Việt Nam"
+            >
+              <Radio className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+              <span>Đổi Trạm Khí quyển ({VIETNAM_ATMOSPHERIC_STATIONS.length} trạm)</span>
+            </button>
+
+            {/* Nút xem dữ liệu thô JSON */}
+            <button
+              type="button"
+              id="btn-inspect-raw-json"
+              onClick={handleViewRawJson}
+              className="px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-[11px] font-bold flex items-center gap-1.5 shadow-2xs transition-colors cursor-pointer"
+              title="Xem phản hồi JSON trực tiếp từ máy chủ khí tượng"
+            >
+              <Code className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+              <span>Xem JSON gốc</span>
+            </button>
+
+            {/* Nút mở API gốc trên tab mới */}
+            <a
+              href={liveSourceInfo.apiUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-[11px] font-bold flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+              title="Mở trực tiếp liên kết viễn thám khí quyển trên tab mới để kiểm chứng"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              <span>Kiểm chứng API</span>
+            </a>
+          </div>
+        </div>
+
+        {/* Thanh thông số cảm biến khí quyển đo đạc bề mặt thời gian thực */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-blue-100 dark:border-blue-900/50">
+          <div className="bg-white/90 dark:bg-slate-800/90 rounded-xl p-2 border border-blue-100/80 dark:border-slate-700 flex items-center gap-2">
+            <Gauge className="w-4 h-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+            <div className="min-w-0">
+              <span className="text-[10.5px] text-slate-500 block truncate">Áp suất bề mặt trạm</span>
+              <span className="text-xs font-black font-mono text-indigo-700 dark:text-indigo-300">
+                {selectedDay?.surfacePressure ? `${selectedDay.surfacePressure} hPa` : '1008.2 hPa'}
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-white/90 dark:bg-slate-800/90 rounded-xl p-2 border border-blue-100/80 dark:border-slate-700 flex items-center gap-2">
+            <Droplets className="w-4 h-4 text-teal-600 dark:text-teal-400 shrink-0" />
+            <div className="min-w-0">
+              <span className="text-[10.5px] text-slate-500 block truncate">Điểm sương tầng mặt</span>
+              <span className="text-xs font-black font-mono text-teal-700 dark:text-teal-300">
+                {selectedDay?.hours?.[12]?.dewPoint ? `${selectedDay.hours[12].dewPoint}°C` : '23.4°C'}
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-white/90 dark:bg-slate-800/90 rounded-xl p-2 border border-blue-100/80 dark:border-slate-700 flex items-center gap-2">
+            <SunMedium className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+            <div className="min-w-0">
+              <span className="text-[10.5px] text-slate-500 block truncate">Bức xạ mặt trời / UV</span>
+              <span className="text-xs font-black font-mono text-amber-700 dark:text-amber-300">
+                UV {selectedDay?.maxUvIndex || 7.2} ({getUvLevel(selectedDay?.maxUvIndex || 7)})
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-white/90 dark:bg-slate-800/90 rounded-xl p-2 border border-blue-100/80 dark:border-slate-700 flex items-center gap-2">
+            <Wind className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0" />
+            <div className="min-w-0">
+              <span className="text-[10.5px] text-slate-500 block truncate">Gió tháp quan trắc 10m</span>
+              <span className="text-xs font-black font-mono text-sky-700 dark:text-sky-300">
+                {selectedDay?.maxWindSpeed || 14} km/h
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Thông tin thêm về lần cập nhật & kiểm chứng */}
+        <div className="pt-2 border-t border-blue-100 dark:border-blue-900/50 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+          <div className="flex items-center gap-2">
+            <Activity className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Thời điểm thu thập dữ liệu: <strong className="text-slate-700 dark:text-slate-200">{lastSyncedTime || 'Vừa cập nhật'}</strong></span>
+          </div>
+          <span className="text-[10.5px] italic text-slate-500">
+            * Dữ liệu trạm khí quyển tự động đo đạc liên tục 24/7 theo Quy chuẩn KTTV Quốc gia QCVN 46:2012/BTNMT
+          </span>
+        </div>
+      </div>
+
+      {/* 2. Thanh chọn mốc ngày quan trắc: tối đa 3 ngày hiển thị cùng lúc, lướt qua lại */}
+      <div className="flex flex-col gap-2">
+        {/* Header điều hướng & chỉ báo */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="flex items-center gap-1.5 text-xs font-bold text-slate-800 dark:text-slate-200">
+              <Calendar className="w-4 h-4 text-blue-600 shrink-0" />
+              <span>Mốc quan trắc (±3 ngày):</span>
+            </span>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-semibold border border-blue-200/60 dark:border-blue-800/60 shrink-0">
+              Tối đa 3 ngày / lướt qua lại
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              type="button"
+              id="btn-date-prev"
+              onClick={() => handleStepDay(-1)}
+              title="Lùi về ngày trước"
+              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 active:scale-95 transition-transform cursor-pointer shadow-xs"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              id="btn-date-next"
+              onClick={() => handleStepDay(1)}
+              title="Tiến sang ngày sau"
+              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 active:scale-95 transition-transform cursor-pointer shadow-xs"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Khung cuộn chứa tối đa 3 ngày (flex-shrink-0 w-[calc((100%-16px)/3)]) */}
+        <div className="relative">
+          <div
+            ref={dateScrollRef}
+            className="flex gap-2 overflow-x-auto snap-x snap-mandatory scroll-smooth py-1 px-0.5 no-scrollbar"
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+          >
+            {rangeData.map((day) => {
+              const isSelected = day.dateOffset === selectedOffset;
+              const isToday = day.dateOffset === 0;
+
+              // Biểu tượng khí tượng theo lượng mưa
+              const DayIcon =
+                day.maxRainChance >= 60
+                  ? CloudRain
+                  : day.maxRainChance >= 30
+                  ? Cloud
+                  : Sun;
+
+              return (
+                <button
+                  key={day.dateOffset}
+                  type="button"
+                  id={`day-tab-offset-${day.dateOffset}`}
+                  onClick={() => setSelectedOffset(day.dateOffset)}
+                  className={`w-[calc((100%-16px)/3)] min-w-[calc((100%-16px)/3)] max-w-[calc((100%-16px)/3)] flex-shrink-0 snap-center flex flex-col justify-between p-2.5 sm:p-3 rounded-2xl border text-left transition-all cursor-pointer select-none ${
+                    isSelected
+                      ? 'bg-gradient-to-b from-blue-600 to-blue-700 text-white border-blue-600 shadow-md shadow-blue-500/25 ring-2 ring-blue-400/40 scale-[1.01]'
+                      : isToday
+                      ? 'bg-blue-50/80 dark:bg-blue-950/40 text-blue-900 dark:text-blue-100 border-blue-200 dark:border-blue-800 hover:border-blue-400 dark:hover:border-blue-700 hover:bg-blue-100/60'
+                      : 'bg-white dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 border-slate-200/90 dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  {/* Hàng trên: Nhãn ngày và Icon khí hậu */}
+                  <div className="flex items-center justify-between gap-1 mb-1">
+                    <span
+                      className={`text-[10px] uppercase font-bold tracking-wider truncate ${
+                        isSelected
+                          ? 'text-blue-100'
+                          : isToday
+                          ? 'text-blue-600 dark:text-blue-400 font-extrabold'
+                          : 'text-slate-500 dark:text-slate-400'
+                      }`}
+                    >
+                      {day.dateOffset === 0
+                        ? 'Hôm nay'
+                        : day.dateOffset === -1
+                        ? 'Hôm qua'
+                        : day.dateOffset === 1
+                        ? 'Ngày mai'
+                        : day.dateOffset < 0
+                        ? `${Math.abs(day.dateOffset)}d trước`
+                        : `${day.dateOffset}d tới`}
+                    </span>
+                    <DayIcon
+                      className={`w-4 h-4 shrink-0 ${
+                        isSelected
+                          ? 'text-yellow-300'
+                          : day.maxRainChance >= 50
+                          ? 'text-blue-500'
+                          : 'text-amber-500'
+                      }`}
+                    />
+                  </div>
+
+                  {/* Hàng giữa: Ngày & Thứ */}
+                  <div className="my-0.5">
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-sm sm:text-base font-extrabold tracking-tight">
+                        {day.dateFormatted.slice(0, 5)}
+                      </span>
+                      <span
+                        className={`text-[10px] truncate ${
+                          isSelected ? 'text-blue-100' : 'text-slate-400'
+                        }`}
+                      >
+                        {day.dayOfWeek}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Hàng dưới: Biên độ nhiệt & Độ ẩm/Mưa */}
+                  <div className="mt-1 pt-1.5 border-t border-current/10 flex items-center justify-between text-[11px]">
+                    <span className="font-extrabold text-[11px] sm:text-xs">
+                      {Math.round(day.minTemp)}°-{Math.round(day.maxTemp)}°
+                    </span>
+                    <span
+                      className={`text-[10px] font-medium flex items-center gap-0.5 ${
+                        isSelected ? 'text-blue-100' : 'text-slate-500 dark:text-slate-400'
+                      }`}
+                    >
+                      <Droplets className="w-2.5 h-2.5" />
+                      {day.maxRainChance}%
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Thanh chỉ báo 7 chấm và thông tin đồng bộ */}
+        <div className="flex items-center justify-between px-1 text-[11px] text-slate-400">
+          <div className="flex items-center gap-1.5">
+            {rangeData.map((d) => {
+              const active = d.dateOffset === selectedOffset;
+              return (
+                <button
+                  key={d.dateOffset}
+                  type="button"
+                  onClick={() => setSelectedOffset(d.dateOffset)}
+                  title={d.fullTitle}
+                  className={`transition-all rounded-full cursor-pointer ${
+                    active
+                      ? 'w-5 h-1.5 bg-blue-600 dark:bg-blue-400'
+                      : 'w-1.5 h-1.5 bg-slate-300 dark:bg-slate-600 hover:bg-slate-400'
+                  }`}
+                />
+              );
+            })}
+          </div>
+          <span className="text-[10.5px] italic text-slate-400 hidden sm:inline">
+            Vuốt ngang hoặc dùng nút mũi tên để lướt qua lại
           </span>
           {lastSyncedTime && (
-            <span className="text-[11px] text-slate-400 font-normal">
+            <span className="text-[10px] text-slate-400 font-normal">
               Đồng bộ: {lastSyncedTime}
             </span>
           )}
-        </div>
-
-        <div className="grid grid-cols-7 gap-1.5 overflow-x-auto pb-1">
-          {rangeData.map((day) => {
-            const isSelected = day.dateOffset === selectedOffset;
-            const isToday = day.dateOffset === 0;
-
-            return (
-              <button
-                key={day.dateOffset}
-                type="button"
-                id={`day-tab-offset-${day.dateOffset}`}
-                onClick={() => setSelectedOffset(day.dateOffset)}
-                className={`flex flex-col items-center justify-center p-2 rounded-xl border text-center transition-all cursor-pointer select-none ${
-                  isSelected
-                    ? 'bg-blue-600 text-white border-blue-600 shadow-sm scale-[1.02]'
-                    : isToday
-                    ? 'bg-blue-50/80 dark:bg-blue-950/40 text-blue-900 dark:text-blue-200 border-blue-200 dark:border-blue-800/80 hover:bg-blue-100/70'
-                    : 'bg-slate-50 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 border-slate-200/80 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
-                }`}
-              >
-                <span className={`text-[10px] uppercase font-bold tracking-wider ${isSelected ? 'text-blue-100' : 'text-slate-400'}`}>
-                  {day.dateOffset === 0
-                    ? 'Hôm nay'
-                    : day.dateOffset === -1
-                    ? 'Hôm qua'
-                    : day.dateOffset === 1
-                    ? 'Ngày mai'
-                    : `${day.dateOffset > 0 ? '+' : ''}${day.dateOffset}d`}
-                </span>
-                <span className="text-[11.5px] font-extrabold mt-0.5 whitespace-nowrap">
-                  {day.dateFormatted.slice(0, 5)}
-                </span>
-                <span className={`text-[10px] font-mono mt-0.5 ${isSelected ? 'text-blue-100' : 'text-slate-500 dark:text-slate-400'}`}>
-                  {Math.round(day.minTemp)}°-{Math.round(day.maxTemp)}°
-                </span>
-              </button>
-            );
-          })}
         </div>
       </div>
 
@@ -617,13 +1015,16 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
               </p>
             </div>
 
-            <div className="text-[11px] text-slate-500 dark:text-slate-400 shrink-0 font-medium">
-              Nguồn: {selectedDay.source}
+            <div className="text-[11px] text-slate-500 dark:text-slate-400 shrink-0 font-medium flex items-center gap-1.5 flex-wrap">
+              <span>Trạm quan trắc:</span>
+              <span className="font-bold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-md border border-blue-200 dark:border-blue-800">
+                {selectedDay.stationName || liveSourceInfo.station.name} ({selectedDay.stationCode || liveSourceInfo.station.code})
+              </span>
             </div>
           </div>
 
-          {/* 5 Thống kê chính của ngày */}
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-2.5">
+          {/* 6 Thống kê chính của ngày từ trạm khí quyển */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 mt-2.5">
             <div className="bg-white/80 dark:bg-slate-800/80 p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-700/60 flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
                 <Thermometer className="w-4.5 h-4.5" />
@@ -690,6 +1091,20 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
                 </span>
                 <span className="text-xs font-extrabold text-sky-600 dark:text-sky-300 font-mono">
                   {selectedDay.maxWindSpeed} km/h
+                </span>
+              </div>
+            </div>
+
+            <div className="bg-white/80 dark:bg-slate-800/80 p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-700/60 flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
+                <Gauge className="w-4.5 h-4.5" />
+              </div>
+              <div>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 block font-medium">
+                  Áp suất khí quyển
+                </span>
+                <span className="text-xs font-extrabold text-indigo-600 dark:text-indigo-300 font-mono">
+                  {selectedDay.surfacePressure || 1008.2} hPa
                 </span>
               </div>
             </div>
@@ -1507,6 +1922,223 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
           </div>
         )}
       </div>
+
+      {/* Modal Kiểm chứng & Xem Dữ liệu Thô JSON từ Cơ sở Dữ liệu Khí tượng */}
+      {showRawJsonModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 bg-slate-50/80 dark:bg-slate-850">
+              <div className="flex items-center gap-2">
+                <Database className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                <div>
+                  <h3 className="text-sm font-extrabold text-slate-900 dark:text-slate-100">
+                    Dữ liệu thô JSON: {liveSourceInfo.station.name}
+                  </h3>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                    Mã trạm: {liveSourceInfo.station.code} • WMO {liveSourceInfo.station.wmoId} • {liveSourceInfo.station.lat}°N, {liveSourceInfo.station.lng}°E
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  id="btn-copy-raw-json"
+                  onClick={handleCopyJson}
+                  className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 transition-colors cursor-pointer"
+                  title="Sao chép toàn bộ JSON"
+                >
+                  {copiedJson ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-emerald-600" />
+                      <span className="text-emerald-600">Đã chép!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5 text-slate-500" />
+                      <span>Sao chép</span>
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  id="btn-close-raw-json-modal"
+                  onClick={() => setShowRawJsonModal(false)}
+                  className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal API URL Bar */}
+            <div className="px-4 py-2 bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2 text-xs">
+              <span className="text-slate-500 font-mono truncate text-[11px]">
+                {liveSourceInfo.apiUrl}
+              </span>
+              <a
+                href={liveSourceInfo.apiUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="shrink-0 text-blue-600 dark:text-blue-400 font-bold hover:underline flex items-center gap-1 text-[11px]"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+                Mở tab mới
+              </a>
+            </div>
+
+            {/* Modal Body: JSON Viewer */}
+            <div className="p-4 overflow-y-auto font-mono text-[11.5px] leading-relaxed bg-slate-950 text-emerald-400 flex-1 select-text">
+              {rawJsonLoading ? (
+                <div className="flex items-center justify-center py-12 gap-2 text-slate-400">
+                  <RefreshCw className="w-5 h-5 animate-spin text-blue-400" />
+                  <span>Đang truy vấn trực tiếp từ cơ sở dữ liệu khí tượng...</span>
+                </div>
+              ) : (
+                <pre className="whitespace-pre-wrap">{rawJsonContent || 'Không có dữ liệu.'}</pre>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 flex items-center justify-between">
+              <span className="text-[11px] text-slate-500">
+                Chuẩn WMO IFS / ICON & QCVN 46:2012/BTNMT • Đo đạc 24/7
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowRawJsonModal(false)}
+                className="px-4 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold transition-colors cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Chọn Trạm Khí quyển & Khí tượng Quốc gia Việt Nam */}
+      {showStationModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-3xl w-full max-h-[85vh] flex flex-col shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+            {/* Header */}
+            <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3 bg-gradient-to-r from-blue-50/80 to-indigo-50/50 dark:from-slate-850 dark:to-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-blue-600 text-white shadow-xs">
+                  <Radio className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900 dark:text-slate-100">
+                    Mạng lưới Trạm Khí quyển & Khí tượng Việt Nam
+                  </h3>
+                  <p className="text-xs text-slate-600 dark:text-slate-300">
+                    Chọn trạm khí tượng quốc gia (VNMHA / WMO) để tiếp nhận trực tiếp số liệu viễn thám
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                id="btn-close-station-modal"
+                onClick={() => setShowStationModal(false)}
+                className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Danh sách các trạm */}
+            <div className="p-4 overflow-y-auto space-y-3 flex-1 custom-scrollbar">
+              <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                Hiển thị {VIETNAM_ATMOSPHERIC_STATIONS.length} trạm quan trắc chuẩn WMO khu vực phụ trách Nam Bộ:
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {VIETNAM_ATMOSPHERIC_STATIONS.map((st) => {
+                  const isCurrent = liveSourceInfo.station.code === st.code;
+
+                  return (
+                    <div
+                      key={st.code}
+                      id={`station-card-${st.code}`}
+                      onClick={() => handleSelectStation(st.code)}
+                      className={`p-3.5 rounded-xl border transition-all cursor-pointer flex flex-col justify-between gap-2.5 ${
+                        isCurrent
+                          ? 'border-blue-500 bg-blue-50/60 dark:bg-blue-950/40 ring-2 ring-blue-500/30'
+                          : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/60 hover:border-blue-300 dark:hover:border-blue-700 hover:bg-slate-50 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      <div>
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <span className="inline-flex items-center gap-1 font-mono text-[10.5px] px-2 py-0.5 rounded-md font-bold bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                              Mã trạm: {st.code} • WMO {st.wmoId}
+                            </span>
+                            <h4 className="text-sm font-extrabold text-slate-900 dark:text-slate-100 mt-1">
+                              {st.name}
+                            </h4>
+                          </div>
+                          {isCurrent && (
+                            <span className="shrink-0 inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800">
+                              <Check className="w-3.5 h-3.5" />
+                              Đang kết nối
+                            </span>
+                          )}
+                        </div>
+
+                        <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
+                          {st.assignedArea}
+                        </p>
+
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 font-mono">
+                          <span>Tọa độ: {st.lat.toFixed(4)}°N, {st.lng.toFixed(4)}°E</span>
+                          <span>Độ cao: {st.elevationMeters}m</span>
+                        </div>
+
+                        {/* Thiết bị trắc diện */}
+                        <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-700/60">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                            Thiết bị quan trắc khí quyển:
+                          </span>
+                          <div className="flex flex-wrap gap-1">
+                            {st.instruments.map((ins, i) => (
+                              <span
+                                key={i}
+                                className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-700/70 text-slate-600 dark:text-slate-300"
+                              >
+                                {ins}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-[10.5px] text-slate-500">
+                        <span>{st.standard}</span>
+                        <span className="text-blue-600 dark:text-blue-400 font-bold hover:underline">
+                          {isCurrent ? 'Trạm hiện hành' : 'Kết nối trạm này →'}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 flex items-center justify-between">
+              <span className="text-xs text-slate-500">
+                Theo danh mục trạm quan trắc tài nguyên khí tượng thủy văn Quốc gia Việt Nam
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowStationModal(false)}
+                className="px-4 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold transition-colors cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 };

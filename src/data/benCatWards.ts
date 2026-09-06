@@ -139,15 +139,15 @@ export const BEN_CAT_WARDS_DATA: Record<string, DistrictData> = {
     lng: 106.5241,
     weather: {
       temp: '31°C',
-      condition: 'gió mát ven sông',
-      description: 'Phường Tây Nam - Độ ẩm 68%, gió sông 14km/h, cao độ 22m',
+      condition: 'mưa dông rải rác ven sông',
+      description: 'Phường Tây Nam - Nhiệt độ 26-31°C, tỉ lệ mưa 60%, độ ẩm 68-88%, gió sông 14km/h',
       humidity: '68%',
       altitude: '22 m',
       uvIndex: 'UV 4.8',
       uvLevel: 'Vừa',
       lightIntensity: '590 W/m²',
       statusAssessment: 'Đánh giá thời tiết',
-      statusDetail: 'Vi khí hậu sông nước điều hòa, gió thổi thông thoáng dễ chịu',
+      statusDetail: 'Vi khí hậu sông nước điều hòa, nhiệt độ 26-31°C, chiều có mưa dông rải rác (60%) làm dịu mát',
     },
     biodiversity: {
       underwater: {

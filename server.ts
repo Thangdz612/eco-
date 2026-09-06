@@ -34,6 +34,44 @@ async function startServer() {
     res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
+  // Direct meteorological query endpoint from Open-Meteo & ECMWF
+  app.get('/api/weather/live', async (req, res) => {
+    try {
+      const lat = parseFloat(req.query.lat as string) || 11.1352;
+      const lng = parseFloat(req.query.lng as string) || 106.5241;
+
+      const params = new URLSearchParams({
+        latitude: lat.toFixed(4),
+        longitude: lng.toFixed(4),
+        current:
+          'temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,rain,weather_code,surface_pressure,wind_speed_10m,wind_direction_10m,uv_index',
+        hourly:
+          'temperature_2m,relative_humidity_2m,dew_point_2m,apparent_temperature,precipitation_probability,precipitation,weather_code,surface_pressure,uv_index,direct_normal_irradiance,wind_speed_10m,wind_gusts_10m',
+        daily:
+          'temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,uv_index_max,wind_speed_10m_max',
+        past_days: '3',
+        forecast_days: '4',
+        timezone: 'Asia/Bangkok',
+      });
+
+      const url = `https://api.open-meteo.com/v1/forecast?${params.toString()}`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        res.status(response.status).json({ error: 'Failed to fetch from Open-Meteo' });
+        return;
+      }
+      const data = await response.json();
+      res.json({
+        source: 'Open-Meteo & ECMWF Meteorological Database',
+        apiUrl: url,
+        data,
+      });
+    } catch (err: any) {
+      console.error('Weather API error:', err);
+      res.status(500).json({ error: err?.message || 'Weather service error' });
+    }
+  });
+
   app.post('/api/ai/chat', async (req, res) => {
     try {
       const { prompt } = req.body;
