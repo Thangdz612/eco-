@@ -15,13 +15,23 @@ import {
   TrendingUp,
   BarChart2,
   List,
-  CheckCircle2,
-  Info,
   Sparkles,
+  Wind,
+  Layers,
+  MapPin,
+  ChevronDown,
+  Search,
+  LayoutGrid,
+  Maximize2,
+  Compass,
+  Thermometer,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
   ComposedChart,
+  LineChart,
+  AreaChart,
+  BarChart,
   Line,
   Area,
   Bar,
@@ -30,6 +40,7 @@ import {
   Tooltip,
   CartesianGrid,
   Legend,
+  ReferenceLine,
 } from 'recharts';
 import {
   DayCollectedWeather,
@@ -37,25 +48,49 @@ import {
   getCachedCollectedWeatherRange,
   syncCollectedWeatherOnline,
   getUvLevel,
+  generateMultiLevelComparison,
+  UnitComparisonHourRecord,
 } from '../utils/collectedWeatherStorage';
+import { DISTRICTS_DATA } from '../data/mockData';
 import { ModalContent } from '../types';
 
 interface WeatherCollectedRangeSectionProps {
   districtId: string;
   districtName: string;
+  adminType?: 'phường' | 'xã' | 'đặc khu';
   onOpenDetail?: (content: ModalContent) => void;
+  onSelectDistrict?: (districtId: string) => void;
 }
+
+type ChartType = 'temp' | 'rain' | 'humidity' | 'uv' | 'wind' | 'comparison';
 
 export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSectionProps> = ({
   districtId,
   districtName,
+  adminType,
   onOpenDetail,
+  onSelectDistrict,
 }) => {
+  const safeAdminType: 'phường' | 'xã' | 'đặc khu' = adminType || 'phường';
+
+  // State for current selected unit
+  const [currentId, setCurrentId] = useState<string>(districtId);
+  const [currentName, setCurrentName] = useState<string>(districtName);
+  const [currentAdminType, setCurrentAdminType] = useState<'phường' | 'xã' | 'đặc khu'>(safeAdminType);
+
+  // Synchronize when prop changes
+  useEffect(() => {
+    setCurrentId(districtId);
+    setCurrentName(districtName);
+    setCurrentAdminType(adminType || 'phường');
+  }, [districtId, districtName, adminType]);
+
+  // Weather range dataset
   const [rangeData, setRangeData] = useState<DayCollectedWeather[]>(() =>
-    getCachedCollectedWeatherRange(districtId, districtName).data
+    getCachedCollectedWeatherRange(districtId, districtName, safeAdminType).data
   );
   const [lastSyncedTime, setLastSyncedTime] = useState<string | null>(() =>
-    getCachedCollectedWeatherRange(districtId, districtName).lastSynced
+    getCachedCollectedWeatherRange(districtId, districtName, safeAdminType).lastSynced
   );
   const [selectedOffset, setSelectedOffset] = useState<number>(0); // 0 = Hôm nay
   const [isOnline, setIsOnline] = useState<boolean>(() =>
@@ -64,17 +99,25 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [syncStatusMsg, setSyncStatusMsg] = useState<string | null>(null);
 
-  // View preferences
-  const [chartMetric, setChartMetric] = useState<'temp-rain' | 'humidity-uv' | 'all'>('temp-rain');
+  // Administrative Unit Picker State
+  const [isPickerOpen, setIsPickerOpen] = useState<boolean>(false);
+  const [adminTypeFilter, setAdminTypeFilter] = useState<'all' | 'phường' | 'xã' | 'đặc khu'>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // Chart view preferences
+  const [activeChart, setActiveChart] = useState<ChartType>('temp');
+  const [isGridView, setIsGridView] = useState<boolean>(false);
+  const [comparisonMetric, setComparisonMetric] = useState<'temp' | 'rain' | 'uv'>('temp');
+
+  // Hourly details view preferences
   const [displayMode, setDisplayMode] = useState<'timeline' | 'table'>('timeline');
   const [timeFilter, setTimeFilter] = useState<'all' | 'morning' | 'afternoon' | 'night'>('all');
 
-  // Lắng nghe trạng thái mạng
+  // Lắng nghe trạng thái mạng & sự kiện đồng bộ
   useEffect(() => {
     const handleOnline = async () => {
       setIsOnline(true);
-      // Tự động đồng bộ khi có kết nối lại
-      const res = await syncCollectedWeatherOnline(districtId, districtName);
+      const res = await syncCollectedWeatherOnline(currentId, currentName, currentAdminType);
       if (res.success) {
         setRangeData(res.data);
         setLastSyncedTime(res.lastSynced);
@@ -82,8 +125,8 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
     };
     const handleOffline = () => setIsOnline(false);
 
-    const handleSyncEvent = () => {
-      const cached = getCachedCollectedWeatherRange(districtId, districtName);
+    const handleSyncEvent = (e: any) => {
+      const cached = getCachedCollectedWeatherRange(currentId, currentName, currentAdminType);
       setRangeData(cached.data);
       setLastSyncedTime(cached.lastSynced);
     };
@@ -97,18 +140,38 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('eco-collected-weather-synced', handleSyncEvent);
     };
-  }, [districtId, districtName]);
+  }, [currentId, currentName, currentAdminType]);
 
-  // Handle Manual Sync
+  // When changing administrative unit
+  const handleSelectUnit = (unitId: string) => {
+    const unit = DISTRICTS_DATA[unitId];
+    if (!unit) return;
+    const newType = unit.adminType || 'phường';
+    setCurrentId(unit.id);
+    setCurrentName(unit.name);
+    setCurrentAdminType(newType);
+    setIsPickerOpen(false);
+
+    // Load or generate dataset for this unit
+    const cached = getCachedCollectedWeatherRange(unit.id, unit.name, newType);
+    setRangeData(cached.data);
+    setLastSyncedTime(cached.lastSynced);
+
+    if (onSelectDistrict) {
+      onSelectDistrict(unit.id);
+    }
+  };
+
+  // Manual Sync
   const handleManualSync = async () => {
     setIsSyncing(true);
     setSyncStatusMsg(null);
-    const result = await syncCollectedWeatherOnline(districtId, districtName);
+    const result = await syncCollectedWeatherOnline(currentId, currentName, currentAdminType);
     setIsSyncing(false);
     if (result.success) {
       setRangeData(result.data);
       setLastSyncedTime(result.lastSynced);
-      setSyncStatusMsg('Đã cập nhật dữ liệu thời tiết ±3 ngày mới nhất!');
+      setSyncStatusMsg(`Đã cập nhật dữ liệu 24 giờ cho ${currentName}!`);
     } else {
       setSyncStatusMsg(result.message);
     }
@@ -142,19 +205,38 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
     return selectedDay.hours;
   }, [selectedDay, timeFilter]);
 
-  // Chart data format
-  const chartData = useMemo(() => {
-    if (!selectedDay) return [];
-    return selectedDay.hours.map((h) => ({
-      hour: h.hourLabel,
-      temp: h.temp,
-      rainChance: h.rainChance,
-      humidity: h.humidity,
-      uvIndex: h.uvIndex,
-      condition: h.condition,
-      rawHour: h.hour,
-    }));
-  }, [selectedDay]);
+  // Multi-Level Comparison Data
+  const comparisonData: UnitComparisonHourRecord[] = useMemo(() => {
+    return generateMultiLevelComparison(selectedOffset);
+  }, [selectedOffset]);
+
+  // List of all administrative units with filtering
+  const allUnitsList = useMemo(() => {
+    const units = Object.values(DISTRICTS_DATA);
+    return units.filter((u) => {
+      const matchType = adminTypeFilter === 'all' || (u.adminType || 'phường') === adminTypeFilter;
+      const matchSearch =
+        searchQuery.trim() === '' ||
+        u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (u.districtGroup && u.districtGroup.toLowerCase().includes(searchQuery.toLowerCase()));
+      return matchType && matchSearch;
+    });
+  }, [adminTypeFilter, searchQuery]);
+
+  // Stats count
+  const countStats = useMemo(() => {
+    const units = Object.values(DISTRICTS_DATA);
+    let wards = 0;
+    let communes = 0;
+    let specials = 0;
+    units.forEach((u) => {
+      const type = u.adminType || 'phường';
+      if (type === 'phường') wards++;
+      else if (type === 'xã') communes++;
+      else if (type === 'đặc khu') specials++;
+    });
+    return { wards, communes, specials, total: units.length };
+  }, []);
 
   const renderWeatherIcon = (type: HourlyWeatherRecord['iconType'], className = 'w-5 h-5') => {
     switch (type) {
@@ -191,55 +273,62 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
     }
   };
 
+  const getAdminBadge = (type: 'phường' | 'xã' | 'đặc khu') => {
+    switch (type) {
+      case 'đặc khu':
+        return {
+          label: 'Đặc khu',
+          desc: 'Khí hậu hải đảo - gió biển lộng',
+          badgeClass: 'bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800',
+        };
+      case 'xã':
+        return {
+          label: 'Cấp Xã',
+          desc: 'Vi khí hậu ngoại thành - nông thôn',
+          badgeClass: 'bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800',
+        };
+      default:
+        return {
+          label: 'Cấp Phường',
+          desc: 'Vi khí hậu đô thị - đảo nhiệt UHI',
+          badgeClass: 'bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800',
+        };
+    }
+  };
+
+  const adminMeta = getAdminBadge(currentAdminType);
+
   // Custom Chart Tooltip
-  const CustomChartTooltip = ({ active, payload, label }: any) => {
+  const CustomDetailedTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
       return (
-        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-3 rounded-xl shadow-lg border border-slate-200/80 dark:border-slate-800 text-xs">
+        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-3 rounded-xl shadow-xl border border-slate-200/90 dark:border-slate-800 text-xs min-w-[200px] z-50">
           <div className="font-bold text-slate-800 dark:text-slate-100 pb-1.5 mb-1.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
             <span className="text-blue-600 dark:text-blue-400 font-extrabold">{label}</span>
             <span className="text-[11px] text-slate-500 dark:text-slate-400 font-normal">
-              {data.condition}
+              {data.condition || 'Quan trắc vi khí hậu'}
             </span>
           </div>
 
           <div className="space-y-1">
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
-                🌡️ Nhiệt độ:
-              </span>
-              <span className="font-bold font-mono text-slate-800 dark:text-slate-200">
-                {data.temp}°C
-              </span>
-            </div>
+            {payload.map((entry: any, index: number) => (
+              <div key={`tooltip-item-${index}`} className="flex items-center justify-between gap-3">
+                <span className="font-medium text-slate-600 dark:text-slate-300 flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
+                  {entry.name}:
+                </span>
+                <span className="font-bold font-mono text-slate-800 dark:text-slate-100">
+                  {entry.value} {entry.unit || ''}
+                </span>
+              </div>
+            ))}
 
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-blue-600 dark:text-blue-400 font-medium flex items-center gap-1">
-                🌧️ Khả năng mưa:
-              </span>
-              <span className="font-bold font-mono text-slate-800 dark:text-slate-200">
-                {data.rainChance}%
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-teal-600 dark:text-teal-400 font-medium flex items-center gap-1">
-                💧 Độ ẩm:
-              </span>
-              <span className="font-bold font-mono text-slate-800 dark:text-slate-200">
-                {data.humidity}%
-              </span>
-            </div>
-
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-purple-600 dark:text-purple-400 font-medium flex items-center gap-1">
-                ☀️ Tia UV:
-              </span>
-              <span className="font-bold font-mono text-slate-800 dark:text-slate-200">
-                {data.uvIndex}
-              </span>
-            </div>
+            {data.beaufortScale && (
+              <div className="pt-1 mt-1 border-t border-slate-100 dark:border-slate-800 text-[10.5px] text-slate-500">
+                Gió: <span className="font-semibold text-slate-700 dark:text-slate-300">{data.beaufortScale}</span>
+              </div>
+            )}
           </div>
         </div>
       );
@@ -250,55 +339,198 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
   return (
     <section
       id="collected-weather-range-section"
-      className="bg-white dark:bg-slate-900 rounded-[24px] p-5 shadow-xs border border-slate-200/80 dark:border-slate-800 flex flex-col gap-4.5"
+      className="bg-white dark:bg-slate-900 rounded-[24px] p-5 shadow-xs border border-slate-200/80 dark:border-slate-800 flex flex-col gap-5"
     >
-      {/* 1. Header & Network Status */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2 border-b border-slate-100 dark:border-slate-800">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-[18px] font-extrabold text-[#0F172A] dark:text-slate-100 tracking-tight flex items-center gap-1.5">
-              <Clock className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-              Thời tiết thu thập theo giờ (±3 ngày)
-            </h2>
+      {/* 1. Header & Bộ chọn cấp Phường / Xã / Đặc khu */}
+      <div className="flex flex-col gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-[18px] font-extrabold text-[#0F172A] dark:text-slate-100 tracking-tight flex items-center gap-1.5">
+                <Clock className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                Dữ liệu khí tượng 24h (±3 ngày)
+              </h2>
+
+              {/* Admin Badge */}
+              <span
+                className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${adminMeta.badgeClass}`}
+              >
+                <Compass className="w-3.5 h-3.5" />
+                {adminMeta.label}: {currentName}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+              Hỗ trợ đầy đủ các cấp Phường (đô thị), Xã (nông thôn, ven sông), Đặc khu (hải đảo). {adminMeta.desc}.
+            </p>
           </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-            Dữ liệu khí tượng 24h thu thập khi có mạng tại {districtName} (độ C, % mưa, độ ẩm, tia UV).
-          </p>
+
+          <div className="flex items-center gap-2 shrink-0 self-start sm:self-center">
+            {/* Online/Offline Badge */}
+            <span
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${
+                isOnline
+                  ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                  : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+              }`}
+            >
+              {isOnline ? (
+                <>
+                  <Wifi className="w-3.5 h-3.5 text-emerald-600" />
+                  Đã thu thập qua mạng
+                </>
+              ) : (
+                <>
+                  <WifiOff className="w-3.5 h-3.5 text-amber-600" />
+                  Đang dùng đệm ngoại tuyến
+                </>
+              )}
+            </span>
+
+            {/* Refresh/Sync button */}
+            <button
+              type="button"
+              id="sync-collected-weather-btn"
+              onClick={handleManualSync}
+              disabled={isSyncing}
+              className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors disabled:opacity-50 cursor-pointer"
+              title="Đồng bộ cập nhật dữ liệu mới nhất"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-blue-600' : ''}`} />
+            </button>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0 self-start sm:self-center">
-          {/* Online/Offline Badge */}
-          <span
-            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${
-              isOnline
-                ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
-                : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
-            }`}
-          >
-            {isOnline ? (
-              <>
-                <Wifi className="w-3.5 h-3.5 text-emerald-600" />
-                Đã thu thập qua mạng
-              </>
-            ) : (
-              <>
-                <WifiOff className="w-3.5 h-3.5 text-amber-600" />
-                Đang dùng đệm ngoại tuyến
-              </>
-            )}
-          </span>
+        {/* Thanh chọn nhanh Đơn vị Hành chính theo Cấp Phường / Xã / Đặc khu */}
+        <div className="relative">
+          <div className="flex items-center justify-between gap-2 p-2 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <MapPin className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+              <div className="truncate">
+                <span className="text-[11px] text-slate-400 block font-medium">Đang hiển thị biểu đồ & dữ liệu cho:</span>
+                <span className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate block">
+                  {currentName}
+                </span>
+              </div>
+            </div>
 
-          {/* Refresh/Sync button */}
-          <button
-            type="button"
-            id="sync-collected-weather-btn"
-            onClick={handleManualSync}
-            disabled={isSyncing}
-            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors disabled:opacity-50 cursor-pointer"
-            title="Đồng bộ cập nhật dữ liệu mới nhất"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-blue-600' : ''}`} />
-          </button>
+            <button
+              type="button"
+              id="open-admin-unit-picker-btn"
+              onClick={() => setIsPickerOpen(!isPickerOpen)}
+              className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs shrink-0 transition-colors"
+            >
+              <span>Chọn Phường/Xã/Đặc khu</span>
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isPickerOpen ? 'rotate-180' : ''}`} />
+            </button>
+          </div>
+
+          {/* Administrative Units Dropdown Modal */}
+          {isPickerOpen && (
+            <div className="absolute top-full left-0 right-0 mt-2 z-40 bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-800 p-3.5 flex flex-col gap-3 animate-in fade-in zoom-in-95">
+              <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                  <Layers className="w-4 h-4 text-blue-600" />
+                  Chọn đơn vị hành chính để xem biểu đồ chuyên sâu:
+                </span>
+                <span className="text-[11px] text-slate-400">
+                  Tổng {countStats.total} đơn vị
+                </span>
+              </div>
+
+              {/* Bộ lọc loại cấp hành chính */}
+              <div className="flex gap-1.5 overflow-x-auto pb-1">
+                <button
+                  type="button"
+                  onClick={() => setAdminTypeFilter('all')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap cursor-pointer transition-colors ${
+                    adminTypeFilter === 'all'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                  }`}
+                >
+                  Tất cả ({countStats.total})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAdminTypeFilter('phường')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap cursor-pointer transition-colors ${
+                    adminTypeFilter === 'phường'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-blue-50 dark:bg-blue-950/50 text-blue-700 dark:text-blue-300'
+                  }`}
+                >
+                  Cấp Phường ({countStats.wards})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAdminTypeFilter('xã')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap cursor-pointer transition-colors ${
+                    adminTypeFilter === 'xã'
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300'
+                  }`}
+                >
+                  Cấp Xã ({countStats.communes})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAdminTypeFilter('đặc khu')}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap cursor-pointer transition-colors ${
+                    adminTypeFilter === 'đặc khu'
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300'
+                  }`}
+                >
+                  Cấp Đặc khu ({countStats.specials})
+                </button>
+              </div>
+
+              {/* Ô tìm kiếm */}
+              <div className="relative">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Tìm theo tên Phường, Xã, Đặc khu, Quận..."
+                  className="w-full pl-9 pr-3 py-1.5 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Danh sách cuộn */}
+              <div className="max-h-56 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+                {allUnitsList.slice(0, 50).map((unit) => {
+                  const isCur = unit.id === currentId;
+                  const type = unit.adminType || 'phường';
+                  const badge = getAdminBadge(type);
+
+                  return (
+                    <button
+                      key={unit.id}
+                      type="button"
+                      onClick={() => handleSelectUnit(unit.id)}
+                      className={`w-full text-left p-2 rounded-lg flex items-center justify-between gap-2 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer transition-colors ${
+                        isCur ? 'bg-blue-50 dark:bg-blue-950/50 font-bold' : ''
+                      }`}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs text-slate-800 dark:text-slate-100 truncate">
+                          {unit.name}
+                        </div>
+                        <div className="text-[10.5px] text-slate-400 truncate">
+                          {unit.districtGroup || 'TP.HCM'} • {unit.subTitle}
+                        </div>
+                      </div>
+
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border shrink-0 ${badge.badgeClass}`}>
+                        {badge.label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -315,11 +547,11 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
         <div className="flex items-center justify-between text-xs font-semibold text-slate-600 dark:text-slate-300">
           <span className="flex items-center gap-1">
             <Calendar className="w-3.5 h-3.5 text-blue-600" />
-            Chọn ngày quan sát (±3 ngày):
+            Chọn mốc ngày quan trắc (±3 ngày):
           </span>
           {lastSyncedTime && (
             <span className="text-[11px] text-slate-400 font-normal">
-              Thu thập: {lastSyncedTime}
+              Đồng bộ: {lastSyncedTime}
             </span>
           )}
         </div>
@@ -369,28 +601,19 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
         <div className="bg-gradient-to-r from-blue-50/70 via-indigo-50/40 to-slate-50 dark:from-blue-950/30 dark:via-indigo-950/20 dark:to-slate-900 rounded-2xl p-3.5 border border-blue-100 dark:border-blue-900/50">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-blue-100/80 dark:border-blue-900/40">
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-sm font-bold text-slate-900 dark:text-slate-100">
                   {selectedDay.fullTitle} - {selectedDay.dayOfWeek}
                 </span>
-                <span
-                  className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                    selectedDay.dateOffset < 0
-                      ? 'bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                      : selectedDay.dateOffset === 0
-                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                      : 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300'
-                  }`}
-                >
-                  {selectedDay.dateOffset < 0
-                    ? 'Dữ liệu lịch sử đã lưu'
-                    : selectedDay.dateOffset === 0
-                    ? 'Dữ liệu hôm nay'
-                    : 'Dự báo đã nạp'}
+                <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${adminMeta.badgeClass}`}>
+                  {adminMeta.label}
                 </span>
               </div>
               <p className="text-[12px] text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
                 {selectedDay.summary}
+              </p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 italic">
+                {selectedDay.climateTypeDescription}
               </p>
             </div>
 
@@ -399,17 +622,17 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
             </div>
           </div>
 
-          {/* 4 Thống kê chính của ngày */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2.5">
+          {/* 5 Thống kê chính của ngày */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-2.5">
             <div className="bg-white/80 dark:bg-slate-800/80 p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-700/60 flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-lg bg-amber-100 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
-                <Sun className="w-4.5 h-4.5" />
+                <Thermometer className="w-4.5 h-4.5" />
               </div>
               <div>
                 <span className="text-[11px] text-slate-500 dark:text-slate-400 block font-medium">
                   Biên độ nhiệt
                 </span>
-                <span className="text-sm font-extrabold text-slate-800 dark:text-slate-100 font-mono">
+                <span className="text-xs font-extrabold text-slate-800 dark:text-slate-100 font-mono">
                   {selectedDay.minTemp}°C - {selectedDay.maxTemp}°C
                 </span>
               </div>
@@ -421,10 +644,10 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
               </div>
               <div>
                 <span className="text-[11px] text-slate-500 dark:text-slate-400 block font-medium">
-                  Đỉnh mưa trong ngày
+                  Mưa đỉnh điểm
                 </span>
-                <span className="text-sm font-extrabold text-blue-600 dark:text-blue-300 font-mono">
-                  {selectedDay.maxRainChance}%
+                <span className="text-xs font-extrabold text-blue-600 dark:text-blue-300 font-mono">
+                  {selectedDay.maxRainChance}% ({selectedDay.totalRainfall}mm)
                 </span>
               </div>
             </div>
@@ -437,7 +660,7 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
                 <span className="text-[11px] text-slate-500 dark:text-slate-400 block font-medium">
                   Độ ẩm trung bình
                 </span>
-                <span className="text-sm font-extrabold text-teal-600 dark:text-teal-300 font-mono">
+                <span className="text-xs font-extrabold text-teal-600 dark:text-teal-300 font-mono">
                   {selectedDay.avgHumidity}%
                 </span>
               </div>
@@ -451,8 +674,22 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
                 <span className="text-[11px] text-slate-500 dark:text-slate-400 block font-medium">
                   Tia UV cực đại
                 </span>
-                <span className="text-sm font-extrabold text-rose-600 dark:text-rose-300 font-mono">
+                <span className="text-xs font-extrabold text-rose-600 dark:text-rose-300 font-mono">
                   {selectedDay.maxUvIndex} ({getUvLevel(selectedDay.maxUvIndex)})
+                </span>
+              </div>
+            </div>
+
+            <div className="bg-white/80 dark:bg-slate-800/80 p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-700/60 flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-sky-100 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0">
+                <Wind className="w-4.5 h-4.5" />
+              </div>
+              <div>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 block font-medium">
+                  Gió lớn nhất
+                </span>
+                <span className="text-xs font-extrabold text-sky-600 dark:text-sky-300 font-mono">
+                  {selectedDay.maxWindSpeed} km/h
                 </span>
               </div>
             </div>
@@ -460,166 +697,474 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
         </div>
       )}
 
-      {/* 4. Biểu đồ trực quan Recharts (Biểu đồ nhiệt độ, % mưa, độ ẩm, UV) */}
-      <div className="flex flex-col gap-2.5 pt-1">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 text-sm font-bold text-slate-800 dark:text-slate-100">
-            <TrendingUp className="w-4 h-4 text-amber-500" />
-            <span>Biểu đồ diễn biến khí tượng 24 giờ ({selectedDay?.dateLabel})</span>
+      {/* 4. Hệ thống Đa Biểu Đồ Chuyên Sâu (Không chỉ 1 biểu đồ, mà gồm 6 biểu đồ chuyên biệt!) */}
+      <div className="flex flex-col gap-3 pt-1">
+        {/* Header điều khiển biểu đồ */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="w-4.5 h-4.5 text-blue-600 dark:text-blue-400" />
+            <span className="text-sm font-bold text-slate-800 dark:text-slate-100">
+              Hệ thống Biểu đồ Khí tượng Chuyên sâu (24 giờ)
+            </span>
           </div>
 
-          {/* Chart Metric Selectors */}
-          <div className="inline-flex p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-semibold self-start sm:self-center">
+          {/* Toggle Chế độ xem: Từng biểu đồ chi tiết (Tab) vs Xem lưới Dashboard (Grid) */}
+          <div className="flex items-center gap-2 self-start sm:self-center">
             <button
               type="button"
-              id="chart-mode-temp-rain"
-              onClick={() => setChartMetric('temp-rain')}
-              className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                chartMetric === 'temp-rain'
-                  ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-300 shadow-xs font-bold'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+              id="toggle-grid-charts-view-btn"
+              onClick={() => setIsGridView(!isGridView)}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer border ${
+                isGridView
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
               }`}
             >
-              Nhiệt độ & % Mưa
-            </button>
-            <button
-              type="button"
-              id="chart-mode-humidity-uv"
-              onClick={() => setChartMetric('humidity-uv')}
-              className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                chartMetric === 'humidity-uv'
-                  ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-300 shadow-xs font-bold'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-              }`}
-            >
-              Độ ẩm & Tia UV
-            </button>
-            <button
-              type="button"
-              id="chart-mode-all"
-              onClick={() => setChartMetric('all')}
-              className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
-                chartMetric === 'all'
-                  ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-300 shadow-xs font-bold'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-              }`}
-            >
-              Tất cả
+              {isGridView ? (
+                <>
+                  <Maximize2 className="w-3.5 h-3.5" />
+                  Xem tab đơn phóng to
+                </>
+              ) : (
+                <>
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                  Xem lưới tất cả biểu đồ
+                </>
+              )}
             </button>
           </div>
         </div>
 
-        {/* Recharts Canvas */}
-        <div className="w-full h-64 sm:h-72 bg-slate-50/50 dark:bg-slate-950/40 rounded-2xl p-2.5 border border-slate-200/70 dark:border-slate-800">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart
-              data={chartData}
-              margin={{ top: 12, right: 10, left: -20, bottom: 0 }}
+        {/* Thanh chọn 6 loại biểu đồ (Khi ở chế độ tab) */}
+        {!isGridView && (
+          <div className="flex items-center gap-1 overflow-x-auto pb-1">
+            <button
+              type="button"
+              id="chart-tab-temp"
+              onClick={() => setActiveChart('temp')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeChart === 'temp'
+                  ? 'bg-amber-500 text-white shadow-xs scale-102'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+              }`}
             >
-              <defs>
-                <linearGradient id="rainGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.4} />
-                  <stop offset="95%" stopColor="#3B82F6" stopOpacity={0.0} />
-                </linearGradient>
-                <linearGradient id="tempGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#F59E0B" stopOpacity={0.0} />
-                </linearGradient>
-                <linearGradient id="humidityGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#0D9488" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#0D9488" stopOpacity={0.0} />
-                </linearGradient>
-              </defs>
+              <Thermometer className="w-3.5 h-3.5" />
+              1. Nhiệt độ & RealFeel
+            </button>
 
-              <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.15} />
+            <button
+              type="button"
+              id="chart-tab-rain"
+              onClick={() => setActiveChart('rain')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeChart === 'rain'
+                  ? 'bg-blue-600 text-white shadow-xs scale-102'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+              }`}
+            >
+              <CloudRain className="w-3.5 h-3.5" />
+              2. Xác suất & Lượng mưa (mm)
+            </button>
 
-              <XAxis
-                dataKey="hour"
-                tick={{ fontSize: 10, fill: '#94A3B8' }}
-                axisLine={false}
-                tickLine={false}
-                interval={2} // hiển thị mỗi 2 giờ
-              />
+            <button
+              type="button"
+              id="chart-tab-humidity"
+              onClick={() => setActiveChart('humidity')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeChart === 'humidity'
+                  ? 'bg-teal-600 text-white shadow-xs scale-102'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+              }`}
+            >
+              <Droplets className="w-3.5 h-3.5" />
+              3. Độ ẩm & Điểm sương
+            </button>
 
-              {/* Trục Y trái: Nhiệt độ hoặc % */}
-              <YAxis
-                yAxisId="left"
-                tick={{ fontSize: 10, fill: '#94A3B8' }}
-                axisLine={false}
-                tickLine={false}
-                domain={chartMetric === 'humidity-uv' ? [0, 100] : [20, 40]}
-                unit={chartMetric === 'humidity-uv' ? '%' : '°C'}
-              />
+            <button
+              type="button"
+              id="chart-tab-uv"
+              onClick={() => setActiveChart('uv')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeChart === 'uv'
+                  ? 'bg-rose-600 text-white shadow-xs scale-102'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+              }`}
+            >
+              <SunMedium className="w-3.5 h-3.5" />
+              4. Tia UV & Bức xạ (W/m²)
+            </button>
 
-              {/* Trục Y phải: % Mưa hoặc UV */}
-              <YAxis
-                yAxisId="right"
-                orientation="right"
-                tick={{ fontSize: 10, fill: '#94A3B8' }}
-                axisLine={false}
-                tickLine={false}
-                domain={chartMetric === 'temp-rain' ? [0, 100] : [0, 12]}
-                unit={chartMetric === 'temp-rain' ? '%' : ''}
-              />
+            <button
+              type="button"
+              id="chart-tab-wind"
+              onClick={() => setActiveChart('wind')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeChart === 'wind'
+                  ? 'bg-sky-600 text-white shadow-xs scale-102'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+              }`}
+            >
+              <Wind className="w-3.5 h-3.5" />
+              5. Tốc độ gió & Gió giật
+            </button>
 
-              <Tooltip content={<CustomChartTooltip />} />
+            <button
+              type="button"
+              id="chart-tab-comparison"
+              onClick={() => setActiveChart('comparison')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeChart === 'comparison'
+                  ? 'bg-purple-600 text-white shadow-xs scale-102'
+                  : 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 hover:bg-purple-100'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              6. So sánh Phường vs Xã vs Đặc khu
+            </button>
+          </div>
+        )}
 
-              <Legend
-                wrapperStyle={{ fontSize: '11px', paddingTop: '4px' }}
-                iconType="circle"
-              />
+        {/* NỘI DUNG BIỂU ĐỒ */}
+        {!isGridView ? (
+          // CHẾ ĐỘ 1: XEM TAB ĐƠN PHÓNG TO
+          <div className="w-full bg-slate-50/70 dark:bg-slate-950/40 rounded-2xl p-3 border border-slate-200/70 dark:border-slate-800">
+            {/* Biểu đồ 1: Nhiệt độ & Cảm nhận RealFeel */}
+            {activeChart === 'temp' && (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                    🌡️ Biểu đồ 1: Nhiệt độ thực tế vs Nhiệt độ cảm nhận ngoài trời (RealFeel - Heat Index)
+                  </span>
+                  <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                    {currentAdminType === 'phường'
+                      ? 'Hiệu ứng đảo nhiệt đô thị (UHI) làm tăng nhiệt cảm nhận'
+                      : currentAdminType === 'đặc khu'
+                      ? 'Gió biển điều hòa làm dịu nhiệt cảm nhận'
+                      : 'Biên độ nhiệt ngày đêm lớn vùng nông thôn'}
+                  </span>
+                </div>
+                <div className="w-full h-64 sm:h-72">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={selectedDay?.hours} margin={{ top: 10, right: 15, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.15} />
+                      <XAxis dataKey="hourLabel" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} interval={2} />
+                      <YAxis domain={[20, 42]} tick={{ fontSize: 10 }} unit="°C" axisLine={false} tickLine={false} />
+                      <Tooltip content={<CustomDetailedTooltip />} />
+                      <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '4px' }} iconType="circle" />
+                      <ReferenceLine y={35} stroke="#EF4444" strokeDasharray="3 3" label={{ value: 'Ngưỡng nắng nóng (35°C)', fill: '#EF4444', fontSize: 10 }} />
+                      <Line type="monotone" dataKey="temp" name="Nhiệt độ thực tế" unit="°C" stroke="#F59E0B" strokeWidth={2.5} dot={{ r: 2 }} activeDot={{ r: 5 }} />
+                      <Line type="monotone" dataKey="feelLikeTemp" name="Nhiệt độ cảm nhận (RealFeel)" unit="°C" stroke="#DC2626" strokeWidth={2} strokeDasharray="4 4" dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
 
-              {/* Biểu diễn theo chế độ */}
-              {(chartMetric === 'temp-rain' || chartMetric === 'all') && (
-                <>
-                  <Area
-                    yAxisId="right"
-                    type="monotone"
-                    dataKey="rainChance"
-                    name="Khả năng mưa (%)"
-                    stroke="#2563EB"
-                    strokeWidth={1.5}
-                    fillOpacity={1}
-                    fill="url(#rainGradient)"
-                  />
-                  <Line
-                    yAxisId="left"
-                    type="monotone"
-                    dataKey="temp"
-                    name="Nhiệt độ (°C)"
-                    stroke="#F59E0B"
-                    strokeWidth={2.5}
-                    dot={{ r: 2, fill: '#F59E0B' }}
-                    activeDot={{ r: 5 }}
-                  />
-                </>
-              )}
+            {/* Biểu đồ 2: Xác suất mưa & Lượng mưa mm */}
+            {activeChart === 'rain' && (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                    🌧️ Biểu đồ 2: Xác suất mưa (%) & Lượng mưa dự báo theo từng giờ (mm/h)
+                  </span>
+                  <span className="text-[11px] text-blue-600 dark:text-blue-400 font-medium">
+                    Tổng lượng mưa dự báo trong ngày: {selectedDay?.totalRainfall} mm
+                  </span>
+                </div>
+                <div className="w-full h-64 sm:h-72">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={selectedDay?.hours} margin={{ top: 10, right: 15, left: -20, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="rainFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#2563EB" stopOpacity={0.4} />
+                          <stop offset="95%" stopColor="#2563EB" stopOpacity={0.0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.15} />
+                      <XAxis dataKey="hourLabel" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} interval={2} />
+                      <YAxis yAxisId="rainPct" domain={[0, 100]} unit="%" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <YAxis yAxisId="rainMm" orientation="right" domain={[0, 30]} unit="mm" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <Tooltip content={<CustomDetailedTooltip />} />
+                      <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '4px' }} iconType="circle" />
+                      <Area yAxisId="rainPct" type="monotone" dataKey="rainChance" name="Xác suất mưa" unit="%" stroke="#2563EB" fill="url(#rainFill)" />
+                      <Bar yAxisId="rainMm" dataKey="rainfallAmount" name="Lượng mưa" unit="mm" fill="#0284C7" radius={[3, 3, 0, 0]} maxBarSize={16} />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
 
-              {(chartMetric === 'humidity-uv' || chartMetric === 'all') && (
-                <>
-                  <Area
-                    yAxisId="left"
-                    type="monotone"
-                    dataKey="humidity"
-                    name="Độ ẩm (%)"
-                    stroke="#0D9488"
-                    strokeWidth={1.5}
-                    fillOpacity={1}
-                    fill="url(#humidityGradient)"
-                  />
-                  <Bar
-                    yAxisId="right"
-                    dataKey="uvIndex"
-                    name="Chỉ số tia UV"
-                    fill="#EC4899"
-                    radius={[3, 3, 0, 0]}
-                    maxBarSize={14}
-                  />
-                </>
-              )}
-            </ComposedChart>
-          </ResponsiveContainer>
-        </div>
+            {/* Biểu đồ 3: Độ ẩm & Điểm sương */}
+            {activeChart === 'humidity' && (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                    💧 Biểu đồ 3: Độ ẩm không khí (%) & Điểm đọng sương (Dew Point °C)
+                  </span>
+                  <span className="text-[11px] text-teal-600 dark:text-teal-400 font-medium">
+                    Độ ẩm TB: {selectedDay?.avgHumidity}% • Đánh giá độ ẩm bão hòa & ngưng tụ
+                  </span>
+                </div>
+                <div className="w-full h-64 sm:h-72">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={selectedDay?.hours} margin={{ top: 10, right: 15, left: -20, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="humFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#0D9488" stopOpacity={0.35} />
+                          <stop offset="95%" stopColor="#0D9488" stopOpacity={0.0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.15} />
+                      <XAxis dataKey="hourLabel" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} interval={2} />
+                      <YAxis yAxisId="hum" domain={[30, 100]} unit="%" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <YAxis yAxisId="dew" orientation="right" domain={[15, 30]} unit="°C" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <Tooltip content={<CustomDetailedTooltip />} />
+                      <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '4px' }} iconType="circle" />
+                      <Area yAxisId="hum" type="monotone" dataKey="humidity" name="Độ ẩm không khí" unit="%" stroke="#0D9488" fill="url(#humFill)" strokeWidth={2} />
+                      <Line yAxisId="dew" type="monotone" dataKey="dewPoint" name="Điểm đọng sương" unit="°C" stroke="#059669" strokeWidth={2} strokeDasharray="3 3" dot={false} />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
+
+            {/* Biểu đồ 4: Bức xạ mặt trời & Chỉ số tia UV */}
+            {activeChart === 'uv' && (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                    ☀️ Biểu đồ 4: Chỉ số bức xạ cực tím (UV Index) & Bức xạ quang điện (W/m²)
+                  </span>
+                  <span className="text-[11px] text-rose-600 dark:text-rose-400 font-medium">
+                    Đỉnh UV: {selectedDay?.maxUvIndex} ({getUvLevel(selectedDay?.maxUvIndex || 0)})
+                  </span>
+                </div>
+                <div className="w-full h-64 sm:h-72">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={selectedDay?.hours} margin={{ top: 10, right: 15, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.15} />
+                      <XAxis dataKey="hourLabel" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} interval={2} />
+                      <YAxis yAxisId="uv" domain={[0, 13]} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <YAxis yAxisId="rad" orientation="right" domain={[0, 1100]} unit="W/m²" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <Tooltip content={<CustomDetailedTooltip />} />
+                      <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '4px' }} iconType="circle" />
+                      <ReferenceLine yAxisId="uv" y={8} stroke="#E11D48" strokeDasharray="3 3" label={{ value: 'Ngưỡng rất cao (UV 8+)', fill: '#E11D48', fontSize: 10 }} />
+                      <Bar yAxisId="uv" dataKey="uvIndex" name="Chỉ số tia UV" fill="#E11D48" radius={[3, 3, 0, 0]} maxBarSize={14} />
+                      <Line yAxisId="rad" type="monotone" dataKey="solarRadiation" name="Bức xạ quang học" unit="W/m²" stroke="#F59E0B" strokeWidth={2} dot={false} />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
+
+            {/* Biểu đồ 5: Tốc độ gió & Gió giật */}
+            {activeChart === 'wind' && (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                    💨 Biểu đồ 5: Tốc độ gió trung bình & Gió giật gián đoạn (km/h)
+                  </span>
+                  <span className="text-[11px] text-sky-600 dark:text-sky-400 font-medium">
+                    Gió biển/sông tác động mạnh nhất lúc 14h - 18h
+                  </span>
+                </div>
+                <div className="w-full h-64 sm:h-72">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={selectedDay?.hours} margin={{ top: 10, right: 15, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.15} />
+                      <XAxis dataKey="hourLabel" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} interval={2} />
+                      <YAxis domain={[0, 50]} unit="km/h" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <Tooltip content={<CustomDetailedTooltip />} />
+                      <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '4px' }} iconType="circle" />
+                      <Area type="monotone" dataKey="windSpeed" name="Tốc độ gió TB" unit="km/h" stroke="#0284C7" fill="#BAE6FD" fillOpacity={0.4} strokeWidth={2} />
+                      <Line type="monotone" dataKey="windGust" name="Gió giật tức thời" unit="km/h" stroke="#0369A1" strokeWidth={2} strokeDasharray="3 3" dot={false} />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
+
+            {/* Biểu đồ 6: So sánh Phường vs Xã vs Đặc khu */}
+            {activeChart === 'comparison' && (
+              <div>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                  <div>
+                    <span className="text-xs font-bold text-purple-800 dark:text-purple-300 block">
+                      🌐 Biểu đồ 6: Đối sánh vi khí hậu Đa cấp độ (Phường vs Xã vs Đặc khu)
+                    </span>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                      So sánh trực tiếp giữa Cấp Phường (Quận 1) vs Cấp Xã (Cần Giờ) vs Cấp Đặc khu (Côn Đảo)
+                    </span>
+                  </div>
+
+                  {/* Selector chỉ số so sánh */}
+                  <div className="inline-flex p-0.5 rounded-lg bg-slate-200/80 dark:bg-slate-800 text-xs font-semibold self-start sm:self-center">
+                    <button
+                      type="button"
+                      onClick={() => setComparisonMetric('temp')}
+                      className={`px-2 py-1 rounded cursor-pointer ${
+                        comparisonMetric === 'temp'
+                          ? 'bg-white dark:bg-slate-700 text-purple-700 dark:text-purple-300 font-bold shadow-2xs'
+                          : 'text-slate-600 dark:text-slate-400'
+                      }`}
+                    >
+                      Nhiệt độ (°C)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setComparisonMetric('rain')}
+                      className={`px-2 py-1 rounded cursor-pointer ${
+                        comparisonMetric === 'rain'
+                          ? 'bg-white dark:bg-slate-700 text-purple-700 dark:text-purple-300 font-bold shadow-2xs'
+                          : 'text-slate-600 dark:text-slate-400'
+                      }`}
+                    >
+                      Xác suất mưa (%)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setComparisonMetric('uv')}
+                      className={`px-2 py-1 rounded cursor-pointer ${
+                        comparisonMetric === 'uv'
+                          ? 'bg-white dark:bg-slate-700 text-purple-700 dark:text-purple-300 font-bold shadow-2xs'
+                          : 'text-slate-600 dark:text-slate-400'
+                      }`}
+                    >
+                      Tia UV
+                    </button>
+                  </div>
+                </div>
+
+                <div className="w-full h-64 sm:h-72">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={comparisonData} margin={{ top: 10, right: 15, left: -20, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.15} />
+                      <XAxis dataKey="hourLabel" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} interval={2} />
+                      <YAxis
+                        domain={comparisonMetric === 'temp' ? [20, 40] : comparisonMetric === 'rain' ? [0, 100] : [0, 12]}
+                        unit={comparisonMetric === 'temp' ? '°C' : comparisonMetric === 'rain' ? '%' : ''}
+                        tick={{ fontSize: 10 }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <Tooltip content={<CustomDetailedTooltip />} />
+                      <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '4px' }} iconType="circle" />
+
+                      {comparisonMetric === 'temp' && (
+                        <>
+                          <Line type="monotone" dataKey="wardTemp" name="Cấp Phường (Phường Sài Gòn, Q1)" unit="°C" stroke="#2563EB" strokeWidth={2.5} dot={false} />
+                          <Line type="monotone" dataKey="communeTemp" name="Cấp Xã (Xã Long Hòa, Cần Giờ)" unit="°C" stroke="#059669" strokeWidth={2.5} dot={false} />
+                          <Line type="monotone" dataKey="specialZoneTemp" name="Cấp Đặc khu (Đặc khu Côn Đảo)" unit="°C" stroke="#9333EA" strokeWidth={2.5} dot={false} />
+                        </>
+                      )}
+
+                      {comparisonMetric === 'rain' && (
+                        <>
+                          <Line type="monotone" dataKey="wardRain" name="Cấp Phường (Mưa đô thị)" unit="%" stroke="#2563EB" strokeWidth={2} dot={false} />
+                          <Line type="monotone" dataKey="communeRain" name="Cấp Xã (Dông nhiệt chiều)" unit="%" stroke="#059669" strokeWidth={2} dot={false} />
+                          <Line type="monotone" dataKey="specialZoneRain" name="Cấp Đặc khu (Mưa biển đêm/chiều)" unit="%" stroke="#9333EA" strokeWidth={2} dot={false} />
+                        </>
+                      )}
+
+                      {comparisonMetric === 'uv' && (
+                        <>
+                          <Line type="monotone" dataKey="wardUv" name="Cấp Phường (Tia UV nội đô)" stroke="#2563EB" strokeWidth={2} dot={false} />
+                          <Line type="monotone" dataKey="communeUv" name="Cấp Xã (Tia UV ngoại thành)" stroke="#059669" strokeWidth={2} dot={false} />
+                          <Line type="monotone" dataKey="specialZoneUv" name="Cấp Đặc khu (UV biển cực đại)" stroke="#9333EA" strokeWidth={2.5} dot={false} />
+                        </>
+                      )}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          // CHẾ ĐỘ 2: XEM LƯỚI TẤT CẢ BIỂU ĐỒ (DASHBOARD GRID VIEW)
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+            {/* Grid Item 1: Nhiệt độ */}
+            <div className="bg-slate-50/80 dark:bg-slate-950/40 p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800">
+              <div className="text-xs font-bold text-slate-800 dark:text-slate-200 mb-1 flex items-center justify-between">
+                <span>🌡️ 1. Nhiệt độ & Cảm nhận RealFeel (°C)</span>
+                <span className="text-[10px] text-amber-600 font-mono">Đỉnh: {selectedDay?.maxTemp}°C</span>
+              </div>
+              <div className="h-44">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={selectedDay?.hours} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.15} />
+                    <XAxis dataKey="hourLabel" tick={{ fontSize: 9 }} interval={4} />
+                    <YAxis domain={[20, 42]} tick={{ fontSize: 9 }} unit="°" />
+                    <Tooltip content={<CustomDetailedTooltip />} />
+                    <Line type="monotone" dataKey="temp" name="Nhiệt độ thực" unit="°C" stroke="#F59E0B" strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="feelLikeTemp" name="RealFeel" unit="°C" stroke="#DC2626" strokeWidth={1.5} strokeDasharray="3 3" dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Grid Item 2: Lượng mưa */}
+            <div className="bg-slate-50/80 dark:bg-slate-950/40 p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800">
+              <div className="text-xs font-bold text-slate-800 dark:text-slate-200 mb-1 flex items-center justify-between">
+                <span>🌧️ 2. Xác suất mưa (%) & Lượng mưa (mm)</span>
+                <span className="text-[10px] text-blue-600 font-mono">Đỉnh: {selectedDay?.maxRainChance}%</span>
+              </div>
+              <div className="h-44">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={selectedDay?.hours} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.15} />
+                    <XAxis dataKey="hourLabel" tick={{ fontSize: 9 }} interval={4} />
+                    <YAxis yAxisId="left" domain={[0, 100]} tick={{ fontSize: 9 }} unit="%" />
+                    <YAxis yAxisId="right" orientation="right" domain={[0, 25]} tick={{ fontSize: 9 }} unit="mm" />
+                    <Tooltip content={<CustomDetailedTooltip />} />
+                    <Area yAxisId="left" type="monotone" dataKey="rainChance" name="Xác suất mưa" unit="%" stroke="#2563EB" fill="#93C5FD" fillOpacity={0.4} />
+                    <Bar yAxisId="right" dataKey="rainfallAmount" name="Lượng mưa" unit="mm" fill="#0284C7" maxBarSize={12} />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Grid Item 3: Độ ẩm & Điểm sương */}
+            <div className="bg-slate-50/80 dark:bg-slate-950/40 p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800">
+              <div className="text-xs font-bold text-slate-800 dark:text-slate-200 mb-1 flex items-center justify-between">
+                <span>💧 3. Độ ẩm (%) & Điểm đọng sương (°C)</span>
+                <span className="text-[10px] text-teal-600 font-mono">TB: {selectedDay?.avgHumidity}%</span>
+              </div>
+              <div className="h-44">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={selectedDay?.hours} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.15} />
+                    <XAxis dataKey="hourLabel" tick={{ fontSize: 9 }} interval={4} />
+                    <YAxis domain={[35, 100]} tick={{ fontSize: 9 }} unit="%" />
+                    <Tooltip content={<CustomDetailedTooltip />} />
+                    <Line type="monotone" dataKey="humidity" name="Độ ẩm" unit="%" stroke="#0D9488" strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="dewPoint" name="Điểm sương" unit="°C" stroke="#059669" strokeWidth={1.5} strokeDasharray="2 2" dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Grid Item 4: Tia UV & Gió */}
+            <div className="bg-slate-50/80 dark:bg-slate-950/40 p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800">
+              <div className="text-xs font-bold text-slate-800 dark:text-slate-200 mb-1 flex items-center justify-between">
+                <span>☀️ 4. Bức xạ tia UV & Tốc độ gió (km/h)</span>
+                <span className="text-[10px] text-rose-600 font-mono">UV max: {selectedDay?.maxUvIndex}</span>
+              </div>
+              <div className="h-44">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={selectedDay?.hours} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.15} />
+                    <XAxis dataKey="hourLabel" tick={{ fontSize: 9 }} interval={4} />
+                    <YAxis yAxisId="uv" domain={[0, 12]} tick={{ fontSize: 9 }} />
+                    <YAxis yAxisId="wind" orientation="right" domain={[0, 45]} unit="k" tick={{ fontSize: 9 }} />
+                    <Tooltip content={<CustomDetailedTooltip />} />
+                    <Bar yAxisId="uv" dataKey="uvIndex" name="Tia UV" fill="#E11D48" maxBarSize={12} />
+                    <Line yAxisId="wind" type="monotone" dataKey="windSpeed" name="Tốc độ gió" unit="km/h" stroke="#0284C7" strokeWidth={2} dot={false} />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 5. Giao diện chi tiết từng giờ: 1h - độ C - % mưa - độ ẩm - tia UV; 2h... */}
@@ -627,9 +1172,9 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <h3 className="text-[16px] font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
-              <span>Chi tiết 24 giờ</span>
+              <span>Bảng dữ liệu 24 giờ chi tiết ({currentName})</span>
               <span className="text-xs font-normal text-slate-500 dark:text-slate-400">
-                (1h, 2h, ... độ C, % mưa, độ ẩm, tia UV)
+                (1h, 2h... Độ C, % Mưa, Độ ẩm, Tia UV, Gió)
               </span>
             </h3>
           </div>
@@ -727,28 +1272,35 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
                   id={`weather-hour-card-${h.hour}`}
                   onClick={() =>
                     onOpenDetail?.({
-                      title: `Thời tiết chi tiết lúc ${h.hourLabel} (${selectedDay?.dateLabel})`,
-                      category: 'Khí tượng theo giờ',
-                      description: `Điều kiện ${h.condition}, nhiệt độ ${h.temp}°C tại ${districtName}.`,
+                      title: `Thời tiết chi tiết lúc ${h.hourLabel} (${currentName})`,
+                      category: `Khí tượng ${adminMeta.label}`,
+                      description: `Điều kiện ${h.condition}, nhiệt độ thực ${h.temp}°C, cảm nhận ${h.feelLikeTemp}°C tại ${currentName}.`,
                       details: [
                         `Mốc thời gian: ${h.timeFormatted} (${h.hourLabel})`,
-                        `Nhiệt độ không khí: ${h.temp}°C`,
-                        `Xác suất mưa: ${h.rainChance}%`,
-                        `Độ ẩm tương đối: ${h.humidity}%`,
-                        `Chỉ số bức xạ tia UV: ${h.uvIndex} (${h.uvLevel})`,
-                        `Tốc độ gió ước tính: ${h.windSpeed} km/h`,
+                        `Cấp đơn vị hành chính: ${adminMeta.label} (${currentName})`,
+                        `Nhiệt độ không khí: ${h.temp}°C (Cảm nhận: ${h.feelLikeTemp}°C)`,
+                        `Xác suất mưa: ${h.rainChance}% (Lượng mưa: ${h.rainfallAmount} mm)`,
+                        `Độ ẩm tương đối: ${h.humidity}% (Điểm sương: ${h.dewPoint}°C)`,
+                        `Chỉ số bức xạ tia cực tím UV: ${h.uvIndex} (${h.uvLevel})`,
+                        `Bức xạ mặt trời: ${h.solarRadiation} W/m²`,
+                        `Gió: ${h.windSpeed} km/h (Giật: ${h.windGust} km/h - ${h.beaufortScale})`,
                       ],
                       tips: [
                         h.uvIndex >= 6
-                          ? 'Tia UV mức nguy hại, nên mang theo áo chống nắng và kính râm.'
+                          ? 'Tia UV ở mức nguy hại, nên mang theo áo chống nắng, kem chống nắng và kính râm.'
                           : 'Tia UV ở mức an toàn cho các hoạt động ngoài trời.',
                         h.rainChance >= 50
                           ? 'Khả năng có mưa rào cao, nên chủ động chuẩn bị áo mưa hoặc dù khi di chuyển.'
                           : 'Thời tiết tạnh ráo, thuận lợi cho lưu thông.',
+                        currentAdminType === 'đặc khu'
+                          ? 'Đặc khu hải đảo gió mạnh, chú ý an toàn tàu thuyền và hoạt động ven biển.'
+                          : currentAdminType === 'xã'
+                          ? 'Vùng ven sông rạch dễ có sương mù sớm và mưa dông nhiệt cục bộ vào buổi chiều.'
+                          : 'Khu vực nội thành có hiện tượng tích nhiệt đô thị, nhiệt độ cảm nhận vào buổi tối có thể cao hơn.',
                       ],
                     })
                   }
-                  className={`flex flex-col items-center justify-between p-3 rounded-2xl border min-w-[125px] transition-all cursor-pointer active:scale-98 shadow-xs ${
+                  className={`flex flex-col items-center justify-between p-3 rounded-2xl border min-w-[130px] transition-all cursor-pointer active:scale-98 shadow-xs ${
                     isCurrentHour
                       ? 'bg-blue-50/90 dark:bg-blue-950/60 border-blue-400 dark:border-blue-600 ring-2 ring-blue-400/30'
                       : 'bg-[#F8FAFC] dark:bg-slate-800/70 hover:bg-slate-100 dark:hover:bg-slate-800 border-slate-200/80 dark:border-slate-700/80'
@@ -774,12 +1326,17 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
                     </span>
                   </div>
 
-                  {/* Main Metric: Nhiệt độ */}
-                  <div className="text-[17px] font-black text-slate-900 dark:text-slate-100 font-mono">
-                    {h.temp}°C
+                  {/* Main Metric: Nhiệt độ thực & FeelLike */}
+                  <div className="text-center">
+                    <div className="text-[17px] font-black text-slate-900 dark:text-slate-100 font-mono">
+                      {h.temp}°C
+                    </div>
+                    <div className="text-[10px] text-slate-400 font-mono">
+                      Feel: {h.feelLikeTemp}°C
+                    </div>
                   </div>
 
-                  {/* Chi tiết: % mưa, độ ẩm, tia UV */}
+                  {/* Chi tiết: % mưa, độ ẩm, tia UV, gió */}
                   <div className="w-full space-y-1 mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-700/60 text-[10.5px]">
                     <div className="flex items-center justify-between">
                       <span className="text-blue-600 dark:text-blue-400 flex items-center gap-0.5">
@@ -803,12 +1360,17 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
                       <span className="text-rose-600 dark:text-rose-400 flex items-center gap-0.5">
                         <SunMedium className="w-3 h-3" /> UV:
                       </span>
-                      <span
-                        className={`px-1 py-0.2 rounded text-[9.5px] font-bold border ${getUvBadgeStyle(
-                          h.uvLevel
-                        )}`}
-                      >
+                      <span className={`px-1 py-0.2 rounded text-[9.5px] font-bold border ${getUvBadgeStyle(h.uvLevel)}`}>
                         {h.uvIndex}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-slate-500">
+                      <span className="flex items-center gap-0.5">
+                        <Wind className="w-3 h-3" /> Gió:
+                      </span>
+                      <span className="font-mono text-[10px]">
+                        {h.windSpeed} km/h
                       </span>
                     </div>
                   </div>
@@ -826,11 +1388,11 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
                 <tr className="bg-slate-100/80 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 font-semibold border-b border-slate-200 dark:border-slate-800">
                   <th className="p-2.5">Thời gian</th>
                   <th className="p-2.5">Thời tiết</th>
-                  <th className="p-2.5">Nhiệt độ</th>
-                  <th className="p-2.5">Xác suất mưa</th>
-                  <th className="p-2.5">Độ ẩm</th>
-                  <th className="p-2.5">Chỉ số UV</th>
-                  <th className="p-2.5">Gió</th>
+                  <th className="p-2.5">Nhiệt độ (Thực/Cảm nhận)</th>
+                  <th className="p-2.5">Xác suất & Lượng mưa</th>
+                  <th className="p-2.5">Độ ẩm (Điểm sương)</th>
+                  <th className="p-2.5">Chỉ số UV (Bức xạ)</th>
+                  <th className="p-2.5">Gió & Cấp gió</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
@@ -842,21 +1404,22 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
                       key={h.hour}
                       onClick={() =>
                         onOpenDetail?.({
-                          title: `Chi tiết khí tượng lúc ${h.hourLabel} (${selectedDay?.dateLabel})`,
-                          category: 'Khí tượng theo giờ',
+                          title: `Khí tượng chi tiết lúc ${h.hourLabel} (${currentName})`,
+                          category: `Khí tượng ${adminMeta.label}`,
                           description: `${h.condition}, nhiệt độ ${h.temp}°C, xác suất mưa ${h.rainChance}%.`,
                           details: [
                             `Thời gian: ${h.timeFormatted} (${h.hourLabel})`,
-                            `Nhiệt độ: ${h.temp}°C`,
-                            `Khả năng mưa: ${h.rainChance}%`,
-                            `Độ ẩm: ${h.humidity}%`,
-                            `Tia UV: ${h.uvIndex} (${h.uvLevel})`,
-                            `Gió: ${h.windSpeed} km/h`,
+                            `Nhiệt độ thực tế: ${h.temp}°C`,
+                            `Nhiệt độ cảm nhận: ${h.feelLikeTemp}°C`,
+                            `Khả năng mưa: ${h.rainChance}% (Lượng mưa: ${h.rainfallAmount} mm)`,
+                            `Độ ẩm: ${h.humidity}% (Điểm sương: ${h.dewPoint}°C)`,
+                            `Tia UV: ${h.uvIndex} (${h.uvLevel}) - Bức xạ: ${h.solarRadiation} W/m²`,
+                            `Gió: ${h.windSpeed} km/h (Giật: ${h.windGust} km/h - ${h.beaufortScale})`,
                           ],
                           tips: [
                             h.uvIndex >= 6
-                              ? 'Cảnh báo bức xạ UV cao, hạn chế phơi nắng.'
-                              : 'Tia cực tím an toàn.',
+                              ? 'Cảnh báo bức xạ UV cao, hạn chế phơi nắng ngoài trời.'
+                              : 'Tia cực tím ở mức độ an toàn.',
                           ],
                         })
                       }
@@ -880,7 +1443,7 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
                       <td className="p-2.5">
                         <div className="flex items-center gap-1.5">
                           {renderWeatherIcon(h.iconType, 'w-4 h-4 shrink-0')}
-                          <span className="text-slate-700 dark:text-slate-300 truncate max-w-[120px]">
+                          <span className="text-slate-700 dark:text-slate-300 truncate max-w-[110px]">
                             {h.condition}
                           </span>
                         </div>
@@ -890,11 +1453,14 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
                         <span className="font-black text-slate-900 dark:text-slate-100 font-mono">
                           {h.temp}°C
                         </span>
+                        <span className="text-[11px] text-slate-400 font-mono ml-1.5">
+                          ({h.feelLikeTemp}°C)
+                        </span>
                       </td>
 
                       <td className="p-2.5 whitespace-nowrap">
                         <div className="flex items-center gap-1.5">
-                          <div className="w-12 bg-slate-200 dark:bg-slate-700 rounded-full h-1.5 overflow-hidden">
+                          <div className="w-10 bg-slate-200 dark:bg-slate-700 rounded-full h-1.5 overflow-hidden">
                             <div
                               className="bg-blue-600 h-full rounded-full"
                               style={{ width: `${h.rainChance}%` }}
@@ -903,12 +1469,20 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
                           <span className="font-mono text-blue-600 dark:text-blue-400 font-bold">
                             {h.rainChance}%
                           </span>
+                          {h.rainfallAmount > 0 && (
+                            <span className="text-[10.5px] text-slate-400 font-mono">
+                              ({h.rainfallAmount}mm)
+                            </span>
+                          )}
                         </div>
                       </td>
 
                       <td className="p-2.5 whitespace-nowrap">
                         <span className="font-mono text-teal-600 dark:text-teal-400 font-bold">
                           {h.humidity}%
+                        </span>
+                        <span className="text-[10.5px] text-slate-400 font-mono ml-1">
+                          ({h.dewPoint}°C)
                         </span>
                       </td>
 
@@ -922,8 +1496,8 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
                         </span>
                       </td>
 
-                      <td className="p-2.5 whitespace-nowrap text-slate-500 dark:text-slate-400 font-mono">
-                        {h.windSpeed} km/h
+                      <td className="p-2.5 whitespace-nowrap text-slate-600 dark:text-slate-300 font-mono text-[11px]">
+                        {h.windSpeed} km/h • {h.beaufortScale}
                       </td>
                     </tr>
                   );

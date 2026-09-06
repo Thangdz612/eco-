@@ -7,9 +7,15 @@ interface WeatherTabProps {
   data: DistrictData;
   userLocation?: UserLocation | null;
   onOpenDetail: (content: ModalContent) => void;
+  onSelectDistrict?: (districtId: string) => void;
 }
 
-export const WeatherTab: React.FC<WeatherTabProps> = ({ data, userLocation, onOpenDetail }) => {
+export const WeatherTab: React.FC<WeatherTabProps> = ({
+  data,
+  userLocation,
+  onOpenDetail,
+  onSelectDistrict,
+}) => {
   const displayAltitude =
     userLocation?.altitude !== null && userLocation?.altitude !== undefined
       ? `${userLocation.altitude} m`
@@ -189,7 +195,9 @@ export const WeatherTab: React.FC<WeatherTabProps> = ({ data, userLocation, onOp
       <WeatherCollectedRangeSection
         districtId={data.id}
         districtName={data.name}
+        adminType={data.adminType}
         onOpenDetail={onOpenDetail}
+        onSelectDistrict={onSelectDistrict}
       />
 
       {/* Cảnh báo biến cố */}

@@ -247,6 +247,7 @@ export default function App() {
               data={currentDistrict}
               userLocation={userLocation}
               onOpenDetail={(content) => setActiveModalContent(content)}
+              onSelectDistrict={(id) => setSelectedDistrictId(id)}
             />
           )}
 
