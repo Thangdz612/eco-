@@ -18,6 +18,11 @@ import {
   AlertCircle,
   RotateCw,
   Trash2,
+  Copy,
+  Check,
+  Lock,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { UserLocation, ThemeMode } from '../types';
 import { isRunningInIframe } from '../utils/geolocation';
@@ -25,8 +30,10 @@ import { isRunningInIframe } from '../utils/geolocation';
 interface SettingsTabProps {
   userLocation?: UserLocation | null;
   onRefreshLocation?: () => void;
+  onOpenDistrictPicker?: () => void;
   onOpenDartApk?: () => void;
   onOpenInstallGuide?: () => void;
+  onOpenPermissionsGuide?: () => void;
   themeMode?: ThemeMode;
   onThemeChange?: (mode: ThemeMode) => void;
   systemTheme?: 'light' | 'dark';
@@ -43,8 +50,10 @@ export interface AppPreferences {
 export const SettingsTab: React.FC<SettingsTabProps> = ({
   userLocation,
   onRefreshLocation,
+  onOpenDistrictPicker,
   onOpenDartApk,
   onOpenInstallGuide,
+  onOpenPermissionsGuide,
   themeMode = 'system',
   onThemeChange,
   systemTheme = 'light',
@@ -53,6 +62,19 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   const [notifStatus, setNotifStatus] = useState<'granted' | 'default' | 'denied'>('default');
   const [storageStatus, setStorageStatus] = useState<string>('2.6 MB / 50 MB khả dụng');
   const [statusFeedback, setStatusFeedback] = useState<string | null>(null);
+  const [mobileTab, setMobileTab] = useState<'android' | 'ios'>('android');
+  const [showTroubleshoot, setShowTroubleshoot] = useState<boolean>(true);
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  const handleCopyLink = () => {
+    try {
+      navigator.clipboard.writeText(window.location.href);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 3000);
+    } catch (_e) {
+      // ignore
+    }
+  };
 
   const [preferences, setPreferences] = useState<AppPreferences>(() => {
     try {
@@ -294,22 +316,152 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           <button
             type="button"
             onClick={handleRequestGeo}
-            className="flex-1 py-2 px-3 rounded-xl bg-[#0D47A1] dark:bg-blue-600 hover:bg-[#1565C0] text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-98 transition-all"
+            className="flex-1 py-2.5 px-3 rounded-xl bg-[#0D47A1] dark:bg-blue-600 hover:bg-[#1565C0] text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-98 transition-all"
           >
             <RotateCw className="w-3.5 h-3.5" />
             <span>Kích hoạt định vị GPS</span>
           </button>
 
-          {inIframe && (
+          <button
+            type="button"
+            onClick={() => window.open(window.location.href, '_blank')}
+            className="py-2.5 px-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-900/80 transition-all"
+            title="Mở tab mới nếu iFrame chặn cấp quyền"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            <span>Mở Tab mới</span>
+          </button>
+        </div>
+
+        {/* Mobile Quick Action Buttons */}
+        <div className="grid grid-cols-2 gap-2 pt-1">
+          <button
+            type="button"
+            onClick={handleCopyLink}
+            className="py-2 px-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-blue-500 font-bold text-[11.5px] text-slate-700 dark:text-slate-200 flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition-all"
+          >
+            {copiedLink ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                <span className="text-emerald-600 dark:text-emerald-400">Đã chép liên kết!</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-3.5 h-3.5 text-slate-500" />
+                <span>Sao chép link web</span>
+              </>
+            )}
+          </button>
+
+          {onOpenDistrictPicker && (
             <button
               type="button"
-              onClick={() => window.open(window.location.href, '_blank')}
-              className="py-2 px-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-900/80 transition-all"
-              title="Mở tab mới nếu iFrame chặn cấp quyền"
+              onClick={onOpenDistrictPicker}
+              className="py-2 px-3 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-[#0D47A1] dark:text-blue-300 font-bold text-[11.5px] flex items-center justify-center gap-1.5 cursor-pointer hover:bg-blue-100 transition-all"
             >
-              <ExternalLink className="w-3.5 h-3.5" />
-              <span>Mở Tab mới</span>
+              <MapPin className="w-3.5 h-3.5 text-[#0D47A1] dark:text-blue-400" />
+              <span>Chọn Xã/Phường ngay</span>
             </button>
+          )}
+        </div>
+
+        {/* Mobile GPS Troubleshooting Section */}
+        <div className="pt-2 border-t border-slate-200/80 dark:border-slate-750">
+          <button
+            type="button"
+            onClick={() => setShowTroubleshoot(!showTroubleshoot)}
+            className="w-full py-1.5 flex items-center justify-between text-xs font-bold text-[#0D47A1] dark:text-blue-400 cursor-pointer"
+          >
+            <div className="flex items-center gap-1.5">
+              <Smartphone className="w-4 h-4" />
+              <span>Hướng dẫn sửa lỗi không cấp được GPS trên điện thoại</span>
+            </div>
+            {showTroubleshoot ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
+
+          {showTroubleshoot && (
+            <div className="mt-2.5 space-y-2.5 text-xs text-slate-600 dark:text-slate-300 animate-in fade-in">
+              {/* OS Tabs */}
+              <div className="flex bg-slate-200/80 dark:bg-slate-750 p-0.5 rounded-xl text-[11.5px] font-bold">
+                <button
+                  type="button"
+                  onClick={() => setMobileTab('android')}
+                  className={`flex-1 py-1.5 rounded-lg cursor-pointer transition-all ${
+                    mobileTab === 'android'
+                      ? 'bg-white dark:bg-slate-900 text-[#0D47A1] dark:text-blue-400 shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400'
+                  }`}
+                >
+                  Android (Xiaomi, Samsung, Oppo...)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMobileTab('ios')}
+                  className={`flex-1 py-1.5 rounded-lg cursor-pointer transition-all ${
+                    mobileTab === 'ios'
+                      ? 'bg-white dark:bg-slate-900 text-[#0D47A1] dark:text-blue-400 shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400'
+                  }`}
+                >
+                  iPhone / iPad (iOS Safari)
+                </button>
+              </div>
+
+              {mobileTab === 'android' ? (
+                <div className="space-y-2 text-[11.5px] leading-relaxed">
+                  <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 flex items-start gap-2">
+                    <span className="w-4 h-4 rounded-full bg-blue-100 dark:bg-blue-900/60 text-[#0D47A1] dark:text-blue-300 font-bold flex items-center justify-center text-[10px] shrink-0 mt-0.5">1</span>
+                    <div>
+                      <strong>Bật GPS máy:</strong> Vuốt từ đỉnh màn hình điện thoại xuống ➔ Tìm và bật biểu tượng <strong>"Vị trí" (GPS)</strong>.
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 flex items-start gap-2">
+                    <span className="w-4 h-4 rounded-full bg-blue-100 dark:bg-blue-900/60 text-[#0D47A1] dark:text-blue-300 font-bold flex items-center justify-center text-[10px] shrink-0 mt-0.5">2</span>
+                    <div>
+                      <strong>Mở quyền trên Chrome:</strong> Nhấn biểu tượng <strong>ổ khóa 🔒 hoặc nút ⚙️ / 2 gạch</strong> bên trái thanh URL ➔ Chọn <strong>Quyền (Permissions)</strong> ➔ Bật <strong>Vị trí (Location)</strong> sang <strong>Cho phép</strong> ➔ Nhấn Tải lại trang.
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 flex items-start gap-2">
+                    <span className="w-4 h-4 rounded-full bg-blue-100 dark:bg-blue-900/60 text-[#0D47A1] dark:text-blue-300 font-bold flex items-center justify-center text-[10px] shrink-0 mt-0.5">3</span>
+                    <div>
+                      <strong>Cấp quyền hệ điều hành cho Chrome:</strong> Vào <em>Cài đặt điện thoại ➔ Ứng dụng ➔ Chrome ➔ Quyền ➔ Vị trí</em> ➔ Chọn <strong>"Chỉ cho phép khi dùng ứng dụng"</strong> và gạt bật <strong>"Sử dụng vị trí chính xác"</strong>.
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 flex items-start gap-2">
+                    <span className="w-4 h-4 rounded-full bg-blue-100 dark:bg-blue-900/60 text-[#0D47A1] dark:text-blue-300 font-bold flex items-center justify-center text-[10px] shrink-0 mt-0.5">4</span>
+                    <div>
+                      <strong>Mở bằng trình duyệt ngoài:</strong> Nếu đang mở từ AI Studio, Zalo, Facebook Messenger: Bấm nút <strong>[Sao chép link web]</strong> ở trên ➔ Mở ứng dụng <strong>Google Chrome</strong> độc lập rồi dán vào.
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2 text-[11.5px] leading-relaxed">
+                  <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 flex items-start gap-2">
+                    <span className="w-4 h-4 rounded-full bg-blue-100 dark:bg-blue-900/60 text-[#0D47A1] dark:text-blue-300 font-bold flex items-center justify-center text-[10px] shrink-0 mt-0.5">1</span>
+                    <div>
+                      <strong>Bật Dịch vụ định vị:</strong> Vào <em>Cài đặt máy ➔ Quyền riêng tư & Bảo mật ➔ Dịch vụ định vị</em> ➔ Bật công tắc <strong>Dịch vụ định vị</strong>.
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 flex items-start gap-2">
+                    <span className="w-4 h-4 rounded-full bg-blue-100 dark:bg-blue-900/60 text-[#0D47A1] dark:text-blue-300 font-bold flex items-center justify-center text-[10px] shrink-0 mt-0.5">2</span>
+                    <div>
+                      <strong>Cấp quyền cho Safari:</strong> Trong mục Dịch vụ định vị, kéo xuống tìm <strong>Trang web Safari</strong> ➔ Chọn <strong>"Khi dùng ứng dụng"</strong> và bật <strong>"Vị trí chính xác"</strong>.
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 flex items-start gap-2">
+                    <span className="w-4 h-4 rounded-full bg-blue-100 dark:bg-blue-900/60 text-[#0D47A1] dark:text-blue-300 font-bold flex items-center justify-center text-[10px] shrink-0 mt-0.5">3</span>
+                    <div>
+                      <strong>Tải lại trang:</strong> Quay lại trình duyệt Safari, bấm biểu tượng mũi tên tròn để tải lại trang ➔ Nhấn <strong>"Cho phép"</strong> khi xuất hiện hộp thoại.
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -424,6 +576,17 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           <Bell className="w-3.5 h-3.5" />
           <span>{notifStatus === 'granted' ? 'Cập nhật cài đặt thông báo' : 'Bật nhận thông báo cảnh báo'}</span>
         </button>
+
+        {onOpenPermissionsGuide && (
+          <button
+            type="button"
+            onClick={onOpenPermissionsGuide}
+            className="w-full py-2 px-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all"
+          >
+            <Smartphone className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+            <span>Xử lý "Từ chối thông báo / Không có quyền" trên ĐT</span>
+          </button>
+        )}
       </div>
 
       {/* Section 5: Xuất APK & Hướng dẫn cài đặt */}

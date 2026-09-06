@@ -589,6 +589,32 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           {/* TAB 2: PERMISSIONS MANAGER */}
           {activeTab === 'permissions' && (
             <div className="space-y-3.5">
+              {/* Special Guide for Android App Info Screen */}
+              <div className="p-3.5 rounded-2xl bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 text-xs text-amber-950 dark:text-amber-200 space-y-2.5">
+                <div className="flex items-center gap-2 font-bold text-amber-900 dark:text-amber-300">
+                  <Smartphone className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span>Xử lý cài đặt trên điện thoại Android (Màn hình Thông tin ứng dụng)</span>
+                </div>
+                <div className="space-y-2 text-[11.5px] leading-relaxed">
+                  <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-amber-200/80 dark:border-amber-800/60">
+                    <strong className="text-amber-800 dark:text-amber-300 block mb-0.5">
+                      1. "Quản lý thông báo: Từ chối"
+                    </strong>
+                    <span>
+                      👉 Chạm trực tiếp vào dòng <strong>"Quản lý thông báo &gt;"</strong> trên màn hình Thông tin ứng dụng của điện thoại ➔ Gạt bật công tắc <strong>"Cho phép thông báo"</strong> (Hiển thị thông báo).
+                    </span>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-amber-200/80 dark:border-amber-800/60">
+                    <strong className="text-blue-800 dark:text-blue-300 block mb-0.5">
+                      2. "Quyền: Không có quyền nào được yêu cầu"
+                    </strong>
+                    <span>
+                      👉 Khi cài từ Google Chrome (PWA), Android không gán quyền vị trí trực tiếp cho shortcut mà quản lý qua <strong>Google Chrome</strong>: Vào <em>Cài đặt máy ➔ Ứng dụng ➔ Chrome ➔ Quyền ➔ Vị trí ➔ Bật "Cho phép khi dùng ứng dụng"</em>. (Nếu tự build APK từ Flutter, hãy dùng file AndroidManifest.xml ở tab bên cạnh để đăng ký quyền).
+                    </span>
+                  </div>
+                </div>
+              </div>
+
               <div className="p-3 rounded-2xl bg-[#F8FAFC] dark:bg-slate-800/80 border border-[#E2E8F0] dark:border-slate-700 flex items-center justify-between text-xs text-slate-600 dark:text-slate-300 transition-colors">
                 <div className="flex items-center gap-2">
                   <Shield className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />

@@ -5,12 +5,14 @@ interface NotificationsModalProps {
   isOpen: boolean;
   onClose: () => void;
   districtName: string;
+  onOpenPermissionsGuide?: () => void;
 }
 
 export const NotificationsModal: React.FC<NotificationsModalProps> = ({
   isOpen,
   onClose,
   districtName,
+  onOpenPermissionsGuide,
 }) => {
   if (!isOpen) return null;
 
@@ -68,6 +70,30 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
         </div>
 
         <div className="p-4 space-y-3 max-h-[60vh] overflow-y-auto">
+          {/* Quick Permission Notice for Android Phone */}
+          {onOpenPermissionsGuide && (
+            <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-center justify-between gap-2">
+              <div>
+                <strong className="block text-[11.5px] font-bold text-amber-950">
+                  📱 Chưa nhận được chuông cảnh báo trên điện thoại?
+                </strong>
+                <p className="text-[11px] text-amber-800/80 mt-0.5">
+                  Xử lý trạng thái "Quản lý thông báo: Từ chối" trong cài đặt máy Android.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenPermissionsGuide();
+                }}
+                className="px-2.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] shrink-0 cursor-pointer transition-all"
+              >
+                Xem hướng dẫn
+              </button>
+            </div>
+          )}
+
           {notifications.map((item) => {
             const Icon = item.icon;
             return (

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { X, Copy, Check, Download, Terminal, Smartphone, FileCode2, Package, CheckCircle2 } from 'lucide-react';
-import { FLUTTER_MAIN_DART, FLUTTER_PUBSPEC, APK_BUILD_INSTRUCTIONS } from '../data/flutterDartCode';
+import { X, Copy, Check, Download, Terminal, Smartphone, FileCode2, Package, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { FLUTTER_MAIN_DART, FLUTTER_PUBSPEC, FLUTTER_ANDROID_MANIFEST, APK_BUILD_INSTRUCTIONS } from '../data/flutterDartCode';
 
 interface DartApkModalProps {
   isOpen: boolean;
@@ -8,7 +8,7 @@ interface DartApkModalProps {
 }
 
 export const DartApkModal: React.FC<DartApkModalProps> = ({ isOpen, onClose }) => {
-  const [activeTab, setActiveTab] = useState<'mainDart' | 'pubspec' | 'instructions'>('mainDart');
+  const [activeTab, setActiveTab] = useState<'mainDart' | 'pubspec' | 'manifest' | 'instructions'>('mainDart');
   const [copied, setCopied] = useState<string | null>(null);
 
   if (!isOpen) return null;
@@ -92,6 +92,19 @@ export const DartApkModal: React.FC<DartApkModalProps> = ({ isOpen, onClose }) =
 
           <button
             type="button"
+            onClick={() => setActiveTab('manifest')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              activeTab === 'manifest'
+                ? 'bg-[#1E3A8A] text-white shadow-xs'
+                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+            }`}
+          >
+            <ShieldCheck className="w-4 h-4 text-emerald-500" />
+            <span>AndroidManifest.xml (Quyền GPS & Thông báo)</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveTab('instructions')}
             className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               activeTab === 'instructions'
@@ -147,6 +160,27 @@ export const DartApkModal: React.FC<DartApkModalProps> = ({ isOpen, onClose }) =
               </>
             )}
 
+            {activeTab === 'manifest' && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => handleCopy(FLUTTER_ANDROID_MANIFEST, 'manifest')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-semibold text-slate-700 transition-all cursor-pointer"
+                >
+                  {copied === 'manifest' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copied === 'manifest' ? 'Đã sao chép!' : 'Sao chép Manifest'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDownloadFile(FLUTTER_ANDROID_MANIFEST, 'AndroidManifest.xml')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0284C7] hover:bg-[#0369A1] text-white rounded-lg text-xs font-semibold transition-all cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Tải AndroidManifest.xml</span>
+                </button>
+              </>
+            )}
+
             {activeTab === 'instructions' && (
               <button
                 type="button"
@@ -171,6 +205,12 @@ export const DartApkModal: React.FC<DartApkModalProps> = ({ isOpen, onClose }) =
           {activeTab === 'pubspec' && (
             <pre className="overflow-x-auto whitespace-pre">
               <code>{FLUTTER_PUBSPEC}</code>
+            </pre>
+          )}
+
+          {activeTab === 'manifest' && (
+            <pre className="overflow-x-auto whitespace-pre">
+              <code>{FLUTTER_ANDROID_MANIFEST}</code>
             </pre>
           )}
 

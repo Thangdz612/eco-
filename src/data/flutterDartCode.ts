@@ -1141,7 +1141,50 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 }
 `;
 
+export const FLUTTER_ANDROID_MANIFEST = `<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Quyền định vị vệ tinh GPS độ chính xác cao -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    
+    <!-- Quyền gửi thông báo cảnh báo triều cường & môi trường (Android 13+) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    
+    <!-- Quyền mạng và chạy nền -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <application
+        android:label="EcoApp"
+        android:name="\${applicationName}"
+        android:icon="@mipmap/ic_launcher">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
+            <meta-data
+              android:name="io.flutter.embedding.android.NormalTheme"
+              android:resource="@style/NormalTheme"
+              />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
+    </application>
+</manifest>
+`;
+
 export const APK_BUILD_INSTRUCTIONS = `# HƯỚNG DẪN BUILD FILE APK OFFLINE VỚI FLUTTER / DART
+(KÈM ĐẦY ĐỦ QUYỀN VỊ TRÍ GPS VÀ QUYỀN THÔNG BÁO)
 
 ### Bước 1: Cài đặt Flutter SDK (Nếu máy bạn chưa có)
 - Tải Flutter SDK từ: https://docs.flutter.dev/get-started/install
@@ -1153,16 +1196,23 @@ export const APK_BUILD_INSTRUCTIONS = `# HƯỚNG DẪN BUILD FILE APK OFFLINE V
   \`flutter create eco_app_offline\`
   \`cd eco_app_offline\`
 
-### Bước 3: Thay thế mã nguồn
-- Mở tệp \`pubspec.yaml\` và dán nội dung từ tab "pubspec.yaml"
-- Mở tệp \`lib/main.dart\` và dán toàn bộ mã nguồn Dart từ tab "main.dart"
+### Bước 3: Cấu hình mã nguồn & cấp quyền hệ thống
+1. Mở tệp \`pubspec.yaml\` và dán nội dung từ tab **"pubspec.yaml"**.
+2. Mở tệp \`lib/main.dart\` và dán toàn bộ mã nguồn Dart từ tab **"main.dart"**.
+3. **CỰC KỲ QUAN TRỌNG (Để không bị lỗi "Không có quyền nào được yêu cầu"):**
+   - Mở tệp: \`android/app/src/main/AndroidManifest.xml\`
+   - Dán toàn bộ nội dung từ tab **"AndroidManifest.xml"** vào.
+   - Thao tác này sẽ đăng ký các quyền:
+     + \`ACCESS_FINE_LOCATION\` (Định vị GPS chính xác)
+     + \`ACCESS_COARSE_LOCATION\` (Định vị mạng/trạm phát)
+     + \`POST_NOTIFICATIONS\` (Bật quyền thông báo trên Android 13/14/15)
 
 ### Bước 4: Tải thư viện
 - Chạy lệnh:
   \`flutter pub get\`
 
-### Bước 5: Chạy thử trên máy ảo hoặc thiết bị thật
-- Chạy lệnh:
+### Bước 5: Chạy thử trên điện thoại thật
+- Kết nối cáp điện thoại Android với máy tính (bật USB Debugging), chạy lệnh:
   \`flutter run\`
 
 ### Bước 6: Xuất file APK độc lập (Offline)
@@ -1172,6 +1222,5 @@ export const APK_BUILD_INSTRUCTIONS = `# HƯỚNG DẪN BUILD FILE APK OFFLINE V
 - File APK sau khi build thành công sẽ nằm ở đường dẫn:
   \`build/app/outputs/flutter-apk/app-release.apk\`
 
-*Mẹo*: Để giảm dung lượng APK thành từng file theo chip máy:
-  \`flutter build apk --split-per-abi\`
+- Chuyển file APK này qua điện thoại qua Zalo, Google Drive hoặc dây cáp và cài đặt. Khi cài xong, vào Thông tin ứng dụng sẽ thấy đầy đủ mục **Quyền: Vị trí** và **Quản lý thông báo: Đã bật**.
 `;
