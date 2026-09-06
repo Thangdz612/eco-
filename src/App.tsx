@@ -282,6 +282,8 @@ export default function App() {
               themeMode={themeMode}
               onThemeChange={setThemeMode}
               systemTheme={systemTheme}
+              districtId={currentDistrict.id}
+              districtName={currentDistrict.name}
             />
           )}
 

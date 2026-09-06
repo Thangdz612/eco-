@@ -23,9 +23,27 @@ import {
   Lock,
   ChevronDown,
   ChevronUp,
+  Cloud,
+  CloudRain,
+  Radio,
+  Calendar,
+  Wifi,
+  WifiOff,
+  Clock,
+  RefreshCw,
+  Zap,
 } from 'lucide-react';
 import { UserLocation, ThemeMode } from '../types';
 import { isRunningInIframe } from '../utils/geolocation';
+import {
+  WeatherNotificationItem,
+  WeatherStorageConfig,
+  getStorageConfig,
+  updateStorageConfig,
+  getCachedWeatherNotifications,
+  syncWeatherNotificationsOnline,
+  clearWeatherNotificationCache,
+} from '../utils/weatherNotificationStorage';
 
 interface SettingsTabProps {
   userLocation?: UserLocation | null;
@@ -37,6 +55,8 @@ interface SettingsTabProps {
   themeMode?: ThemeMode;
   onThemeChange?: (mode: ThemeMode) => void;
   systemTheme?: 'light' | 'dark';
+  districtId?: string;
+  districtName?: string;
 }
 
 export interface AppPreferences {
@@ -57,6 +77,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   themeMode = 'system',
   onThemeChange,
   systemTheme = 'light',
+  districtId = 'quan-1',
+  districtName = 'Phường Sài Gòn',
 }) => {
   const [geoStatus, setGeoStatus] = useState<'granted' | 'prompt' | 'denied' | 'checking'>('checking');
   const [notifStatus, setNotifStatus] = useState<'granted' | 'default' | 'denied'>('default');
@@ -65,6 +87,80 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
   const [mobileTab, setMobileTab] = useState<'android' | 'ios'>('android');
   const [showTroubleshoot, setShowTroubleshoot] = useState<boolean>(true);
   const [copiedLink, setCopiedLink] = useState(false);
+
+  // Weather Storage (±3 Days) State
+  const [isOnline, setIsOnline] = useState<boolean>(
+    typeof navigator !== 'undefined' ? navigator.onLine : true
+  );
+  const [storageConfig, setStorageConfig] = useState<WeatherStorageConfig>(getStorageConfig);
+  const [weatherNotifs, setWeatherNotifs] = useState<WeatherNotificationItem[]>(() =>
+    getCachedWeatherNotifications(districtId, districtName)
+  );
+  const [isSyncingWeather, setIsSyncingWeather] = useState<boolean>(false);
+  const [weatherFilter, setWeatherFilter] = useState<'all' | 'today' | 'forecast' | 'history'>('all');
+  const [weatherSyncMsg, setWeatherSyncMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleOnline = async () => {
+      setIsOnline(true);
+      if (storageConfig.autoSyncWhenOnline) {
+        await syncWeatherNotificationsOnline(districtId, districtName);
+        setWeatherNotifs(getCachedWeatherNotifications(districtId, districtName));
+        setStorageConfig(getStorageConfig());
+      }
+    };
+    const handleOffline = () => setIsOnline(false);
+    const handleSyncEvent = () => {
+      setWeatherNotifs(getCachedWeatherNotifications(districtId, districtName));
+      setStorageConfig(getStorageConfig());
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('eco-weather-notifications-synced', handleSyncEvent);
+    window.addEventListener('eco-weather-notifications-cleared', handleSyncEvent);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('eco-weather-notifications-synced', handleSyncEvent);
+      window.removeEventListener('eco-weather-notifications-cleared', handleSyncEvent);
+    };
+  }, [districtId, districtName, storageConfig.autoSyncWhenOnline]);
+
+  const handleManualWeatherSync = async () => {
+    setIsSyncingWeather(true);
+    setWeatherSyncMsg(null);
+    const res = await syncWeatherNotificationsOnline(districtId, districtName);
+    setWeatherNotifs(getCachedWeatherNotifications(districtId, districtName));
+    setStorageConfig(getStorageConfig());
+    setIsSyncingWeather(false);
+    setWeatherSyncMsg(res.message);
+    setTimeout(() => setWeatherSyncMsg(null), 4000);
+  };
+
+  const handleClearWeatherCache = () => {
+    clearWeatherNotificationCache();
+    setWeatherNotifs([]);
+    setStorageConfig(getStorageConfig());
+    setWeatherSyncMsg('Đã xóa bộ nhớ đệm thông báo thời tiết.');
+    setTimeout(() => setWeatherSyncMsg(null), 3000);
+  };
+
+  const handleToggleAutoSync = (enabled: boolean) => {
+    const updated = updateStorageConfig({ autoSyncWhenOnline: enabled });
+    setStorageConfig(updated);
+    if (enabled && isOnline) {
+      handleManualWeatherSync();
+    }
+  };
+
+  const filteredWeatherNotifs = weatherNotifs.filter((item) => {
+    if (weatherFilter === 'today') return item.dateOffset === 0;
+    if (weatherFilter === 'forecast') return item.dateOffset > 0;
+    if (weatherFilter === 'history') return item.dateOffset < 0;
+    return true;
+  });
 
   const handleCopyLink = () => {
     try {
@@ -197,6 +293,34 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
         </div>
       </div>
 
+      {/* Quick highlight card for Weather Storage ±3 Days */}
+      <div className="p-3.5 rounded-2xl bg-linear-to-r from-blue-500/10 via-indigo-500/10 to-emerald-500/10 border border-blue-200 dark:border-blue-800/80 flex items-center justify-between gap-3 shadow-xs">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-8 h-8 rounded-xl bg-[#0D47A1] text-white flex items-center justify-center shrink-0">
+            <CloudRain className="w-4 h-4" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[12px] font-extrabold text-[#0F172A] dark:text-white truncate">
+                Lưu Trữ Thời Tiết (±3 Ngày)
+              </span>
+              <span className="text-[9px] px-1.5 py-0.2 rounded-full font-bold bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300">
+                Khi có mạng
+              </span>
+            </div>
+            <p className="text-[10.5px] text-[#64748B] dark:text-slate-400 truncate">
+              {isOnline ? '🟢 Đang có Internet • Tự động lưu' : '🔴 Ngoại tuyến • Dùng dữ liệu đệm'}
+            </p>
+          </div>
+        </div>
+        <a
+          href="#weather-storage-section"
+          className="px-2.5 py-1.5 rounded-xl bg-[#0D47A1] hover:bg-[#1565C0] text-white text-[11px] font-bold shrink-0 transition-colors shadow-xs cursor-pointer"
+        >
+          Xem ngay ↓
+        </a>
+      </div>
+
       {/* Feedback Banner */}
       {statusFeedback && (
         <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-950/60 border border-blue-200 dark:border-blue-800 text-xs text-blue-900 dark:text-blue-200 flex items-start gap-2 animate-in fade-in">
@@ -262,6 +386,256 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             <Moon className="w-4 h-4 text-indigo-400" />
             <span className="text-[11px] font-bold">Giao diện tối</span>
           </button>
+        </div>
+      </div>
+
+      {/* Section: Lưu Trữ Thông Báo Thời Tiết (±3 Ngày khi có Internet) */}
+      <div id="weather-storage-section" className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 space-y-3.5 scroll-mt-4">
+        {/* Header of the section */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-blue-100 dark:bg-blue-900/50 text-[#0D47A1] dark:text-blue-400 flex items-center justify-center shrink-0">
+              <CloudRain className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-[#0F172A] dark:text-white flex items-center gap-1.5">
+                <span>Lưu Trữ Thông Báo Thời Tiết (±3 Ngày)</span>
+              </h3>
+              <span className="text-[11px] text-[#64748B] dark:text-slate-400">
+                Tự động đồng bộ và lưu đệm khi có kết nối Internet
+              </span>
+            </div>
+          </div>
+          
+          <span
+            className={`text-[10.5px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shrink-0 ${
+              isOnline
+                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                : 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+            }`}
+          >
+            <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+            {isOnline ? 'Online' : 'Offline'}
+          </span>
+        </div>
+
+        {/* Feature Explanation & Policy */}
+        <p className="text-[12px] text-[#64748B] dark:text-slate-400 leading-relaxed">
+          Khi thiết bị kết nối Internet (Wi-Fi/4G), ứng dụng tự động tải và lưu trữ thông báo thời tiết trong phạm vi <strong>±3 ngày</strong> (3 ngày trước lịch sử, hôm nay, và 3 ngày tới dự báo) vào bộ nhớ cục bộ để bạn có thể xem lại bất kỳ lúc nào ngay cả khi không có mạng.
+        </p>
+
+        {/* Auto Sync Toggle Switch */}
+        <div className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 shadow-xs">
+          <div className="min-w-0">
+            <span className="text-xs font-bold text-[#0F172A] dark:text-white block">
+              Tự động lưu trữ khi có Internet
+            </span>
+            <span className="text-[10.5px] text-[#64748B] dark:text-slate-400 block leading-tight">
+              Tự động cập nhật dữ liệu ±3 ngày khi bắt được sóng mạng
+            </span>
+          </div>
+          <label className="relative inline-flex items-center cursor-pointer shrink-0">
+            <input
+              type="checkbox"
+              checked={storageConfig.autoSyncWhenOnline}
+              onChange={(e) => handleToggleAutoSync(e.target.checked)}
+              className="sr-only peer"
+            />
+            <div className="w-11 h-6 bg-slate-200 peer-focus:outline-hidden rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-[#0D47A1]" />
+          </label>
+        </div>
+
+        {/* Feedback Message */}
+        {weatherSyncMsg && (
+          <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-800 dark:text-emerald-300 flex items-center gap-2 animate-in fade-in">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{weatherSyncMsg}</span>
+          </div>
+        )}
+
+        {/* 4 Metrics Stats Grid */}
+        <div className="grid grid-cols-2 xs:grid-cols-4 gap-2">
+          <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center">
+            <span className="text-[10px] text-[#64748B] dark:text-slate-400 block">Đã lưu đệm</span>
+            <span className="text-sm font-extrabold text-[#0D47A1] dark:text-blue-400 block mt-0.5">
+              {weatherNotifs.length} thông báo
+            </span>
+          </div>
+
+          <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center">
+            <span className="text-[10px] text-[#64748B] dark:text-slate-400 block">Phạm vi</span>
+            <span className="text-sm font-extrabold text-emerald-600 dark:text-emerald-400 block mt-0.5">
+              ±3 ngày
+            </span>
+          </div>
+
+          <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center">
+            <span className="text-[10px] text-[#64748B] dark:text-slate-400 block">Khu vực</span>
+            <span className="text-xs font-bold text-[#0F172A] dark:text-white truncate block mt-1" title={districtName}>
+              {districtName}
+            </span>
+          </div>
+
+          <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center">
+            <span className="text-[10px] text-[#64748B] dark:text-slate-400 block">Đồng bộ cuối</span>
+            <span className="text-[10.5px] font-bold text-slate-700 dark:text-slate-300 block mt-1">
+              {storageConfig.lastSyncTimestamp
+                ? new Date(storageConfig.lastSyncTimestamp).toLocaleTimeString('vi-VN', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })
+                : 'Chưa có'}
+            </span>
+          </div>
+        </div>
+
+        {/* Action Buttons: Sync Now & Clear Cache */}
+        <div className="grid grid-cols-2 gap-2 pt-0.5">
+          <button
+            type="button"
+            onClick={handleManualWeatherSync}
+            disabled={isSyncingWeather}
+            className="py-2.5 px-3 rounded-xl bg-[#0D47A1] hover:bg-[#1565C0] text-white font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-98 transition-all disabled:opacity-60"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isSyncingWeather ? 'animate-spin' : ''}`} />
+            <span>{isSyncingWeather ? 'Đang đồng bộ...' : 'Đồng bộ ngay khi có mạng'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleClearWeatherCache}
+            disabled={isSyncingWeather || weatherNotifs.length === 0}
+            className="py-2.5 px-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:border-red-400 text-slate-700 dark:text-slate-300 hover:text-red-600 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-98 transition-all disabled:opacity-40"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Làm trống đệm</span>
+          </button>
+        </div>
+
+        {/* Preview of Stored Weather Notifications */}
+        <div className="pt-2 border-t border-slate-200/80 dark:border-slate-700/80 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-[#0F172A] dark:text-white">
+              Xem danh sách thông báo đã lưu trong máy:
+            </span>
+            <span className="text-[10px] text-slate-500 font-mono">
+              {filteredWeatherNotifs.length}/{weatherNotifs.length}
+            </span>
+          </div>
+
+          {/* Filter Pills */}
+          <div className="flex gap-1.5 overflow-x-auto pb-1 custom-scrollbar text-[11px] font-bold">
+            <button
+              type="button"
+              onClick={() => setWeatherFilter('all')}
+              className={`px-2.5 py-1 rounded-lg shrink-0 cursor-pointer transition-all ${
+                weatherFilter === 'all'
+                  ? 'bg-[#0D47A1] text-white shadow-xs'
+                  : 'bg-slate-200/70 dark:bg-slate-700/60 text-slate-600 dark:text-slate-400'
+              }`}
+            >
+              Tất cả (±3 ngày)
+            </button>
+            <button
+              type="button"
+              onClick={() => setWeatherFilter('today')}
+              className={`px-2.5 py-1 rounded-lg shrink-0 cursor-pointer transition-all ${
+                weatherFilter === 'today'
+                  ? 'bg-[#0D47A1] text-white shadow-xs'
+                  : 'bg-slate-200/70 dark:bg-slate-700/60 text-slate-600 dark:text-slate-400'
+              }`}
+            >
+              Hôm nay (0)
+            </button>
+            <button
+              type="button"
+              onClick={() => setWeatherFilter('forecast')}
+              className={`px-2.5 py-1 rounded-lg shrink-0 cursor-pointer transition-all ${
+                weatherFilter === 'forecast'
+                  ? 'bg-[#0D47A1] text-white shadow-xs'
+                  : 'bg-slate-200/70 dark:bg-slate-700/60 text-slate-600 dark:text-slate-400'
+              }`}
+            >
+              Dự báo (+1..+3 ngày)
+            </button>
+            <button
+              type="button"
+              onClick={() => setWeatherFilter('history')}
+              className={`px-2.5 py-1 rounded-lg shrink-0 cursor-pointer transition-all ${
+                weatherFilter === 'history'
+                  ? 'bg-[#0D47A1] text-white shadow-xs'
+                  : 'bg-slate-200/70 dark:bg-slate-700/60 text-slate-600 dark:text-slate-400'
+              }`}
+            >
+              Lịch sử (-1..-3 ngày)
+            </button>
+          </div>
+
+          {/* Notification List preview */}
+          <div className="space-y-2 max-h-72 overflow-y-auto custom-scrollbar pr-0.5">
+            {filteredWeatherNotifs.length === 0 ? (
+              <div className="p-4 text-center text-xs text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 rounded-xl border border-dashed border-slate-300 dark:border-slate-700">
+                Chưa có thông báo nào trong mục này. Bấm "Đồng bộ ngay khi có mạng" ở trên.
+              </div>
+            ) : (
+              filteredWeatherNotifs.map((item) => {
+                const timeStr = new Date(item.timestamp).toLocaleTimeString('vi-VN', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                });
+                return (
+                  <div
+                    key={item.id}
+                    className="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 space-y-1.5 shadow-2xs"
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span
+                          className={`text-[9.5px] px-1.5 py-0.2 font-bold rounded-full ${
+                            item.dateOffset === 0
+                              ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300'
+                              : item.dateOffset > 0
+                              ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-300'
+                              : 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
+                          }`}
+                        >
+                          {item.dateLabel}
+                        </span>
+
+                        <span
+                          className={`text-[9.5px] px-1.5 py-0.2 font-bold rounded-full ${
+                            item.severity === 'high'
+                              ? 'bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300'
+                              : item.severity === 'medium'
+                              ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
+                              : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                          }`}
+                        >
+                          {item.severity === 'high'
+                            ? 'Cảnh báo cao'
+                            : item.severity === 'medium'
+                            ? 'Chú ý'
+                            : 'Thông tin'}
+                        </span>
+                      </div>
+
+                      <span className="text-[10px] text-slate-400 font-mono shrink-0">
+                        {timeStr}
+                      </span>
+                    </div>
+
+                    <h4 className="text-xs font-bold text-[#0F172A] dark:text-white leading-snug">
+                      {item.title}
+                    </h4>
+
+                    <p className="text-[11.5px] text-[#64748B] dark:text-slate-400 leading-relaxed">
+                      {item.desc}
+                    </p>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
       </div>
 

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Sun, Droplets, SunMedium, Mountain, AlertTriangle, ArrowRight, Sparkles } from 'lucide-react';
 import { DistrictData, ModalContent, UserLocation } from '../types';
+import { WeatherCollectedRangeSection } from './WeatherCollectedRangeSection';
 
 interface WeatherTabProps {
   data: DistrictData;
@@ -183,6 +184,13 @@ export const WeatherTab: React.FC<WeatherTabProps> = ({ data, userLocation, onOp
           </button>
         </div>
       </section>
+
+      {/* Dữ liệu thời tiết theo giờ đã thu thập (±3 ngày) kèm biểu đồ và bảng chi tiết 1h, 2h... */}
+      <WeatherCollectedRangeSection
+        districtId={data.id}
+        districtName={data.name}
+        onOpenDetail={onOpenDetail}
+      />
 
       {/* Cảnh báo biến cố */}
       <section className="flex flex-col gap-3">
