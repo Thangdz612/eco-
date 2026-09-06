@@ -1290,33 +1290,11 @@ jobs:
 
       - name: Inject Android Permissions (GPS & Notifications)
         run: |
-          node -e '
-            const fs = require("fs");
-            const manifestPath = "android/app/src/main/AndroidManifest.xml";
-            if (fs.existsSync(manifestPath)) {
-              let content = fs.readFileSync(manifestPath, "utf8");
-              const permissions = "\\n" +
-                "    <!-- 1. Quyen dinh vi GPS ve tinh chinh xac & do cao -->\\n" +
-                "    <uses-permission android:name=\\"android.permission.ACCESS_FINE_LOCATION\\" />\\n" +
-                "    <uses-permission android:name=\\"android.permission.ACCESS_COARSE_LOCATION\\" />\\n" +
-                "    <uses-feature android:name=\\"android.hardware.location.gps\\" android:required=\\"false\\" />\\n\\n" +
-                "    <!-- 2. Quyen gui thong bao canh bao trieu cuong & UV (Android 13+) -->\\n" +
-                "    <uses-permission android:name=\\"android.permission.POST_NOTIFICATIONS\\" />\\n\\n" +
-                "    <!-- 3. Quyen mang va rung canh bao -->\\n" +
-                "    <uses-permission android:name=\\"android.permission.INTERNET\\" />\\n" +
-                "    <uses-permission android:name=\\"android.permission.ACCESS_NETWORK_STATE\\" />\\n" +
-                "    <uses-permission android:name=\\"android.permission.VIBRATE\\" />\\n" +
-                "    <uses-permission android:name=\\"android.permission.WAKE_LOCK\\" />\\n";
-
-              if (!content.includes("ACCESS_FINE_LOCATION")) {
-                content = content.replace("<application", permissions + "    <application");
-                fs.writeFileSync(manifestPath, content, "utf8");
-                console.log("==> Successfully injected GPS & Notification permissions into AndroidManifest.xml!");
-              }
-            } else {
-              console.error("==> Manifest file not found at " + manifestPath);
-            }
-          '
+          if [ -f scripts/inject-permissions.cjs ]; then
+            node scripts/inject-permissions.cjs
+          else
+            node -e "const fs=require('fs'),p='android/app/src/main/AndroidManifest.xml';if(fs.existsSync(p)){let c=fs.readFileSync(p,'utf8');const perm='\\n    <uses-permission android:name=\\\"android.permission.ACCESS_FINE_LOCATION\\\" />\\n    <uses-permission android:name=\\\"android.permission.ACCESS_COARSE_LOCATION\\\" />\\n    <uses-feature android:name=\\\"android.hardware.location.gps\\\" android:required=\\\"false\\\" />\\n    <uses-permission android:name=\\\"android.permission.POST_NOTIFICATIONS\\\" />\\n    <uses-permission android:name=\\\"android.permission.INTERNET\\\" />\\n    <uses-permission android:name=\\\"android.permission.ACCESS_NETWORK_STATE\\\" />\\n    <uses-permission android:name=\\\"android.permission.VIBRATE\\\" />\\n    <uses-permission android:name=\\\"android.permission.WAKE_LOCK\\\" />\\n';if(!c.includes('ACCESS_FINE_LOCATION')){c=c.replace('<application',perm+'    <application');fs.writeFileSync(p,c,'utf8');console.log('Injected Android permissions successfully');}}"
+          fi
 
       - name: Setup Java
         uses: actions/setup-java@v4
