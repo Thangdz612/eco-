@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { X, Copy, Check, Download, Terminal, Smartphone, FileCode2, Package, CheckCircle2, ShieldCheck } from 'lucide-react';
-import { FLUTTER_MAIN_DART, FLUTTER_PUBSPEC, FLUTTER_ANDROID_MANIFEST, APK_BUILD_INSTRUCTIONS } from '../data/flutterDartCode';
+import { X, Copy, Check, Download, Terminal, Smartphone, FileCode2, Package, CheckCircle2, ShieldCheck, GitBranch, ExternalLink } from 'lucide-react';
+import { FLUTTER_MAIN_DART, FLUTTER_PUBSPEC, FLUTTER_ANDROID_MANIFEST, APK_BUILD_INSTRUCTIONS, GITHUB_ACTIONS_WORKFLOW } from '../data/flutterDartCode';
 
 interface DartApkModalProps {
   isOpen: boolean;
@@ -8,7 +8,7 @@ interface DartApkModalProps {
 }
 
 export const DartApkModal: React.FC<DartApkModalProps> = ({ isOpen, onClose }) => {
-  const [activeTab, setActiveTab] = useState<'mainDart' | 'pubspec' | 'manifest' | 'instructions'>('mainDart');
+  const [activeTab, setActiveTab] = useState<'mainDart' | 'pubspec' | 'manifest' | 'github' | 'instructions'>('mainDart');
   const [copied, setCopied] = useState<string | null>(null);
 
   if (!isOpen) return null;
@@ -100,7 +100,20 @@ export const DartApkModal: React.FC<DartApkModalProps> = ({ isOpen, onClose }) =
             }`}
           >
             <ShieldCheck className="w-4 h-4 text-emerald-500" />
-            <span>AndroidManifest.xml (Quyền GPS & Thông báo)</span>
+            <span>AndroidManifest.xml</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('github')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              activeTab === 'github'
+                ? 'bg-[#1E3A8A] text-white shadow-xs'
+                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+            }`}
+          >
+            <GitBranch className="w-4 h-4 text-purple-500" />
+            <span>Build bằng GitHub (build-apk.yml)</span>
           </button>
 
           <button
@@ -113,7 +126,7 @@ export const DartApkModal: React.FC<DartApkModalProps> = ({ isOpen, onClose }) =
             }`}
           >
             <Terminal className="w-4 h-4" />
-            <span>Hướng dẫn Build APK</span>
+            <span>Hướng dẫn chi tiết</span>
           </button>
 
           {/* Download and copy toolbar */}
@@ -181,6 +194,27 @@ export const DartApkModal: React.FC<DartApkModalProps> = ({ isOpen, onClose }) =
               </>
             )}
 
+            {activeTab === 'github' && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => handleCopy(GITHUB_ACTIONS_WORKFLOW, 'github')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-semibold text-slate-700 transition-all cursor-pointer"
+                >
+                  {copied === 'github' ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copied === 'github' ? 'Đã sao chép!' : 'Sao chép Workflow'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDownloadFile(GITHUB_ACTIONS_WORKFLOW, 'build-apk.yml')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0284C7] hover:bg-[#0369A1] text-white rounded-lg text-xs font-semibold transition-all cursor-pointer"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Tải build-apk.yml</span>
+                </button>
+              </>
+            )}
+
             {activeTab === 'instructions' && (
               <button
                 type="button"
@@ -212,6 +246,61 @@ export const DartApkModal: React.FC<DartApkModalProps> = ({ isOpen, onClose }) =
             <pre className="overflow-x-auto whitespace-pre">
               <code>{FLUTTER_ANDROID_MANIFEST}</code>
             </pre>
+          )}
+
+          {activeTab === 'github' && (
+            <div className="space-y-4 font-sans text-sm text-slate-200">
+              <div className="p-4 bg-purple-950/50 border border-purple-800/70 rounded-xl text-purple-200">
+                <div className="flex items-center gap-2 text-purple-300 font-bold text-sm mb-1.5">
+                  <GitBranch className="w-4 h-4 text-purple-400" />
+                  <span>Quy trình tự động hóa GitHub Actions (CI/CD)</span>
+                </div>
+                <p className="text-xs text-purple-200/90 leading-relaxed">
+                  File workflow dưới đây nằm tại đường dẫn <code className="bg-black/40 px-1.5 py-0.5 rounded text-amber-300 font-mono">.github/workflows/build-apk.yml</code>. 
+                  Hệ thống đã được bổ sung bước <strong className="text-white">Inject Android Permissions</strong> để tự động chèn quyền GPS vệ tinh & Thông báo vào APK trước khi biên dịch, khắc phục hoàn toàn lỗi <em>"Không có quyền nào được yêu cầu"</em> trên điện thoại.
+                </p>
+                <div className="mt-3 pt-3 border-t border-purple-800/50 flex flex-wrap gap-2 text-xs">
+                  <span className="bg-emerald-900/60 text-emerald-300 px-2.5 py-1 rounded-md font-semibold flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> ACCESS_FINE_LOCATION
+                  </span>
+                  <span className="bg-emerald-900/60 text-emerald-300 px-2.5 py-1 rounded-md font-semibold flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> POST_NOTIFICATIONS
+                  </span>
+                  <span className="bg-emerald-900/60 text-emerald-300 px-2.5 py-1 rounded-md font-semibold flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> Tự động xuất APK
+                  </span>
+                </div>
+              </div>
+
+              <div className="bg-slate-900 p-4 rounded-xl border border-slate-800">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-mono text-xs text-slate-400">.github/workflows/build-apk.yml</span>
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(GITHUB_ACTIONS_WORKFLOW, 'github-code')}
+                    className="text-xs font-bold text-sky-400 hover:text-sky-300 flex items-center gap-1 cursor-pointer"
+                  >
+                    {copied === 'github-code' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copied === 'github-code' ? 'Đã sao chép' : 'Sao chép YAML'}</span>
+                  </button>
+                </div>
+                <pre className="overflow-x-auto whitespace-pre font-mono text-xs text-slate-300 max-h-[340px] bg-black/50 p-3 rounded-lg border border-slate-800">
+                  <code>{GITHUB_ACTIONS_WORKFLOW}</code>
+                </pre>
+              </div>
+
+              <div className="p-4 bg-slate-800/90 rounded-xl border border-slate-700">
+                <h4 className="font-bold text-amber-400 text-sm mb-2">
+                  Cách lấy file APK sau khi GitHub build xong:
+                </h4>
+                <ol className="list-decimal list-inside space-y-1.5 text-xs text-slate-300">
+                  <li>Vào trang GitHub của bạn ➔ bấm tab <strong className="text-white">Actions</strong>.</li>
+                  <li>Chọn workflow <strong className="text-white">Build Android APK</strong> ➔ bấm vào lượt chạy mới nhất (tích xanh thành công).</li>
+                  <li>Kéo xuống cuối trang tại mục <strong className="text-white">Artifacts</strong> ➔ tải tệp <strong className="text-emerald-400">EcoApp-APK</strong> (file zip).</li>
+                  <li>Giải nén lấy file <code className="text-sky-300 font-mono">app-debug.apk</code> và cài lên điện thoại. Mọi quyền Vị trí & Thông báo sẽ tự động kích hoạt đầy đủ!</li>
+                </ol>
+              </div>
+            </div>
           )}
 
           {activeTab === 'instructions' && (

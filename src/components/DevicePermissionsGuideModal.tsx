@@ -271,7 +271,10 @@ export const DevicePermissionsGuideModal: React.FC<DevicePermissionsGuideModalPr
                   <strong>Nếu cài từ Google Chrome (PWA WebAPK):</strong> Android quản lý quyền GPS thông qua ứng dụng <strong>Google Chrome</strong> chứ không gán riêng vào shortcut. Bạn chỉ cần vào <em>Cài đặt máy ➔ Ứng dụng ➔ Chrome ➔ Quyền ➔ Vị trí ➔ Chọn "Chỉ cho phép khi dùng ứng dụng"</em> và bật <em>"Vị trí chính xác"</em>.
                 </li>
                 <li>
-                  <strong>Nếu build file APK Native bằng Flutter/Android:</strong> File <code className="text-blue-600 dark:text-blue-400 font-mono">AndroidManifest.xml</code> cần khai báo các thẻ quyền hệ thống. Ứng dụng đã chuẩn bị sẵn mã nguồn chuẩn AndroidManifest.xml có đủ quyền vị trí và thông báo trong mục Xuất APK.
+                  <strong>Nếu build bằng GitHub (GitHub Actions):</strong> File quy trình <code className="text-purple-600 dark:text-purple-400 font-mono">.github/workflows/build-apk.yml</code> trong mã nguồn đã được cập nhật bước tự động chèn quyền GPS &amp; Thông báo vào file APK. Bạn chỉ cần vào tab <strong>Actions trên GitHub ➔ Run workflow</strong> rồi tải file APK mới trong mục <strong>Artifacts</strong> về cài là có đầy đủ quyền ngay!
+                </li>
+                <li>
+                  <strong>Nếu tự biên dịch Native APK bằng Flutter:</strong> File <code className="text-blue-600 dark:text-blue-400 font-mono">AndroidManifest.xml</code> cần khai báo các thẻ quyền hệ thống. Ứng dụng đã chuẩn bị sẵn mã nguồn chuẩn trong mục Xuất APK.
                 </li>
               </ul>
             </div>

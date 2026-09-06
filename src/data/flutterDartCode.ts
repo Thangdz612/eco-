@@ -1223,4 +1223,121 @@ export const APK_BUILD_INSTRUCTIONS = `# HƯỚNG DẪN BUILD FILE APK OFFLINE V
   \`build/app/outputs/flutter-apk/app-release.apk\`
 
 - Chuyển file APK này qua điện thoại qua Zalo, Google Drive hoặc dây cáp và cài đặt. Khi cài xong, vào Thông tin ứng dụng sẽ thấy đầy đủ mục **Quyền: Vị trí** và **Quản lý thông báo: Đã bật**.
+
+---
+
+# CÁCH BUILD APK TỰ ĐỘNG TRÊN GITHUB (GITHUB ACTIONS)
+Nếu bạn đẩy (push) mã nguồn dự án lên GitHub và muốn GitHub tự động biên dịch xuất file APK mà không cần cài Flutter hay Android Studio trên máy:
+
+### Bước 1: Kiểm tra file Workflow trên GitHub
+Đảm bảo trong kho lưu trữ GitHub của bạn có file:
+.github/workflows/build-apk.yml (sao chép từ tab "Build bằng GitHub").
+
+### Bước 2: Vì sao trước đây build trên GitHub không có quyền?
+Trước đây quy trình tự động trên GitHub tạo thư mục android/ mới nhưng chưa chèn quyền ACCESS_FINE_LOCATION và POST_NOTIFICATIONS vào AndroidManifest.xml. 
+File workflow mới đã được bổ sung bước "Inject Android Permissions (GPS & Notifications)" để tự động chèn các quyền này trước khi lệnh Gradle biên dịch APK.
+
+### Bước 3: Cách tải file APK từ GitHub
+1. Mở trang kho lưu trữ GitHub của bạn trên trình duyệt.
+2. Bấm vào tab "Actions" ở menu trên cùng.
+3. Bấm vào tên workflow "Build Android APK" (hoặc bấm nút "Run workflow" để chạy thủ công).
+4. Khi quá trình build hiện tích xanh (Success), bấm vào đợt chạy đó.
+5. Kéo xuống dưới cùng tại mục "Artifacts", bấm tải file "EcoApp-APK".
+6. Giải nén file zip tải về sẽ có file "app-debug.apk". Cài file này vào điện thoại, Android sẽ nhận diện và cấp đầy đủ quyền Vị trí GPS và Thông báo!
+`;
+
+export const GITHUB_ACTIONS_WORKFLOW = `name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Web App
+        run: npm run build
+
+      - name: Install Capacitor & Plugins
+        run: |
+          npm install @capacitor/core @capacitor/cli @capacitor/android @capacitor/geolocation @capacitor/local-notifications
+
+      - name: Initialize Capacitor
+        run: |
+          npx cap init "EcoApp" "com.ecoapp.environment" --web-dir=dist
+
+      - name: Add Android
+        run: npx cap add android
+
+      - name: Sync Android
+        run: npx cap sync android
+
+      - name: Inject Android Permissions (GPS & Notifications)
+        run: |
+          node -e '
+            const fs = require("fs");
+            const manifestPath = "android/app/src/main/AndroidManifest.xml";
+            if (fs.existsSync(manifestPath)) {
+              let content = fs.readFileSync(manifestPath, "utf8");
+              const permissions = "\\n" +
+                "    <!-- 1. Quyen dinh vi GPS ve tinh chinh xac & do cao -->\\n" +
+                "    <uses-permission android:name=\\"android.permission.ACCESS_FINE_LOCATION\\" />\\n" +
+                "    <uses-permission android:name=\\"android.permission.ACCESS_COARSE_LOCATION\\" />\\n" +
+                "    <uses-feature android:name=\\"android.hardware.location.gps\\" android:required=\\"false\\" />\\n\\n" +
+                "    <!-- 2. Quyen gui thong bao canh bao trieu cuong & UV (Android 13+) -->\\n" +
+                "    <uses-permission android:name=\\"android.permission.POST_NOTIFICATIONS\\" />\\n\\n" +
+                "    <!-- 3. Quyen mang va rung canh bao -->\\n" +
+                "    <uses-permission android:name=\\"android.permission.INTERNET\\" />\\n" +
+                "    <uses-permission android:name=\\"android.permission.ACCESS_NETWORK_STATE\\" />\\n" +
+                "    <uses-permission android:name=\\"android.permission.VIBRATE\\" />\\n" +
+                "    <uses-permission android:name=\\"android.permission.WAKE_LOCK\\" />\\n";
+
+              if (!content.includes("ACCESS_FINE_LOCATION")) {
+                content = content.replace("<application", permissions + "    <application");
+                fs.writeFileSync(manifestPath, content, "utf8");
+                console.log("==> Successfully injected GPS & Notification permissions into AndroidManifest.xml!");
+              }
+            } else {
+              console.error("==> Manifest file not found at " + manifestPath);
+            }
+          '
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Make gradlew executable
+        working-directory: android
+        run: chmod +x ./gradlew
+
+      - name: Build APK
+        working-directory: android
+        run: ./gradlew assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: EcoApp-APK
+          path: android/app/build/outputs/apk/debug/app-debug.apk
 `;

@@ -26,9 +26,9 @@ jobs:
       - name: Build Web App
         run: npm run build
 
-      - name: Install Capacitor
+      - name: Install Capacitor & Plugins
         run: |
-          npm install @capacitor/core @capacitor/cli @capacitor/android
+          npm install @capacitor/core @capacitor/cli @capacitor/android @capacitor/geolocation @capacitor/local-notifications
 
       - name: Initialize Capacitor
         run: |
@@ -40,6 +40,38 @@ jobs:
       - name: Sync Android
         run: npx cap sync android
 
+      - name: Inject Android Permissions (GPS & Notifications)
+        run: |
+          node -e '
+            const fs = require("fs");
+            const manifestPath = "android/app/src/main/AndroidManifest.xml";
+            if (fs.existsSync(manifestPath)) {
+              let content = fs.readFileSync(manifestPath, "utf8");
+              const permissions = `
+    <!-- 1. Quyền định vị GPS vệ tinh chính xác & độ cao -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+
+    <!-- 2. Quyền gửi thông báo cảnh báo triều cường & UV (Android 13+) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- 3. Quyền mạng và rung cảnh báo -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+`;
+              if (!content.includes("ACCESS_FINE_LOCATION")) {
+                content = content.replace("<application", permissions + "\n    <application");
+                fs.writeFileSync(manifestPath, content, "utf8");
+                console.log("==> Successfully injected GPS & Notification permissions into AndroidManifest.xml!");
+              }
+            } else {
+              console.error("==> Manifest file not found at " + manifestPath);
+            }
+          '
+
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
@@ -48,6 +80,10 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+
+      - name: Make gradlew executable
+        working-directory: android
+        run: chmod +x ./gradlew
 
       - name: Build APK
         working-directory: android
