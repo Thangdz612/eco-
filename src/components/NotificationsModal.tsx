@@ -27,7 +27,6 @@ interface NotificationsModalProps {
   onClose: () => void;
   districtName: string;
   districtId?: string;
-  onOpenPermissionsGuide?: () => void;
   onOpenSettings?: () => void;
 }
 
@@ -36,7 +35,6 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
   onClose,
   districtName,
   districtId = 'quan-1',
-  onOpenPermissionsGuide,
   onOpenSettings,
 }) => {
   const [filter, setFilter] = useState<'all' | 'today' | 'forecast' | 'history'>('all');
@@ -284,30 +282,6 @@ export const NotificationsModal: React.FC<NotificationsModalProps> = ({
 
         {/* Notifications List */}
         <div className="p-4 space-y-3 flex-1 overflow-y-auto custom-scrollbar">
-          {/* Quick Permission Notice for Android Phone */}
-          {onOpenPermissionsGuide && (
-            <div className="p-3 rounded-2xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs text-amber-950 dark:text-amber-200 flex items-center justify-between gap-2">
-              <div>
-                <strong className="block text-[11.5px] font-bold text-amber-900 dark:text-amber-300">
-                  📱 Chưa nhận chuông thông báo trên Android?
-                </strong>
-                <p className="text-[11px] text-amber-800/80 dark:text-amber-400/80 mt-0.5">
-                  Xử lý trạng thái "Quản lý thông báo: Từ chối" trong cài đặt máy Android.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  onOpenPermissionsGuide();
-                }}
-                className="px-2.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] shrink-0 cursor-pointer transition-all"
-              >
-                Xem hướng dẫn
-              </button>
-            </div>
-          )}
-
           {filteredNotifications.length === 0 ? (
             <div className="py-12 text-center text-slate-400 dark:text-slate-500 space-y-2">
               <Calendar className="w-10 h-10 mx-auto opacity-40" />

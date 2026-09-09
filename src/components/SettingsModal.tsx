@@ -49,8 +49,6 @@ interface SettingsModalProps {
   onClose: () => void;
   userLocation?: UserLocation | null;
   onRefreshLocation?: () => void;
-  onOpenDartApk?: () => void;
-  onOpenInstallGuide?: () => void;
   themeMode?: ThemeMode;
   onThemeChange?: (mode: ThemeMode) => void;
   systemTheme?: 'light' | 'dark';
@@ -71,15 +69,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onClose,
   userLocation,
   onRefreshLocation,
-  onOpenDartApk,
-  onOpenInstallGuide,
   themeMode = 'system',
   onThemeChange,
   systemTheme = 'light',
   districtId = 'quan-1',
   districtName = 'Quận 1',
 }) => {
-  const [activeTab, setActiveTab] = useState<'preferences' | 'permissions' | 'manifest' | 'weatherCache'>('preferences');
+  const [activeTab, setActiveTab] = useState<'preferences' | 'permissions' | 'weatherCache'>('preferences');
 
   // Weather Notification Storage State (±3 days)
   const [weatherConfig, setWeatherConfig] = useState<WeatherStorageConfig>(getStorageConfig());
@@ -96,7 +92,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [storageStatus, setStorageStatus] = useState<string>('2.6 MB / 50 MB khả dụng');
   const [isRequestingPermission, setIsRequestingPermission] = useState<string | null>(null);
   const [statusFeedback, setStatusFeedback] = useState<string | null>(null);
-  const [copiedCode, setCopiedCode] = useState(false);
 
   // App settings stored in local state (persisted to localStorage)
   const [preferences, setPreferences] = useState<AppPreferences>(() => {
@@ -325,37 +320,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     }
   };
 
-  const androidManifestCode = `<!-- AndroidManifest.xml (Quyền được cấp cho app Flutter / Android APK) -->
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.ecoapp.saigon.environment">
-
-    <!-- 1. Quyền định vị GPS chính xác và đo độ cao người dùng -->
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    
-    <!-- 2. Quyền gửi thông báo khẩn cấp (Triều cường, tia UV cực đại) -->
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-
-    <!-- 3. Quyền máy ảnh chụp ảnh báo cáo môi trường & cây xanh -->
-    <uses-permission android:name="android.permission.CAMERA" />
-    <uses-feature android:name="android.hardware.camera" android:required="false" />
-
-    <!-- 4. Quyền lưu trữ offline cơ sở dữ liệu 168 xã phường -->
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" 
-        android:maxSdkVersion="32" />
-
-    <!-- 5. Quyền cảm biến độ rung và trạng thái mạng ngoại tuyến -->
-    <uses-permission android:name="android.permission.VIBRATE" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-</manifest>`;
-
-  const copyManifest = () => {
-    navigator.clipboard.writeText(androidManifestCode);
-    setCopiedCode(true);
-    setTimeout(() => setCopiedCode(false), 2500);
-  };
-
   if (!isOpen) return null;
 
   return (
@@ -419,20 +383,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <Lock className="w-3.5 h-3.5" />
             <span>Quyền Cảm Biến</span>
             <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block ml-0.5" />
-          </button>
-
-          <button
-            type="button"
-            id="tab-btn-manifest"
-            onClick={() => setActiveTab('manifest')}
-            className={`pb-2.5 px-3 text-[13px] font-bold transition-all border-b-2 cursor-pointer flex items-center gap-1.5 ${
-              activeTab === 'manifest'
-                ? 'border-[#0D47A1] dark:border-blue-400 text-[#0D47A1] dark:text-blue-400'
-                : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-            }`}
-          >
-            <Smartphone className="w-3.5 h-3.5" />
-            <span>Quyền Android APK</span>
           </button>
 
           <button
@@ -981,66 +931,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           )}
 
-          {/* TAB 3: ANDROID MANIFEST (APK) PERMISSIONS */}
-          {activeTab === 'manifest' && (
-            <div className="space-y-3.5">
-              <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 flex items-start gap-2.5 text-xs text-amber-900 dark:text-amber-200">
-                <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                <div>
-                  <span className="font-bold">Quyền cấp trong file Android APK (Flutter):</span> Khi bạn biên dịch mã Dart sang file APK cài đặt lên điện thoại Android, các quyền này sẽ được tự động yêu cầu trong quá trình cài đặt và cấp quyền runtime theo chuẩn Android 13+.
-                </div>
-              </div>
-
-              {/* Code snippet with copy button */}
-              <div className="relative">
-                <div className="flex items-center justify-between bg-slate-900 dark:bg-black text-slate-200 px-4 py-2 rounded-t-2xl text-[12px] font-mono border-t border-x border-slate-800">
-                  <span>android/app/src/main/AndroidManifest.xml</span>
-                  <button
-                    type="button"
-                    onClick={copyManifest}
-                    className="flex items-center gap-1 text-xs text-blue-300 hover:text-white transition-colors cursor-pointer"
-                  >
-                    {copiedCode ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copiedCode ? 'Đã chép' : 'Sao chép XML'}</span>
-                  </button>
-                </div>
-                <pre className="p-4 bg-slate-950 text-emerald-400 font-mono text-[11px] rounded-b-2xl overflow-x-auto max-h-64 leading-relaxed custom-scrollbar border-b border-x border-slate-800">
-                  {androidManifestCode}
-                </pre>
-              </div>
-
-              <div className="pt-2 flex flex-col sm:flex-row gap-2 justify-center">
-                {onOpenDartApk && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onClose();
-                      onOpenDartApk();
-                    }}
-                    className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-[#0D47A1] hover:bg-[#1565C0] text-white text-xs font-bold shadow-xs transition-all cursor-pointer"
-                  >
-                    <Smartphone className="w-4 h-4" />
-                    <span>Mã nguồn Dart Flutter & APK</span>
-                  </button>
-                )}
-                {onOpenInstallGuide && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onClose();
-                      onOpenInstallGuide();
-                    }}
-                    className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-xs transition-all cursor-pointer"
-                  >
-                    <HelpCircle className="w-4 h-4" />
-                    <span>Hướng dẫn cài đặt lên điện thoại</span>
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* TAB 4: WEATHER NOTIFICATIONS OFFLINE CACHE (±3 DAYS) */}
+          {/* TAB 3: WEATHER NOTIFICATIONS OFFLINE CACHE (±3 DAYS) */}
           {activeTab === 'weatherCache' && (
             <div className="space-y-4">
               {/* Internet Status & Scope Info Banner */}

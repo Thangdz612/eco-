@@ -1,6 +1,6 @@
 {
   "name": "EcoApp - Môi Trường & Thời Tiết",
-  "description": "Ứng dụng theo dõi môi trường, thời tiết, phát triển doanh nghiệp và bảo vệ môi trường offline hoạt động không cần mạng, kèm mã nguồn Dart Flutter xuất file APK.",
+  "description": "Ứng dụng theo dõi môi trường, thời tiết, phát triển doanh nghiệp và bảo vệ môi trường ngoại tuyến 168+ xã phường TP.HCM & Bình Dương.",
   "requestFramePermissions": [
     "geolocation",
     "camera"

@@ -9,13 +9,10 @@ import { EnterpriseTab } from './components/EnterpriseTab';
 import { ProtectionTab } from './components/ProtectionTab';
 import { SettingsTab } from './components/SettingsTab';
 import { DetailModal } from './components/DetailModal';
-import { DartApkModal } from './components/DartApkModal';
 import { DistrictModal } from './components/DistrictModal';
 import { NotificationsModal } from './components/NotificationsModal';
-import { InstallGuideModal } from './components/InstallGuideModal';
 import { LocationModal } from './components/LocationModal';
 import { SettingsModal } from './components/SettingsModal';
-import { DevicePermissionsGuideModal } from './components/DevicePermissionsGuideModal';
 import { getCurrentUserLocation, isRunningInIframe } from './utils/geolocation';
 import { 
   getSystemTheme, 
@@ -31,13 +28,10 @@ export default function App() {
   const [currentTab, setCurrentTab] = useState<TabType>('weather');
   const [selectedDistrictId, setSelectedDistrictId] = useState<string>('quan-1');
   const [activeModalContent, setActiveModalContent] = useState<ModalContent | null>(null);
-  const [isDartApkOpen, setIsDartApkOpen] = useState<boolean>(false);
-  const [isInstallGuideOpen, setIsInstallGuideOpen] = useState<boolean>(false);
   const [isDistrictPickerOpen, setIsDistrictPickerOpen] = useState<boolean>(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState<boolean>(false);
   const [isLocationModalOpen, setIsLocationModalOpen] = useState<boolean>(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
-  const [isPermissionsGuideOpen, setIsPermissionsGuideOpen] = useState<boolean>(false);
 
   // Theme Management (System / Light / Dark)
   const [themeMode, setThemeMode] = useState<ThemeMode>(getStoredThemeMode);
@@ -277,9 +271,6 @@ export default function App() {
               userLocation={userLocation}
               onRefreshLocation={() => handleLocateUser(true, false)}
               onOpenDistrictPicker={() => setIsDistrictPickerOpen(true)}
-              onOpenDartApk={() => setIsDartApkOpen(true)}
-              onOpenInstallGuide={() => setIsInstallGuideOpen(true)}
-              onOpenPermissionsGuide={() => setIsPermissionsGuideOpen(true)}
               themeMode={themeMode}
               onThemeChange={setThemeMode}
               systemTheme={systemTheme}
@@ -316,20 +307,6 @@ export default function App() {
         onClose={() => setActiveModalContent(null)}
       />
 
-      <DartApkModal
-        isOpen={isDartApkOpen}
-        onClose={() => setIsDartApkOpen(false)}
-      />
-
-      <InstallGuideModal
-        isOpen={isInstallGuideOpen}
-        onClose={() => setIsInstallGuideOpen(false)}
-        onOpenDartModal={() => {
-          setIsInstallGuideOpen(false);
-          setIsDartApkOpen(true);
-        }}
-      />
-
       <DistrictModal
         isOpen={isDistrictPickerOpen}
         selectedDistrictId={selectedDistrictId}
@@ -348,7 +325,6 @@ export default function App() {
         onSelectDistrict={(id) => setSelectedDistrictId(id)}
         currentDistrict={currentDistrict}
         onOpenDistrictPicker={() => setIsDistrictPickerOpen(true)}
-        onOpenPermissionsGuide={() => setIsPermissionsGuideOpen(true)}
       />
 
       <NotificationsModal
@@ -356,7 +332,6 @@ export default function App() {
         onClose={() => setIsNotificationsOpen(false)}
         districtName={currentDistrict.name}
         districtId={currentDistrict.id}
-        onOpenPermissionsGuide={() => setIsPermissionsGuideOpen(true)}
         onOpenSettings={() => {
           setIsNotificationsOpen(false);
           setIsSettingsOpen(true);
@@ -368,8 +343,6 @@ export default function App() {
         onClose={() => setIsSettingsOpen(false)}
         userLocation={userLocation}
         onRefreshLocation={() => handleLocateUser(true, false)}
-        onOpenDartApk={() => setIsDartApkOpen(true)}
-        onOpenInstallGuide={() => setIsInstallGuideOpen(true)}
         themeMode={themeMode}
         onThemeChange={(mode) => {
           setThemeMode(mode);
@@ -378,17 +351,6 @@ export default function App() {
         systemTheme={systemTheme}
         districtId={currentDistrict.id}
         districtName={currentDistrict.name}
-      />
-
-      <DevicePermissionsGuideModal
-        isOpen={isPermissionsGuideOpen}
-        onClose={() => setIsPermissionsGuideOpen(false)}
-        userLocation={userLocation}
-        onRefreshLocation={() => handleLocateUser(true, false)}
-        onOpenDartApk={() => {
-          setIsPermissionsGuideOpen(false);
-          setIsDartApkOpen(true);
-        }}
       />
     </div>
   );
