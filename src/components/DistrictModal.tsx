@@ -94,10 +94,10 @@ export const DistrictModal: React.FC<DistrictModalProps> = ({
             </div>
             <div>
               <h3 className="text-[16px] sm:text-[17px] font-extrabold text-[#0F172A] dark:text-slate-100 leading-tight">
-                Danh sách Đơn vị hành chính cấp xã TP.HCM
+                Danh sách 168 Đơn vị hành chính cấp xã
               </h3>
               <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-                {counts.all} Đơn vị (Gồm Phường Long Nguyên, Phường Tây Nam, Bến Cát...)
+                {counts.all} Đơn vị (113 Phường, 54 Xã, 1 Đặc khu Côn Đảo)
               </p>
             </div>
           </div>
@@ -150,7 +150,7 @@ export const DistrictModal: React.FC<DistrictModalProps> = ({
               id="search-ward-input"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Tìm kiếm Long Nguyên, Tây Nam, Bến Cát, Củ Chi..."
+              placeholder="Tìm kiếm An Điền, Tây Nam, Bến Cát, Củ Chi, Côn Đảo..."
               className="w-full pl-9 pr-8 py-2 text-[13px] bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:border-blue-500 focus:bg-white dark:focus:bg-slate-800 text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 transition-all"
             />
             {searchTerm && (
@@ -192,7 +192,7 @@ export const DistrictModal: React.FC<DistrictModalProps> = ({
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar text-xs">
             <span className="text-[11px] text-slate-400 dark:text-slate-500 font-medium shrink-0 flex items-center gap-1">
               <Filter className="w-3 h-3" />
-              Quận/Huyện:
+              Khu vực:
             </span>
             {HCM_DISTRICT_GROUPS.map((group) => (
               <button
@@ -305,7 +305,7 @@ export const DistrictModal: React.FC<DistrictModalProps> = ({
 
         {/* Footer */}
         <div className="p-3 bg-[#F8FAFC] dark:bg-slate-900 border-t border-[#F1F5F9] dark:border-slate-800 text-[11px] text-center text-slate-500 dark:text-slate-400 shrink-0">
-          Cập nhật đầy đủ 168 đơn vị hành chính cấp xã TP.HCM theo Nghị quyết 1685 • Tích hợp cảm biến môi trường ngoại tuyến 100%
+          Cập nhật chuẩn xác 168 đơn vị hành chính cấp xã theo Nghị quyết 1685/NQ-UBTVQH15 (113 phường, 54 xã, 1 đặc khu Côn Đảo) thuộc 3 khu vực: TP.HCM cũ, Bình Dương cũ và Bà Rịa – Vũng Tàu cũ
         </div>
       </div>
     </div>

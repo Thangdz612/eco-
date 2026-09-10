@@ -175,7 +175,7 @@ export const LocationModal: React.FC<LocationModalProps> = ({
               <span>Không cần GPS: Chọn thủ công Phường / Xã</span>
             </div>
             <p className="text-[11.5px] text-slate-600 dark:text-slate-300 leading-relaxed">
-              Bạn có thể chọn trực tiếp từ danh mục 168+ xã phường (bao gồm Phường Long Nguyên, Phường Tây Nam, Bến Cát, Phú An, v.v.). Mọi chỉ số môi trường, thời tiết đều đầy đủ 100%.
+              Bạn có thể chọn trực tiếp từ danh mục chuẩn xác 168 đơn vị hành chính cấp xã (gồm 113 phường, 54 xã, 1 đặc khu Côn Đảo - Phường An Điền, Tây Nam, Bến Cát, Phú An...). Mọi chỉ số môi trường, thời tiết đều đầy đủ 100%.
             </p>
             <button
               type="button"

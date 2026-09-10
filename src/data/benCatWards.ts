@@ -1,20 +1,20 @@
 import { DistrictData } from '../types';
 
 export const BEN_CAT_WARDS_DATA: Record<string, DistrictData> = {
-  'hcm-long-nguyen': {
-    id: 'hcm-long-nguyen',
-    name: 'Phường Long Nguyên',
-    subTitle: 'Đô thị công nghiệp sinh thái & nông nghiệp CNC (108 km²)',
-    districtGroup: 'Khu vực Bến Cát (Bắc TP.HCM)',
+  'hcm-an-dien': {
+    id: 'hcm-an-dien',
+    name: 'Phường An Điền',
+    subTitle: 'Đô thị công nghiệp sinh thái & công nghệ cao (Bến Cát)',
+    districtGroup: 'Khu vực Bình Dương cũ',
     adminType: 'phường',
-    lat: 11.1685,
-    lng: 106.5824,
+    lat: 11.1325,
+    lng: 106.5780,
     weather: {
       temp: '32°C',
       condition: 'nắng ráo',
-      description: 'Phường Long Nguyên - Độ ẩm 62%, gió 11km/h, cao độ 32m',
-      humidity: '62%',
-      altitude: '32 m',
+      description: 'Phường An Điền - Độ ẩm 63%, gió 10km/h, cao độ 26m',
+      humidity: '63%',
+      altitude: '26 m',
       uvIndex: 'UV 5.2',
       uvLevel: 'Trung bình',
       lightIntensity: '620 W/m²',
@@ -76,26 +76,26 @@ export const BEN_CAT_WARDS_DATA: Record<string, DistrictData> = {
         value: 'Thềm bazan & phù sa cổ',
         quality: 'Rất vững chắc',
         progress: 95,
-        note: 'Nền địa chất gò đồi cao 32m, tầng đất chịu tải cao, hoàn toàn không ngập úng'
+        note: 'Nền địa chất gò đồi cao 26m, tầng đất chịu tải cao, hoàn toàn không ngập úng'
       }
     },
     alerts: {
       weatherAlert: {
         title: 'Thời tiết nắng ráo thuận lợi',
-        desc: 'Phường Long Nguyên, khu vực Bến Cát (Bắc TP.HCM)',
+        desc: 'Phường An Điền, khu vực Bến Cát (Bình Dương cũ)',
         level: 'info',
-        actionAdvice: 'Điều kiện thuận lợi cho thi công hạ tầng công nghiệp và sản xuất nông nghiệp công nghệ cao.'
+        actionAdvice: 'Điều kiện thuận lợi cho thi công hạ tầng công nghiệp và sản xuất công nghệ cao.'
       },
       environmentAlert: {
         title: 'Môi trường sinh thái trong lành',
-        desc: 'Trạm quan trắc tự động Long Nguyên',
+        desc: 'Trạm quan trắc tự động An Điền',
         level: 'info',
-        actionAdvice: 'Chỉ số bụi mịn PM2.5 ở ngưỡng thấp nhờ tỷ lệ bao phủ cây xanh và rừng cao su lớn.'
+        actionAdvice: 'Chỉ số bụi mịn PM2.5 ở ngưỡng thấp nhờ tỷ lệ bao phủ cây xanh KCN sinh thái.'
       }
     },
     enterprise: {
       assessmentTitle: 'Đánh giá phát triển doanh nghiệp',
-      assessmentSubtitle: 'KCN Rạch Bắp, Long Nguyên & Nông nghiệp công nghệ cao',
+      assessmentSubtitle: 'KCN Việt Hương 2, Rạch Bắp (An Điền) & Công nghệ cao',
       geologyImpact: {
         levelText: 'Rất thấp',
         percent: 15,
@@ -123,7 +123,7 @@ export const BEN_CAT_WARDS_DATA: Record<string, DistrictData> = {
         wasteToFuel: 'Tái chế 55% chất thải công nghiệp'
       },
       communityEvents: {
-        volunteering: 'Chiến dịch Phủ xanh vành đai đồi Long Nguyên',
+        volunteering: 'Chiến dịch Phủ xanh vành đai sinh thái An Điền',
         campaign: 'Bảo vệ hành lang thoát nước tự nhiên sông Thị Tính'
       }
     }
@@ -133,7 +133,7 @@ export const BEN_CAT_WARDS_DATA: Record<string, DistrictData> = {
     id: 'hcm-tay-nam',
     name: 'Phường Tây Nam',
     subTitle: 'Đô thị cảng sông logistics & công nghiệp ven sông Sài Gòn (119.8 km²)',
-    districtGroup: 'Khu vực Bến Cát (Bắc TP.HCM)',
+    districtGroup: 'Khu vực Bình Dương cũ',
     adminType: 'phường',
     lat: 11.1352,
     lng: 106.5241,
@@ -210,7 +210,7 @@ export const BEN_CAT_WARDS_DATA: Record<string, DistrictData> = {
     alerts: {
       weatherAlert: {
         title: 'Gió mát ven sông Sài Gòn',
-        desc: 'Phường Tây Nam, khu vực Bến Cát (Bắc TP.HCM)',
+        desc: 'Phường Tây Nam, khu vực Bến Cát (Bình Dương cũ)',
         level: 'info',
         actionAdvice: 'Điều kiện thời tiết lý tưởng cho vận tải thủy nội địa, cảng biển logistics và du lịch sinh thái.'
       },
@@ -261,7 +261,7 @@ export const BEN_CAT_WARDS_DATA: Record<string, DistrictData> = {
     id: 'hcm-my-phuoc',
     name: 'Phường Mỹ Phước',
     subTitle: 'Trung tâm hành chính thương mại & KCN Mỹ Phước 1, 2, 3',
-    districtGroup: 'Khu vực Bến Cát (Bắc TP.HCM)',
+    districtGroup: 'Khu vực Bình Dương cũ',
     adminType: 'phường',
     lat: 11.1448,
     lng: 106.6112,
@@ -361,7 +361,7 @@ export const BEN_CAT_WARDS_DATA: Record<string, DistrictData> = {
     id: 'hcm-thoi-hoa',
     name: 'Phường Thới Hòa',
     subTitle: 'Đô thị đại học (ĐH Việt Đức VGU) & KCN Mỹ Phước 4',
-    districtGroup: 'Khu vực Bến Cát (Bắc TP.HCM)',
+    districtGroup: 'Khu vực Bình Dương cũ',
     adminType: 'phường',
     lat: 11.1125,
     lng: 106.6218,
@@ -461,7 +461,7 @@ export const BEN_CAT_WARDS_DATA: Record<string, DistrictData> = {
     id: 'hcm-chanh-phu-hoa',
     name: 'Phường Chánh Phú Hòa',
     subTitle: 'Đô thị công nghiệp công nghệ cao & logistics phía Đông',
-    districtGroup: 'Khu vực Bến Cát (Bắc TP.HCM)',
+    districtGroup: 'Khu vực Bình Dương cũ',
     adminType: 'phường',
     lat: 11.1620,
     lng: 106.6625,
@@ -561,7 +561,7 @@ export const BEN_CAT_WARDS_DATA: Record<string, DistrictData> = {
     id: 'hcm-hoa-loi',
     name: 'Phường Hòa Lợi',
     subTitle: 'Đô thị kết nối Thành phố Mới & KCN VSIP 2',
-    districtGroup: 'Khu vực Bến Cát (Bắc TP.HCM)',
+    districtGroup: 'Khu vực Bình Dương cũ',
     adminType: 'phường',
     lat: 11.0872,
     lng: 106.6548,
@@ -661,7 +661,7 @@ export const BEN_CAT_WARDS_DATA: Record<string, DistrictData> = {
     id: 'hcm-tan-dinh',
     name: 'Phường Tân Định (Bến Cát)',
     subTitle: 'Cửa ngõ phía Nam, trục QL13 & kết nối KDL Đại Nam',
-    districtGroup: 'Khu vực Bến Cát (Bắc TP.HCM)',
+    districtGroup: 'Khu vực Bình Dương cũ',
     adminType: 'phường',
     lat: 11.0543,
     lng: 106.6321,
@@ -761,7 +761,7 @@ export const BEN_CAT_WARDS_DATA: Record<string, DistrictData> = {
     id: 'hcm-phu-an',
     name: 'Xã Phú An',
     subTitle: 'Làng tre sinh thái Phú An ven sông Thị Tính & du lịch sinh thái',
-    districtGroup: 'Khu vực Bến Cát (Bắc TP.HCM)',
+    districtGroup: 'Khu vực Bình Dương cũ',
     adminType: 'xã',
     lat: 11.1095,
     lng: 106.5684,

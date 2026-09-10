@@ -1,6 +1,6 @@
 {
   "name": "EcoApp - Môi Trường & Thời Tiết",
-  "description": "Ứng dụng theo dõi môi trường, thời tiết, phát triển doanh nghiệp và bảo vệ môi trường ngoại tuyến 168+ xã phường TP.HCM & Bình Dương.",
+  "description": "Ứng dụng quan trắc môi trường và thời tiết 168 đơn vị hành chính cấp xã (113 phường, 54 xã, 1 đặc khu Côn Đảo) theo Nghị quyết 1685/NQ-UBTVQH15.",
   "requestFramePermissions": [
     "geolocation",
     "camera"

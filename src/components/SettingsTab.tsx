@@ -842,7 +842,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
           <span>EcoApp - Môi Trường & Thời Tiết v2.4</span>
         </div>
         <p className="text-[11px] text-slate-500 dark:text-slate-400">
-          Mạng lưới quan trắc 168+ xã phường (TP. Hồ Chí Minh & Bình Dương)
+          Mạng lưới quan trắc 168 đơn vị hành chính cấp xã (113 phường, 54 xã, 1 đặc khu Côn Đảo) theo Nghị quyết 1685/NQ-UBTVQH15
         </p>
         <p className="text-[10.5px] text-slate-400 dark:text-slate-500 pt-1">
           Tích hợp giám sát thời tiết, độ cao địa hình, phát triển doanh nghiệp & bảo vệ môi trường
