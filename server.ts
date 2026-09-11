@@ -67,7 +67,7 @@ async function startServer() {
         data,
       });
     } catch (err: any) {
-      console.error('Weather API error:', err);
+      console.warn('Weather API notice:', err?.message || err);
       res.status(500).json({ error: err?.message || 'Weather service error' });
     }
   });

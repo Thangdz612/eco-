@@ -1,13 +1,373 @@
-import React from 'react';
-import { Waves, Footprints, Feather, Droplet, AlertTriangle, ShieldCheck, Ambulance, ChevronRight, SunMedium, Mountain } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import {
+  Waves,
+  Footprints,
+  Feather,
+  Droplet,
+  AlertTriangle,
+  ShieldCheck,
+  Ambulance,
+  ChevronRight,
+  SunMedium,
+  Mountain,
+  Globe,
+  Compass,
+  ArrowRight,
+  TreeDeciduous,
+  MapPin,
+  Sparkles,
+  Search,
+  CheckCircle2,
+  Fish,
+  Bird,
+  TrendingUp,
+} from 'lucide-react';
 import { DistrictData, ModalContent } from '../types';
+import { HcmCityBiodiversitySection } from './HcmCityBiodiversitySection';
+import { BiodiversityTrendChart } from './BiodiversityTrendChart';
+import {
+  getSpeciesByRealm,
+  getSpeciesForDistrict,
+  HCM_BIODIVERSITY_SPECIES,
+} from '../data/biodiversitySpeciesData';
 
 interface EnvironmentTabProps {
   data: DistrictData;
   onOpenDetail: (content: ModalContent) => void;
+  onSelectDistrict?: (districtId: string) => void;
 }
 
-export const EnvironmentTab: React.FC<EnvironmentTabProps> = ({ data, onOpenDetail }) => {
+export const EnvironmentTab: React.FC<EnvironmentTabProps> = ({
+  data,
+  onOpenDetail,
+  onSelectDistrict,
+}) => {
+  const [bioViewScope, setBioViewScope] = useState<'local' | 'trend' | 'city'>('local');
+  const [localSpeciesRealm, setLocalSpeciesRealm] = useState<'all' | 'underwater' | 'aerial' | 'terrestrial' | 'amphibian' | 'commercial'>('all');
+  const [localSpeciesSearch, setLocalSpeciesSearch] = useState<string>('');
+
+  // Danh sách các loài gắn liền với địa bàn hiện tại
+  const currentDistrictSpecies = useMemo(() => {
+    return getSpeciesForDistrict(data.id, data.districtGroup);
+  }, [data.id, data.districtGroup]);
+
+  // Lọc theo phân hệ và tìm kiếm (bao gồm cả trạng thái kinh doanh & thương phẩm)
+  const filteredLocalSpecies = useMemo(() => {
+    return currentDistrictSpecies.filter((sp) => {
+      const matchRealm =
+        localSpeciesRealm === 'all'
+          ? true
+          : localSpeciesRealm === 'commercial'
+          ? sp.commercialStatus === 'permitted_free' || sp.commercialStatus === 'conditional_farming'
+          : sp.realm === localSpeciesRealm;
+      const q = localSpeciesSearch.toLowerCase().trim();
+      const matchSearch =
+        !q ||
+        sp.name.toLowerCase().includes(q) ||
+        sp.scientificName.toLowerCase().includes(q) ||
+        sp.group.toLowerCase().includes(q) ||
+        sp.habitat.toLowerCase().includes(q) ||
+        (sp.commercialLabel && sp.commercialLabel.toLowerCase().includes(q)) ||
+        (sp.commercialProducts && sp.commercialProducts.some((p) => p.toLowerCase().includes(q))) ||
+        (sp.commercialFarmingLocation && sp.commercialFarmingLocation.toLowerCase().includes(q));
+      return matchRealm && matchSearch;
+    });
+  }, [currentDistrictSpecies, localSpeciesRealm, localSpeciesSearch]);
+
+  // Tên loài tiêu biểu gắn với 4 thẻ
+  const underwaterKeySpecies = useMemo(() => {
+    const list = currentDistrictSpecies.filter((s) => s.realm === 'underwater');
+    return list.length > 0 ? list : getSpeciesByRealm('underwater');
+  }, [currentDistrictSpecies]);
+
+  const terrestrialKeySpecies = useMemo(() => {
+    const list = currentDistrictSpecies.filter((s) => s.realm === 'terrestrial');
+    return list.length > 0 ? list : getSpeciesByRealm('terrestrial');
+  }, [currentDistrictSpecies]);
+
+  const aerialKeySpecies = useMemo(() => {
+    const list = currentDistrictSpecies.filter((s) => s.realm === 'aerial');
+    return list.length > 0 ? list : getSpeciesByRealm('aerial');
+  }, [currentDistrictSpecies]);
+
+  const amphibianKeySpecies = useMemo(() => {
+    const list = currentDistrictSpecies.filter((s) => s.realm === 'amphibian');
+    return list.length > 0 ? list : getSpeciesByRealm('amphibian');
+  }, [currentDistrictSpecies]);
+
+  // Hàm sinh nội dung chi tiết theo từng khu vực sinh thái cụ thể của địa phương
+  const getDynamicBioDetails = (category: 'underwater' | 'terrestrial' | 'aerial' | 'amphibian') => {
+    const isCanGio = data.id.includes('cg') || data.name.includes('Cần Giờ');
+    const isConDao = data.id.includes('condao') || data.name.includes('Côn Đảo');
+    const isCuChiHocMonBenCat =
+      data.id.includes('cc') ||
+      data.id.includes('hm') ||
+      data.id.includes('bc') ||
+      data.name.includes('Củ Chi') ||
+      data.name.includes('Hóc Môn') ||
+      data.name.includes('Bến Cát') ||
+      data.name.includes('Bình Chánh');
+    const isNhaBeDistrict = data.id.includes('nb') || data.name.includes('Nhà Bè');
+
+    const buildDetails = (): { title: string; description: string; details: string[]; tips: string[]; category?: string } => {
+      if (category === 'underwater') {
+      if (isCanGio) {
+        return {
+          title: `Quần xã Sinh vật Thủy sinh - Rừng ngập mặn ${data.name}`,
+          description: `Tình trạng: ${data.biodiversity.underwater.status}. Ghi nhận ${data.biodiversity.underwater.count} loài thủy hải sản nước lợ và mặn.`,
+          details: [
+            'Khu vực phân bố: Cửa sông Soài Rạp, sông Lòng Tàu, các kênh rạch đước và vịnh Gành Rái.',
+            ...data.biodiversity.underwater.highlights,
+            'Quần thể thủy sinh: Cá thòi lòi, cá bống sao, cá đối mục, tôm sú tự nhiên, nghêu lụa và hàu đá.',
+            'Chỉ số sinh học đáy benthos: Rất giàu dinh dưỡng phù sa tự nhiên, là bãi ấp nở của ốc và cá non vùng biển Nam Bộ.',
+            'Hệ thống rễ đước, mắm giúp lọc sạch bùn hữu cơ và giữ cân bằng nồng độ oxy hòa tan cho nguồn nước.',
+          ],
+          tips: [
+            'Bảo vệ bãi bồi ven rừng ngập mặn, không khai thác thủy sản non bằng xung điện hoặc cào đáy.',
+            'Tuân thủ thời gian cấm bắt nghêu và cua sinh sản vào mùa mưa.',
+          ],
+        };
+      }
+      if (isConDao) {
+        return {
+          title: `Quần xã Thủy sinh & San hô Biển - Đặc khu ${data.name}`,
+          description: `Tình trạng: ${data.biodiversity.underwater.status}. Đã xác định ${data.biodiversity.underwater.count} loài san hô và sinh vật biển quý hiếm.`,
+          details: [
+            'Khu vực sinh sống: Vườn quốc gia Côn Đảo, Bãi Cát Lớn, Hòn Bảy Cạnh, Hòn Cau, Hòn Tre Lớn.',
+            ...data.biodiversity.underwater.highlights,
+            'Rạn san hô nguyên sinh: Hơn 360 loài san hô cứng tạo môi trường sống cho cá bướm, cá hề, trai tai tượng.',
+            'Vùng đẻ trứng rùa biển Vích (Chelonia mydas) và đồi mồi lớn nhất Việt Nam.',
+            'Quần thể Bò biển Dugong (Dugong dugon) ăn thảm cỏ biển tự nhiên.',
+          ],
+          tips: [
+            'Tuyệt đối không bẻ hoặc dẫm đạp lên các rạn san hô khi lặn biển.',
+            'Giữ sạch tuyệt đối bãi biển, không vứt túi nilon hay rác nhựa làm rùa biển nuốt phải.',
+          ],
+        };
+      }
+      if (isCuChiHocMonBenCat) {
+        return {
+          title: `Quần xã Thủy sinh Nước ngọt - Vùng đệm ${data.name}`,
+          description: `Tình trạng: ${data.biodiversity.underwater.status}. Thống kê ${data.biodiversity.underwater.count} loài cá đồng và thủy sinh nội địa.`,
+          details: [
+            'Khu vực phân bố: Lưu vực sông Sài Gòn thượng nguồn, kênh Đông Củ Chi, rạch Thầy Cai.',
+            ...data.biodiversity.underwater.highlights,
+            'Các loài cá đồng bản địa: Cá lóc, cá trê vàng, cá rô đồng, lươn đồng, ốc bươu đen tự nhiên.',
+            'Thảm thực vật thủy sinh: Bèo tấm, rau muống nước, lục bình giúp lọc sạch nitơ và photpho trong nước thải nông nghiệp.',
+          ],
+          tips: [
+            'Hạn chế xả nước thải chăn nuôi trực tiếp ra kênh tưới tiêu nội đồng.',
+            'Không thả cá dọn bể ngoại lai (Plecostomus) vì chúng tiêu diệt trứng cá đồng bản địa.',
+          ],
+        };
+      }
+      if (isNhaBeDistrict) {
+        return {
+          title: `Quần xã Thủy sinh Vùng nước lợ - ${data.name}`,
+          description: `Tình trạng: ${data.biodiversity.underwater.status}. Ghi nhận ${data.biodiversity.underwater.count} loài đặc trưng vùng triều dâng.`,
+          details: [
+            'Khu vực phân bố: Rạch Mương Chuối, sông Đồng Điền, sông Nhà Bè.',
+            ...data.biodiversity.underwater.highlights,
+            'Đặc trưng sinh thái: Rừng dừa nước tự nhiên nuôi dưỡng đàn cá kèo, cua bùn, tôm đất.',
+            'Hệ rễ dừa nước dày đặc giữ phù sa, ngăn chặn sạt lở bờ sông tự nhiên.',
+          ],
+          tips: [
+            'Bảo vệ các thảm dừa nước phòng hộ trước nguy cơ san lấp xây dựng tự phát.',
+          ],
+        };
+      }
+      // Đô thị trung tâm Sài Gòn
+      return {
+        title: `Quần xã Sinh vật Dưới nước - Đô thị ${data.name}`,
+        category: 'Hệ sinh thái thủy sinh',
+        description: `Tình trạng: ${data.biodiversity.underwater.status}. Ghi nhận ${data.biodiversity.underwater.count} loài cá và vi sinh vật thủy sinh phục hồi.`,
+        details: [
+          'Khu vực phân bố: Sông Sài Gòn, Kênh Tàu Hủ - Bến Nghé, Kênh Nhiêu Lộc - Thị Nghè, Hồ Con Rùa.',
+          ...data.biodiversity.underwater.highlights,
+          'Chỉ số sinh học đáy benthos: Phục hồi 65% so với giai đoạn trước năm 2022.',
+          'Hệ thống 14 trạm sục khí oxy kênh Nhiêu Lộc giúp duy trì nồng độ DO ổn định cho đàn cá chép và cá rô phi sinh sản.',
+          'Các hồ nhân tạo công viên nuôi dưỡng cá cảnh quan và hệ thủy sinh lọc nước tự nhiên.',
+        ],
+        tips: [
+          'Nghiêm cấm chích điện, đánh bắt cá bằng lưới mắt nhỏ trên kênh rạch nội đô.',
+          'Không xả rác thải nhựa hoặc đổ thức ăn thừa dầu mỡ xuống miệng cống thoát nước.',
+        ],
+      };
+    }
+
+    if (category === 'terrestrial') {
+      if (isCanGio) {
+        return {
+          title: `Quần xã Thực & Động vật Rừng ngập mặn Cần Giờ - ${data.name}`,
+          description: `Tình trạng: ${data.biodiversity.terrestrial.status}. Đã bảo tồn ${data.biodiversity.terrestrial.count} loài thực vật ngập mặn và động vật có vú.`,
+          details: [
+            'Vùng đệm và vùng lõi Khu dự trữ sinh quyển thế giới UNESCO Cần Giờ.',
+            ...data.biodiversity.terrestrial.highlights,
+            'Thực vật rừng ngập mặn: Đước đôi (Rhizophora), bần trắng, vẹt đen, mắm trắng, cóc đỏ, su ổi.',
+            'Động vật có vú & bò sát: Đàn khỉ đuôi dài (Macaca fascicularis) hơn 2.000 cá thể, rái cá lông mượt, trăn gấm, kỳ đà hoa.',
+            'Độ che phủ mảng xanh đạt trên 95% diện tích tự nhiên.',
+          ],
+          tips: [
+            'Không cho động vật hoang dã ăn thức ăn công nghiệp có đường hoặc bao bì nilon.',
+            'Tuân thủ nội quy bảo vệ rừng ngập mặn khi đi dã ngoại sinh thái.',
+          ],
+        };
+      }
+      if (isConDao) {
+        return {
+          title: `Quần xã Thực & Động vật Vườn quốc gia Côn Đảo - ${data.name}`,
+          description: `Tình trạng: ${data.biodiversity.terrestrial.status}. Ghi nhận ${data.biodiversity.terrestrial.count} loài đặc hữu rừng nhiệt đới hải đảo.`,
+          details: [
+            'Rừng nhiệt đới hải đảo nguyên sinh: Độ che phủ tán cây đạt 88.2%.',
+            ...data.biodiversity.terrestrial.highlights,
+            'Loài đặc hữu Côn Đảo: Sóc đen Côn Đảo (Ratufa bicolor condorensis), chuột hươu, bồ câu Nicobar.',
+            'Thực vật hải đảo: Cây phong ba, bàng vuông, nho rừng, cây găng néo.',
+          ],
+          tips: [
+            'Giữ nguyên vẹn thảm thực vật rừng, không hái phong lan hay lấy hạt cây rừng.',
+          ],
+        };
+      }
+      return {
+        title: `Quần xã Sinh vật Trên cạn - ${data.name}`,
+        category: 'Hệ sinh thái cạn',
+        description: `Tình trạng: ${data.biodiversity.terrestrial.status}. Đã thống kê ${data.biodiversity.terrestrial.count} loài thực vật bóng mát và động vật đô thị.`,
+        details: [
+          'Khu bảo tồn mảng xanh trọng điểm: Thảo Cầm Viên Sài Gòn, Công viên Tao Đàn, Gia Định, 23 Tháng 9.',
+          ...data.biodiversity.terrestrial.highlights,
+          'Di sản cây xanh cổ thụ: Hơn 5.400 cây sao đen, dầu rái, xà cừ trên 100 năm tuổi tạo tầng tán mát.',
+          'Độ che phủ tán cây đô thị: Đạt mức 3.9m²/người dân nội thành.',
+          'Quần thể bò sát nhỏ, sóc cây, các loài bướm đặc trưng nhiệt đới sinh sống ổn định.',
+        ],
+        tips: [
+          'Bảo vệ cây xanh bóng mát công cộng và tăng cường trồng cây xanh thanh lọc bụi mịn ban công.',
+          'Báo ngay cho cơ quan công viên cây xanh khi phát hiện cây nghiêng mục trước mùa mưa bão.',
+        ],
+      };
+    }
+
+    if (category === 'aerial') {
+      if (isCanGio) {
+        return {
+          title: `Quần xã Chim nước Rừng ngập mặn Cần Giờ - ${data.name}`,
+          description: `Tình trạng: ${data.biodiversity.aerial.status}. Xác định ${data.biodiversity.aerial.count} loài chim nước và chim di cư quốc tế.`,
+          details: [
+            'Sân chim Cần Giờ và bãi bồi ven biển Đông.',
+            ...data.biodiversity.aerial.highlights,
+            'Các loài chim quý hiếm: Bồ nông chân xám, cò thìa, choắt mỏ cong, diệc lửa, bói cá lớn.',
+            'Mùa di trú đỉnh điểm từ tháng 10 đến tháng 4 hàng năm với hàng ngàn cá thể chim bay về tránh rét.',
+          ],
+          tips: [
+            'Tuyệt đối cấm sử dụng bẫy lưới tàng hình, súng cao su săn bắn chim di cư ven rừng.',
+          ],
+        };
+      }
+      if (isConDao) {
+        return {
+          title: `Quần xã Chim biển & Chim Yến Côn Đảo - ${data.name}`,
+          description: `Tình trạng: ${data.biodiversity.aerial.status}. Đã ghi nhận ${data.biodiversity.aerial.count} loài chim hải đảo quý hiếm.`,
+          details: [
+            'Vách đá hải đảo và vùng trời Vườn quốc gia Côn Đảo.',
+            ...data.biodiversity.aerial.highlights,
+            'Quần thể chim yến hàng Côn Đảo làm tổ trên vách đá tự nhiên.',
+            'Các loài chim biển: Hải âu xám, ó cá săn mồi biển sâu, bồ câu Nicobar cực kỳ quý hiếm.',
+          ],
+          tips: [
+            'Bảo tồn nghiêm ngặt các hang yến tự nhiên theo quy định Vườn quốc gia.',
+          ],
+        };
+      }
+      return {
+        title: `Quần xã Sinh vật Trên trời - ${data.name}`,
+        category: 'Hệ sinh thái chim & côn trùng bay',
+        description: `Tình trạng: ${data.biodiversity.aerial.status}. Đã xác định ${data.biodiversity.aerial.count} loài chim và côn trùng có ích.`,
+        details: [
+          'Quần thể chim đô thị: Bồ câu hoang dã, chim sẻ nhà, chim chích bông, chim yến hàng làm tổ nhà cao tầng.',
+          ...data.biodiversity.aerial.highlights,
+          'Côn trùng thụ phấn: Ong mật, bướm hoa công viên, chuồn chuồn kim giúp cân bằng sinh thái cây xanh.',
+          'Tần suất xuất hiện cao vào sáng sớm (05:30 - 07:00) và chiều mát (16:30 - 18:00).',
+        ],
+        tips: [
+          'Không sử dụng bẫy dính hay súng tự chế tại các công viên và khu dân cư.',
+          'Bố trí khay nước sạch nhỏ ở ban công hoặc sân thượng để chim trời có nơi uống nước ngày nắng.',
+        ],
+      };
+    }
+
+    // Amphibian (Lưỡng cư & Bò sát)
+    if (isCanGio || isNhaBeDistrict) {
+      return {
+        title: `Quần xã Sinh vật Lưỡng cư Vùng ngập mặn - ${data.name}`,
+        description: `Tình trạng: ${data.biodiversity.amphibian.status}. Đã ghi nhận ${data.biodiversity.amphibian.count} loài thích nghi vùng giáp ranh bùn lầy.`,
+        details: [
+          'Khu vực phân bố: Rừng ngập mặn, bãi bồi phù sa sông Soài Rạp và rạch dừa nước.',
+          ...data.biodiversity.amphibian.highlights,
+          'Loài đặc trưng: Cá thòi lòi leo cây (Periophthalmus) có thể thở cả dưới nước lẫn trên cạn.',
+          'Cua đá bãi bồi, cá bống sao, rắn ráo nước lợ, thằn lằn cát ven biển.',
+          'Đóng vai trò phân hủy lá đước rụng và chuyển hóa mùn bã hữu cơ thành chất dinh dưỡng cho biển.',
+        ],
+        tips: [
+          'Bảo tồn sinh cảnh thảm bùn tự nhiên, không đổ trạc xà bần san lấp rạch bãi bồi.',
+        ],
+      };
+    }
+    if (isConDao) {
+      return {
+        title: `Quần xã Bò sát & Lưỡng cư Hải đảo - ${data.name}`,
+        description: `Tình trạng: ${data.biodiversity.amphibian.status}. Đã ghi nhận ${data.biodiversity.amphibian.count} loài bò sát và động vật bán ngập Côn Đảo.`,
+        details: [
+          'Sinh cảnh: Bờ suối đá rừng nhiệt đới và bãi cát ven biển Côn Đảo.',
+          ...data.biodiversity.amphibian.highlights,
+          'Cua xe tăng (Cardisoma carnifex) - loài cua cạn khổng lồ đặc trưng rừng ngập mặn Côn Đảo.',
+          'Thằn lằn ngón Côn Đảo (Cyrtodactylus condorensis) - loài bò sát đặc hữu duy nhất của quần đảo.',
+        ],
+        tips: [
+          'Không săn bắt cua xe tăng và thằn lằn ngón làm đặc sản ẩm thực.',
+        ],
+      };
+    }
+    return {
+      title: `Quần xã Sinh vật Lưỡng cư - ${data.name}`,
+      category: 'Hệ sinh thái lưỡng cư',
+      description: `Tình trạng: ${data.biodiversity.amphibian.status}. Đã ghi nhận ${data.biodiversity.amphibian.count} loài sống tại vùng giáp ranh nước - cạn.`,
+      details: [
+        'Khu vực sinh sống: Vùng đất ẩm bãi bồi, bờ kè sinh thái, thảm cỏ bờ rạch, hồ cảnh quan.',
+        ...data.biodiversity.amphibian.highlights,
+        'Các loài phổ biến: Cóc nhà, thạch sùng, nhái bén, ếch đồng ven ngoại thành.',
+        'Vai trò sinh thái trọng yếu: Là thiên địch tự nhiên tiêu diệt muỗi vằn, lăng quăng và sâu bọ hại cây.',
+      ],
+      tips: [
+        'Bảo tồn thảm cỏ tự nhiên ven rạch để duy trì môi trường sinh sản của các loài lưỡng cư.',
+      ],
+    };
+    };
+
+    const baseContent = buildDetails();
+    const relevantSpecies =
+      category === 'underwater'
+        ? underwaterKeySpecies
+        : category === 'terrestrial'
+        ? terrestrialKeySpecies
+        : category === 'aerial'
+        ? aerialKeySpecies
+        : amphibianKeySpecies;
+
+    const defaultCategory =
+      category === 'underwater'
+        ? 'Quần xã dưới nước'
+        : category === 'terrestrial'
+        ? 'Quần xã trên cạn'
+        : category === 'aerial'
+        ? 'Quần xã trên trời'
+        : 'Quần xã lưỡng cư';
+
+    return {
+      category: baseContent.category || defaultCategory,
+      ...baseContent,
+      speciesList: relevantSpecies,
+    };
+  };
+
   return (
     <div className="flex flex-col gap-5 px-5 pb-6">
       {/* Đánh giá thời tiết card */}
@@ -157,139 +517,508 @@ export const EnvironmentTab: React.FC<EnvironmentTabProps> = ({ data, onOpenDeta
         </div>
       </section>
 
-      {/* Quần xã sinh vật */}
+      {/* Quần xã sinh vật - Chuyển đổi linh hoạt giữa Địa bàn hiện tại và Toàn bộ TP.HCM */}
       <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-[19px] font-extrabold text-[#0F172A] dark:text-slate-100 tracking-tight">
-            Quần xã sinh vật
-          </h2>
-          <span className="text-xs font-semibold text-[#64748B] dark:text-slate-400 bg-[#F1F5F9] dark:bg-slate-800 px-2 py-0.5 rounded-md">
-            Hệ sinh thái đô thị
-          </span>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <h2 className="text-[19px] font-extrabold text-[#0F172A] dark:text-slate-100 tracking-tight flex items-center gap-1.5">
+              <span>Quần xã sinh vật</span>
+            </h2>
+            <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded-md">
+              Đa dạng sinh thái
+            </span>
+          </div>
+
+          {/* Switcher: Địa bàn này vs Xu hướng 2023-2026 vs Toàn bộ TP.HCM */}
+          <div className="flex items-center gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl self-start sm:self-auto shadow-2xs">
+            <button
+              type="button"
+              id="bio-view-local-btn"
+              onClick={() => setBioViewScope('local')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                bioViewScope === 'local'
+                  ? 'bg-white dark:bg-slate-900 text-blue-700 dark:text-blue-300 shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
+            >
+              <MapPin className="w-3.5 h-3.5 text-blue-600" />
+              <span>{data.name.split(',')[0]}</span>
+            </button>
+
+            <button
+              type="button"
+              id="bio-view-trend-btn"
+              onClick={() => setBioViewScope('trend')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                bioViewScope === 'trend'
+                  ? 'bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-300 shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
+            >
+              <TrendingUp className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Xu Hướng (2023 - 2026)</span>
+            </button>
+
+            <button
+              type="button"
+              id="bio-view-city-btn"
+              onClick={() => setBioViewScope('city')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                bioViewScope === 'city'
+                  ? 'bg-white dark:bg-slate-900 text-teal-700 dark:text-teal-300 shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+              }`}
+            >
+              <Globe className="w-3.5 h-3.5 text-teal-600" />
+              <span>Toàn bộ TP.HCM</span>
+            </button>
+          </div>
         </div>
 
-        <div className="grid grid-cols-4 gap-2.5">
-          {/* Dưới nước */}
-          <button
-            type="button"
-            id="bio-underwater-btn"
-            onClick={() =>
-              onOpenDetail({
-                title: 'Quần xã Sinh vật Dưới nước',
-                category: 'Hệ sinh thái',
-                description: `Tình trạng: ${data.biodiversity.underwater.status}. Đã ghi nhận ${data.biodiversity.underwater.count} loài chính.`,
-                details: [
-                  'Khu vực phân bố: Sông Sài Gòn, Kênh Tàu Hủ - Bến Nghé, Rạch Thị Nghè.',
-                  ...data.biodiversity.underwater.highlights,
-                  'Chỉ số sinh học đáy benthos: Phục hồi 65% so với năm 2022.',
-                  'Hệ thống sục khí kênh Nhiêu Lộc giúp duy trì oxy hòa tan cho đàn cá sinh sản.',
-                ],
-                tips: [
-                  'Nghiêm cấm hành vi chích điện hoặc đánh bắt cá bằng lưới mắt nhỏ trên kênh rạch nội đô.',
-                  'Không xả rác thải nhựa hoặc thức ăn thừa xuống dòng kênh.',
-                ],
-              })
-            }
-            className="bg-[#F5F4F0] dark:bg-[#1E293B] hover:bg-[#ECEBE6] dark:hover:bg-[#334155]/70 border border-transparent dark:border-slate-700 active:scale-95 transition-all rounded-[18px] py-4 px-2 flex flex-col items-center justify-center gap-2.5 text-center cursor-pointer shadow-2xs"
-          >
-            <div className="w-8 h-8 flex items-center justify-center text-[#475569] dark:text-slate-300">
-              <Waves className="w-7 h-7 stroke-[2]" />
-            </div>
-            <span className="text-[13px] font-semibold text-[#334155] dark:text-slate-200 leading-tight">
-              Dưới nước
-            </span>
-          </button>
+        {/* Chế độ xem: TOÀN BỘ TP.HCM */}
+        {bioViewScope === 'city' ? (
+          <HcmCityBiodiversitySection
+            currentDistrictId={data.id}
+            onSelectDistrict={onSelectDistrict}
+            onOpenDetail={onOpenDetail}
+          />
+        ) : bioViewScope === 'trend' ? (
+          /* Chế độ xem: BIỂU ĐỒ XU HƯỚNG TĂNG GIẢM SINH VẬT 2023 - 2026 */
+          <BiodiversityTrendChart onOpenDetail={onOpenDetail} />
+        ) : (
+          /* Chế độ xem: ĐỊA BÀN HIỆN TẠI (4 thẻ nâng cấp đầy đủ chỉ số sinh vật) */
+          <div className="flex flex-col gap-3">
+            {/* Banner nổi bật Xu hướng Tăng Giảm Sinh Vật 2023 - 2026 */}
+            <div className="p-3 bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-sky-500/10 border border-emerald-500/20 dark:border-emerald-500/30 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                  <TrendingUp className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-xs font-extrabold text-slate-900 dark:text-slate-100">
+                      Biểu Đồ Xu Hướng Tăng Giảm Sinh Vật (2023 – 2026)
+                    </span>
+                    <span className="text-[10px] font-black px-1.5 py-0.2 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+                      +22.8% phục hồi
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                    Phân tích dữ liệu 4 năm liên tục: Thủy sinh (+23.5%), Trên cạn (+17.6%), Chim (+30.6%), Lưỡng cư (+20.3%)
+                  </p>
+                </div>
+              </div>
 
-          {/* Trên cạn */}
-          <button
-            type="button"
-            id="bio-terrestrial-btn"
-            onClick={() =>
-              onOpenDetail({
-                title: 'Quần xã Sinh vật Trên cạn',
-                category: 'Hệ sinh thái',
-                description: `Tình trạng: ${data.biodiversity.terrestrial.status}. Đã thống kê ${data.biodiversity.terrestrial.count} loài thực vật và động vật.`,
-                details: [
-                  'Khu bảo tồn trọng điểm: Thảo Cầm Viên Sài Gòn, Công viên Tao Đàn, 23 Tháng 9.',
-                  ...data.biodiversity.terrestrial.highlights,
-                  'Độ che phủ tán cây: Đạt mức 3.8m²/người dân nội thành.',
-                  'Quần thể bò sát nhỏ, sóc cây, các loài bướm đặc trưng vùng nhiệt đới.',
-                ],
-                tips: [
-                  'Bảo vệ cây xanh công cộng và tích cực trồng thêm cây cảnh thanh lọc không khí ban công.',
-                ],
-              })
-            }
-            className="bg-[#F5F4F0] dark:bg-[#1E293B] hover:bg-[#ECEBE6] dark:hover:bg-[#334155]/70 border border-transparent dark:border-slate-700 active:scale-95 transition-all rounded-[18px] py-4 px-2 flex flex-col items-center justify-center gap-2.5 text-center cursor-pointer shadow-2xs"
-          >
-            <div className="w-8 h-8 flex items-center justify-center text-[#475569] dark:text-slate-300">
-              <Footprints className="w-7 h-7 stroke-[2]" />
+              <button
+                type="button"
+                id="btn-switch-to-trend-chart"
+                onClick={() => setBioViewScope('trend')}
+                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shrink-0 transition-colors shadow-2xs flex items-center gap-1 self-start sm:self-auto cursor-pointer"
+              >
+                <span>Xem Biểu Đồ 2023 - 2026</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
             </div>
-            <span className="text-[13px] font-semibold text-[#334155] dark:text-slate-200 leading-tight">
-              Trên cạn
-            </span>
-          </button>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              {/* Dưới nước */}
+              <button
+                type="button"
+                id="bio-underwater-btn"
+                onClick={() =>
+                  onOpenDetail({
+                    ...getDynamicBioDetails('underwater'),
+                    category: 'Quần xã dưới nước',
+                  })
+                }
+                className="bg-[#F8FAFC] dark:bg-slate-800/90 hover:bg-sky-50/70 dark:hover:bg-slate-750 border border-slate-200/80 dark:border-slate-700 active:scale-95 transition-all rounded-[20px] p-3.5 flex flex-col justify-between text-left cursor-pointer shadow-2xs group"
+              >
+                <div className="flex items-center justify-between w-full">
+                  <div className="w-9 h-9 rounded-xl bg-sky-100 dark:bg-sky-950/80 text-sky-600 dark:text-sky-300 flex items-center justify-center group-hover:scale-105 transition-transform">
+                    <Waves className="w-5 h-5 stroke-[2.2]" />
+                  </div>
+                  <span className="text-[10.5px] font-black px-2 py-0.5 rounded-full bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-300 border border-sky-200 dark:border-sky-800 font-mono">
+                    {data.biodiversity.underwater.count} loài
+                  </span>
+                </div>
 
-          {/* Trên trời */}
-          <button
-            type="button"
-            id="bio-aerial-btn"
-            onClick={() =>
-              onOpenDetail({
-                title: 'Quần xã Sinh vật Trên trời',
-                category: 'Hệ sinh thái',
-                description: `Tình trạng: ${data.biodiversity.aerial.status}. Đã xác định ${data.biodiversity.aerial.count} loài chim và côn trùng bay.`,
-                details: [
-                  'Quần thể chim sẻ đô thị, chim yến, bồ câu hoang dã, cò trắng ven sông.',
-                  ...data.biodiversity.aerial.highlights,
-                  'Tần suất xuất hiện di trú cao vào buổi sáng sớm (05:30 - 07:00).',
-                  'Chỉ số an toàn không phận sinh thái: Tốt.',
-                ],
-                tips: [
-                  'Không sử dụng bẫy lưới hoặc súng săn chim tự chế tại công viên.',
-                  'Bố trí bồn nước sạch nhỏ ở sân thượng để chim trời có nơi uống nước mùa khô.',
-                ],
-              })
-            }
-            className="bg-[#F5F4F0] dark:bg-[#1E293B] hover:bg-[#ECEBE6] dark:hover:bg-[#334155]/70 border border-transparent dark:border-slate-700 active:scale-95 transition-all rounded-[18px] py-4 px-2 flex flex-col items-center justify-center gap-2.5 text-center cursor-pointer shadow-2xs"
-          >
-            <div className="w-8 h-8 flex items-center justify-center text-[#475569] dark:text-slate-300">
-              <Feather className="w-7 h-7 stroke-[2]" />
-            </div>
-            <span className="text-[13px] font-semibold text-[#334155] dark:text-slate-200 leading-tight">
-              Trên trời
-            </span>
-          </button>
+                <div className="mt-2.5">
+                  <span className="text-[13px] font-extrabold text-slate-800 dark:text-slate-100 block leading-tight">
+                    Dưới nước
+                  </span>
+                  <span className="text-[10px] font-bold text-sky-700 dark:text-sky-400 block truncate mt-0.5">
+                    {data.biodiversity.underwater.status}
+                  </span>
+                  {/* Tên loài tiêu biểu */}
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {underwaterKeySpecies.slice(0, 2).map((sp) => (
+                      <span
+                        key={sp.id}
+                        className="text-[9.5px] font-semibold px-1.5 py-0.5 rounded bg-sky-100/90 dark:bg-sky-950 text-sky-900 dark:text-sky-200 border border-sky-200/70 dark:border-sky-800/80 truncate max-w-full"
+                      >
+                        {sp.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </button>
 
-          {/* Lưỡng cư */}
-          <button
-            type="button"
-            id="bio-amphibian-btn"
-            onClick={() =>
-              onOpenDetail({
-                title: 'Quần xã Sinh vật Lưỡng cư',
-                category: 'Hệ sinh thái',
-                description: `Tình trạng: ${data.biodiversity.amphibian.status}. Đã ghi nhận ${data.biodiversity.amphibian.count} loài sống tại vùng giáp ranh nước - cạn.`,
-                details: [
-                  'Khu vực sinh sống: Vùng đất ẩm bãi bồi, bờ kè sinh thái, hồ nước nhân tạo.',
-                  ...data.biodiversity.amphibian.highlights,
-                  'Vai trò sinh thái: Khống chế muỗi, lăng quăng và sâu bọ hại cây xanh.',
-                ],
-                tips: [
-                  'Bảo tồn các thảm cỏ bán ngập ven rạch để duy trì nơi đẻ trứng tự nhiên của các loài lưỡng cư.',
-                ],
-              })
-            }
-            className="bg-[#F5F4F0] dark:bg-[#1E293B] hover:bg-[#ECEBE6] dark:hover:bg-[#334155]/70 border border-transparent dark:border-slate-700 active:scale-95 transition-all rounded-[18px] py-4 px-2 flex flex-col items-center justify-center gap-2.5 text-center cursor-pointer shadow-2xs"
-          >
-            <div className="w-8 h-8 flex items-center justify-center text-[#475569] dark:text-slate-300">
-              <Droplet className="w-7 h-7 stroke-[2]" />
+              {/* Trên cạn */}
+              <button
+                type="button"
+                id="bio-terrestrial-btn"
+                onClick={() =>
+                  onOpenDetail({
+                    ...getDynamicBioDetails('terrestrial'),
+                    category: 'Quần xã trên cạn',
+                  })
+                }
+                className="bg-[#F8FAFC] dark:bg-slate-800/90 hover:bg-emerald-50/70 dark:hover:bg-slate-750 border border-slate-200/80 dark:border-slate-700 active:scale-95 transition-all rounded-[20px] p-3.5 flex flex-col justify-between text-left cursor-pointer shadow-2xs group"
+              >
+                <div className="flex items-center justify-between w-full">
+                  <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-300 flex items-center justify-center group-hover:scale-105 transition-transform">
+                    <Footprints className="w-5 h-5 stroke-[2.2]" />
+                  </div>
+                  <span className="text-[10.5px] font-black px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-mono">
+                    {data.biodiversity.terrestrial.count} loài
+                  </span>
+                </div>
+
+                <div className="mt-2.5">
+                  <span className="text-[13px] font-extrabold text-slate-800 dark:text-slate-100 block leading-tight">
+                    Trên cạn
+                  </span>
+                  <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 block truncate mt-0.5">
+                    {data.biodiversity.terrestrial.status}
+                  </span>
+                  {/* Tên loài tiêu biểu */}
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {terrestrialKeySpecies.slice(0, 2).map((sp) => (
+                      <span
+                        key={sp.id}
+                        className="text-[9.5px] font-semibold px-1.5 py-0.5 rounded bg-emerald-100/90 dark:bg-emerald-950 text-emerald-900 dark:text-emerald-200 border border-emerald-200/70 dark:border-emerald-800/80 truncate max-w-full"
+                      >
+                        {sp.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </button>
+
+              {/* Trên trời */}
+              <button
+                type="button"
+                id="bio-aerial-btn"
+                onClick={() =>
+                  onOpenDetail({
+                    ...getDynamicBioDetails('aerial'),
+                    category: 'Quần xã trên trời',
+                  })
+                }
+                className="bg-[#F8FAFC] dark:bg-slate-800/90 hover:bg-amber-50/70 dark:hover:bg-slate-750 border border-slate-200/80 dark:border-slate-700 active:scale-95 transition-all rounded-[20px] p-3.5 flex flex-col justify-between text-left cursor-pointer shadow-2xs group"
+              >
+                <div className="flex items-center justify-between w-full">
+                  <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-950/80 text-amber-600 dark:text-amber-300 flex items-center justify-center group-hover:scale-105 transition-transform">
+                    <Feather className="w-5 h-5 stroke-[2.2]" />
+                  </div>
+                  <span className="text-[10.5px] font-black px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 font-mono">
+                    {data.biodiversity.aerial.count} loài
+                  </span>
+                </div>
+
+                <div className="mt-2.5">
+                  <span className="text-[13px] font-extrabold text-slate-800 dark:text-slate-100 block leading-tight">
+                    Trên trời
+                  </span>
+                  <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 block truncate mt-0.5">
+                    {data.biodiversity.aerial.status}
+                  </span>
+                  {/* Tên loài tiêu biểu */}
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {aerialKeySpecies.slice(0, 2).map((sp) => (
+                      <span
+                        key={sp.id}
+                        className="text-[9.5px] font-semibold px-1.5 py-0.5 rounded bg-amber-100/90 dark:bg-amber-950 text-amber-900 dark:text-amber-200 border border-amber-200/70 dark:border-amber-800/80 truncate max-w-full"
+                      >
+                        {sp.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </button>
+
+              {/* Lưỡng cư */}
+              <button
+                type="button"
+                id="bio-amphibian-btn"
+                onClick={() =>
+                  onOpenDetail({
+                    ...getDynamicBioDetails('amphibian'),
+                    category: 'Quần xã lưỡng cư',
+                  })
+                }
+                className="bg-[#F8FAFC] dark:bg-slate-800/90 hover:bg-teal-50/70 dark:hover:bg-slate-750 border border-slate-200/80 dark:border-slate-700 active:scale-95 transition-all rounded-[20px] p-3.5 flex flex-col justify-between text-left cursor-pointer shadow-2xs group"
+              >
+                <div className="flex items-center justify-between w-full">
+                  <div className="w-9 h-9 rounded-xl bg-teal-100 dark:bg-teal-950/80 text-teal-600 dark:text-teal-300 flex items-center justify-center group-hover:scale-105 transition-transform">
+                    <Droplet className="w-5 h-5 stroke-[2.2]" />
+                  </div>
+                  <span className="text-[10.5px] font-black px-2 py-0.5 rounded-full bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800 font-mono">
+                    {data.biodiversity.amphibian.count} loài
+                  </span>
+                </div>
+
+                <div className="mt-2.5">
+                  <span className="text-[13px] font-extrabold text-slate-800 dark:text-slate-100 block leading-tight">
+                    Lưỡng cư
+                  </span>
+                  <span className="text-[10px] font-bold text-teal-700 dark:text-teal-400 block truncate mt-0.5">
+                    {data.biodiversity.amphibian.status}
+                  </span>
+                  {/* Tên loài tiêu biểu */}
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {amphibianKeySpecies.slice(0, 2).map((sp) => (
+                      <span
+                        key={sp.id}
+                        className="text-[9.5px] font-semibold px-1.5 py-0.5 rounded bg-teal-100/90 dark:bg-teal-950 text-teal-900 dark:text-teal-200 border border-teal-200/70 dark:border-teal-800/80 truncate max-w-full"
+                      >
+                        {sp.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </button>
             </div>
-            <span className="text-[13px] font-semibold text-[#334155] dark:text-slate-200 leading-tight">
-              Lưỡng cư
-            </span>
-          </button>
-        </div>
+
+            {/* Bảng tra cứu tên các loài sinh vật đặc trưng theo danh mục tại địa bàn này */}
+            <div className="p-3.5 bg-slate-50/90 dark:bg-slate-850/80 border border-slate-200/90 dark:border-slate-800 rounded-2xl flex flex-col gap-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-xs font-black text-slate-900 dark:text-slate-100 uppercase tracking-wider flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Tên các loài sinh vật tiêu biểu ({data.name})</span>
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    Bấm vào từng loài để xem danh pháp khoa học, sinh cảnh phân bố và vai trò sinh thái
+                  </p>
+                </div>
+
+                {/* Tìm kiếm loài */}
+                <div className="relative sm:w-56">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    value={localSpeciesSearch}
+                    onChange={(e) => setLocalSpeciesSearch(e.target.value)}
+                    placeholder="Tìm tên loài hoặc tên khoa học..."
+                    className="w-full pl-7 pr-2.5 py-1 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 focus:outline-hidden focus:ring-1 focus:ring-emerald-500"
+                  />
+                </div>
+              </div>
+
+              {/* Lọc phân hệ */}
+              <div className="flex items-center gap-1 overflow-x-auto pb-0.5 custom-scrollbar">
+                {[
+                  { id: 'all', label: `Tất cả (${currentDistrictSpecies.length})` },
+                  {
+                    id: 'commercial',
+                    label: `💼 Kinh doanh / OCOP (${
+                      currentDistrictSpecies.filter(
+                        (s) => s.commercialStatus === 'permitted_free' || s.commercialStatus === 'conditional_farming'
+                      ).length
+                    })`,
+                  },
+                  { id: 'underwater', label: `🌊 Dưới nước / Biển (${underwaterKeySpecies.length})` },
+                  { id: 'aerial', label: `🦅 Trên không (${aerialKeySpecies.length})` },
+                  { id: 'terrestrial', label: `🌳 Trên cạn (${terrestrialKeySpecies.length})` },
+                  { id: 'amphibian', label: `🐸 Lưỡng cư (${amphibianKeySpecies.length})` },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setLocalSpeciesRealm(tab.id as any)}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition-colors cursor-pointer ${
+                      localSpeciesRealm === tab.id
+                        ? 'bg-emerald-600 text-white shadow-2xs'
+                        : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200/70 dark:border-slate-700'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Danh sách thẻ tên loài */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[340px] overflow-y-auto pr-0.5 custom-scrollbar">
+                {filteredLocalSpecies.map((sp) => (
+                  <div
+                    key={sp.id}
+                    onClick={() =>
+                      onOpenDetail({
+                        title: `${sp.name} (${sp.scientificName})`,
+                        imageUrl: sp.imageUrl,
+                        category: `Sinh vật ${sp.realm === 'underwater' ? 'dưới nước / biển' : sp.realm === 'aerial' ? 'trên không' : sp.realm === 'terrestrial' ? 'trên cạn' : 'lưỡng cư'}`,
+                        description: `${sp.group} • ${sp.commercialLabel || sp.conservationStatus}`,
+                        details: [
+                          `Tên khoa học (danh pháp quốc tế): ${sp.scientificName}`,
+                          `Sinh cảnh phân bố: ${sp.habitat}`,
+                          `Quy chế kinh doanh & Pháp lý: ${
+                            sp.commercialStatus === 'permitted_free'
+                              ? '🟢 ĐƯỢC PHÉP KINH DOANH & NUÔI TRỒNG TỰ DO (Đặc sản OCOP, thủy hải sản, hoa kiểng, nông lâm nghiệp bền vững)'
+                              : sp.commercialStatus === 'conditional_farming'
+                              ? '🟡 GÂY NUÔI CÓ ĐIỀU KIỆN (CITES II / NHÓM IIB): Bắt buộc đăng ký Mã số trại nuôi với Chi cục Kiểm lâm TP.HCM và xuất trình giống F2'
+                              : '🔴 NGHIÊM CẤM KINH DOANH DƯỚI MỌI HÌNH THỨC: Nghiêm cấm săn bắt, tàng trữ, buôn bán. Vi phạm xử lý hình sự Điều 244 BLHS'
+                          }`,
+                          sp.commercialProducts && sp.commercialProducts.length > 0
+                            ? `Sản phẩm thương phẩm: ${sp.commercialProducts.join('; ')}`
+                            : '',
+                          sp.commercialFarmingLocation ? `Địa bàn nuôi trồng / khai thác: ${sp.commercialFarmingLocation}` : '',
+                          sp.legalFramework ? `Căn cứ pháp lý: ${sp.legalFramework}` : '',
+                          sp.economicValue ? `Giá trị kinh tế & Thị trường: ${sp.economicValue}` : '',
+                          sp.commercialNotes ? `Lưu ý pháp lý: ${sp.commercialNotes}` : '',
+                          `Đặc điểm sinh học nhận dạng: ${sp.keyFeatures}`,
+                          `Vai trò sinh thái: ${sp.ecologicalRole}`,
+                        ].filter(Boolean),
+                        tips: [
+                          sp.commercialStatus === 'permitted_free'
+                            ? 'Bảo tồn nguồn giống thuần bản địa và ưu tiên thực hành canh tác sinh thái đạt chứng nhận OCOP / VietGAP.'
+                            : sp.commercialStatus === 'conditional_farming'
+                            ? 'Tuân thủ nghiêm ngặt quy định cấp mã số trại nuôi của Kiểm lâm TP.HCM và không mua bán động vật hoang dã trái phép.'
+                            : 'Kịp thời báo tin cho cơ quan kiểm lâm TP.HCM qua (028) 3844 1447 khi phát hiện cá thể bị bẫy bắt hoặc buôn bán.',
+                        ],
+                      })
+                    }
+                    className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-750 hover:border-emerald-500 dark:hover:border-emerald-500 hover:shadow-xs transition-all cursor-pointer flex flex-col justify-between gap-2 text-left group"
+                  >
+                    <div className="flex gap-2.5 items-start">
+                      {/* Ảnh nhỏ đại diện */}
+                      <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800 shrink-0 relative">
+                        {sp.imageUrl ? (
+                          <img
+                            src={sp.imageUrl}
+                            alt={sp.name}
+                            loading="lazy"
+                            referrerPolicy="no-referrer"
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-xl">
+                            {sp.realm === 'underwater' ? '🌊' : sp.realm === 'aerial' ? '🦅' : sp.realm === 'terrestrial' ? '🌳' : '🐸'}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-1">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1 flex-wrap">
+                              <span className="text-xs font-bold text-slate-900 dark:text-slate-100 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors truncate">
+                                {sp.name}
+                              </span>
+                            </div>
+                            <span className="text-[10px] italic text-slate-500 dark:text-slate-400 block truncate font-serif">
+                              {sp.scientificName}
+                            </span>
+                          </div>
+
+                          <span
+                            className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md shrink-0 ${
+                              sp.conservationStatus.includes('Sách Đỏ') ||
+                              sp.conservationStatus.includes('CR') ||
+                              sp.conservationStatus.includes('EN') ||
+                              sp.conservationStatus.includes('VU')
+                                ? 'bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
+                                : 'bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                            }`}
+                          >
+                            {sp.conservationStatus.split('-')[0].trim()}
+                          </span>
+                        </div>
+
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 block mt-0.5 line-clamp-1">
+                          {sp.group}
+                        </span>
+
+                        {sp.commercialStatus && (
+                          <span
+                            className={`inline-block mt-1 text-[8.5px] font-bold px-1.5 py-0.2 rounded ${
+                              sp.commercialStatus === 'permitted_free'
+                                ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300'
+                                : sp.commercialStatus === 'conditional_farming'
+                                ? 'bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300'
+                                : 'bg-rose-100 dark:bg-rose-950 text-rose-800 dark:text-rose-300'
+                            }`}
+                          >
+                            {sp.commercialStatus === 'permitted_free'
+                              ? '🟢 OCOP / Tự do'
+                              : sp.commercialStatus === 'conditional_farming'
+                              ? '🟡 Nuôi có phép F2'
+                              : '🔴 Cấm kinh doanh'}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <p className="text-[10.5px] text-slate-600 dark:text-slate-300 line-clamp-2 leading-relaxed">
+                      {sp.keyFeatures}
+                    </p>
+
+                    {sp.commercialProducts && sp.commercialProducts.length > 0 && (
+                      <div className="text-[9.5px] text-slate-500 dark:text-slate-400 truncate">
+                        <strong>SP:</strong> {sp.commercialProducts.slice(0, 2).join(' • ')}
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800 text-[10.5px]">
+                      <span className="text-emerald-700 dark:text-emerald-400 font-medium truncate max-w-[180px] text-[10px]">
+                        {sp.ecologicalRole}
+                      </span>
+                      <span className="text-slate-400 group-hover:text-emerald-600 font-bold shrink-0 flex items-center gap-0.5 text-[10px]">
+                        Chi tiết &rarr;
+                      </span>
+                    </div>
+                  </div>
+                ))}
+
+                {filteredLocalSpecies.length === 0 && (
+                  <div className="col-span-full p-4 text-center text-xs text-slate-400">
+                    Không tìm thấy loài nào khớp với từ khóa "{localSpeciesSearch}".
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Banner chuyển sang xem toàn cảnh sinh vật toàn TP.HCM */}
+            <button
+              type="button"
+              id="btn-open-city-biodiversity"
+              onClick={() => setBioViewScope('city')}
+              className="p-3 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/30 border border-emerald-200/80 dark:border-emerald-800/60 rounded-2xl flex items-center justify-between gap-3 text-left transition-all hover:bg-emerald-100/50 dark:hover:bg-emerald-950/60 active:scale-[0.99] cursor-pointer shadow-2xs"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="p-2 rounded-xl bg-emerald-600 text-white shrink-0">
+                  <Globe className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-xs font-black text-emerald-950 dark:text-emerald-100">
+                      Toàn cảnh Quần Xã Sinh Vật Toàn TP.HCM
+                    </span>
+                    <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-md bg-emerald-200/80 dark:bg-emerald-800 text-emerald-900 dark:text-emerald-100">
+                      1.400+ loài • 168 xã/phường
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-emerald-800 dark:text-emerald-300/90 truncate mt-0.5">
+                    Tra cứu 5 phân vùng sinh thái, danh mục Sách Đỏ và bản đồ 168 đơn vị hành chính
+                  </p>
+                </div>
+              </div>
+              <ChevronRight className="w-4 h-4 text-emerald-700 dark:text-emerald-300 shrink-0" />
+            </button>
+          </div>
+        )}
       </section>
 
       {/* Cảnh báo biến cố */}

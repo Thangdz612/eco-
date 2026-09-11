@@ -181,13 +181,31 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
     if (!rawJsonContent) {
       setRawJsonLoading(true);
       try {
-        const res = await fetch(liveSourceInfo.apiUrl);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = await res.json();
-        setRawJsonContent(JSON.stringify(json, null, 2));
+        let json: any = null;
+        // Thử lấy qua proxy máy chủ trước để tránh chặn CORS trong iframe
+        try {
+          const proxyRes = await fetch(`/api/weather/live?lat=${liveSourceInfo.lat.toFixed(4)}&lng=${liveSourceInfo.lng.toFixed(4)}`);
+          if (proxyRes.ok) {
+            const pj = await proxyRes.json();
+            json = pj?.data || pj;
+          }
+        } catch (_e) {}
+
+        if (!json) {
+          const res = await fetch(liveSourceInfo.apiUrl);
+          if (res.ok) {
+            json = await res.json();
+          }
+        }
+
+        if (json) {
+          setRawJsonContent(JSON.stringify(json, null, 2));
+        } else {
+          throw new Error('Không thể tải dữ liệu JSON');
+        }
       } catch (err: any) {
         setRawJsonContent(
-          `Không thể kết nối trực tiếp đến máy chủ Open-Meteo: ${err?.message || 'Lỗi mạng'}\n\nBạn có thể nhấp vào liên kết "Kiểm chứng API gốc" để mở trực tiếp trong trình duyệt mới.`
+          `Không thể nạp dữ liệu trực tiếp: ${err?.message || 'Lỗi mạng'}\n\nBạn có thể nhấp vào liên kết "Kiểm chứng API gốc" bên dưới để mở dữ liệu JSON trực tiếp trong tab mới.`
         );
       } finally {
         setRawJsonLoading(false);

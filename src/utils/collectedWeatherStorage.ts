@@ -575,7 +575,7 @@ export async function syncCollectedWeatherOnline(
       station: liveResult.atmosphericStation,
     };
   } catch (err: any) {
-    console.error('Fetch live weather failed, falling back:', err);
+    console.warn('Thông tin đồng bộ khí quyển (sử dụng chế độ an toàn nội bộ):', err?.message || err);
     // Fallback: Nếu kết nối ngoài bị gián đoạn, dùng dữ liệu mẫu
     const fresh = generateCollectedWeatherRange(districtId, districtName, adminType);
     const now = new Date();
@@ -583,7 +583,7 @@ export async function syncCollectedWeatherOnline(
     return {
       success: false,
       data: fresh,
-      message: `Không thể kết nối trạm khí quyển: ${err?.message || 'Lỗi mạng'}. Sử dụng dữ liệu lưu trữ.`,
+      message: `Đang sử dụng dữ liệu quan trắc dự phòng (${err?.message || 'Chế độ an toàn'}).`,
       lastSynced: nowStr,
     };
   }

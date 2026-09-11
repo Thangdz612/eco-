@@ -129,7 +129,7 @@ export default function App() {
         setIsLocationModalOpen(true);
       }
     } catch (e) {
-      console.error('Location error:', e);
+      console.warn('Location warning:', e);
       setLocationBannerMessage('⚠️ Không thể kích hoạt GPS. Vui lòng kiểm tra quyền vị trí trên thiết bị.');
       setTimeout(() => {
         setLocationBannerMessage(null);
@@ -249,6 +249,7 @@ export default function App() {
             <EnvironmentTab
               data={currentDistrict}
               onOpenDetail={(content) => setActiveModalContent(content)}
+              onSelectDistrict={(id) => setSelectedDistrictId(id)}
             />
           )}
 

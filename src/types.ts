@@ -87,6 +87,32 @@ export interface DistrictData {
   };
 }
 
+export type CommercialStatusType = 'permitted_free' | 'conditional_farming' | 'strictly_prohibited';
+
+export interface SpeciesItem {
+  id: string;
+  name: string;
+  scientificName: string;
+  realm: 'underwater' | 'aerial' | 'terrestrial' | 'amphibian';
+  realmLabel: string;
+  group: string;
+  conservationStatus: string;
+  statusType: 'normal' | 'rare' | 'vulnerable' | 'endangered' | 'critical';
+  habitat: string;
+  keyFeature: string;
+  keyFeatures?: string;
+  ecologicalRole: string;
+  imageUrl?: string;
+  // Khả năng kinh doanh & Khung pháp lý
+  commercialStatus?: CommercialStatusType;
+  commercialLabel?: string;
+  commercialProducts?: string[];
+  commercialFarmingLocation?: string;
+  legalFramework?: string;
+  economicValue?: string;
+  commercialNotes?: string;
+}
+
 export interface ModalContent {
   title: string;
   category: string;
@@ -94,4 +120,12 @@ export interface ModalContent {
   details: string[];
   tips?: string[];
   type?: 'bio' | 'alert' | 'env' | 'response' | 'waste' | 'community' | 'enterprise';
+  imageUrl?: string;
+  speciesList?: SpeciesItem[];
+  speciesData?: SpeciesItem;
+  sections?: {
+    title: string;
+    icon?: string;
+    items: { label: string; value: string; highlight?: boolean }[];
+  }[];
 }

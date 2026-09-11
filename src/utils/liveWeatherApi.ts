@@ -319,18 +319,52 @@ export async function fetchDirectLiveWeatherData(
   const { lat, lng } = { lat: station.lat, lng: station.lng };
   const apiUrl = buildOpenMeteoUrl(lat, lng);
 
-  const response = await fetch(apiUrl, {
-    method: 'GET',
-    headers: {
-      Accept: 'application/json',
-    },
-  });
+  let json: any = null;
 
-  if (!response.ok) {
-    throw new Error(`Trạm Khí quyển VN API HTTP Error: ${response.status} ${response.statusText}`);
+  // 1. Ưu tiên gọi qua proxy nội bộ (/api/weather/live) để tránh hoàn toàn lỗi CORS / sandbox iframe
+  try {
+    const proxyUrl = `/api/weather/live?lat=${lat.toFixed(4)}&lng=${lng.toFixed(4)}`;
+    const proxyRes = await fetch(proxyUrl, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+      },
+    });
+
+    if (proxyRes.ok) {
+      const proxyData = await proxyRes.json();
+      if (proxyData?.data && (proxyData.data.daily || proxyData.data.hourly)) {
+        json = proxyData.data;
+      } else if (proxyData?.daily || proxyData?.hourly) {
+        json = proxyData;
+      }
+    }
+  } catch (_proxyErr) {
+    // Không kết nối được qua proxy nội bộ, tiếp tục thử gọi trực tiếp bên dưới
   }
 
-  const json = await response.json();
+  // 2. Dự phòng: Nếu proxy chưa trả dữ liệu, thử gọi trực tiếp Open-Meteo
+  if (!json) {
+    try {
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: {
+          Accept: 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const directJson = await response.json();
+        json = directJson?.data || directJson;
+      }
+    } catch (_directErr) {
+      // Bỏ qua lỗi direct fetch để báo lỗi có kiểm soát phía dưới
+    }
+  }
+
+  if (!json || (!json.daily && !json.hourly)) {
+    throw new Error(`Trạm Khí quyển VN API: Không thể nạp dữ liệu từ máy chủ quan trắc`);
+  }
 
   const dailyTimes: string[] = json.daily?.time || [];
   const hourlyTimes: string[] = json.hourly?.time || [];
