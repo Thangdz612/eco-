@@ -72,6 +72,44 @@ async function startServer() {
     }
   });
 
+  // Direct atmospheric & air quality query endpoint from Open-Meteo Air Quality & Copernicus CAMS
+  app.get('/api/air-quality/live', async (req, res) => {
+    try {
+      const lat = parseFloat(req.query.lat as string);
+      const lng = parseFloat(req.query.lng as string);
+
+      if (isNaN(lat) || isNaN(lng)) {
+        res.status(400).json({ error: 'Valid latitude and longitude required' });
+        return;
+      }
+
+      const params = new URLSearchParams({
+        latitude: lat.toFixed(4),
+        longitude: lng.toFixed(4),
+        current: 'european_aqi,us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone',
+        hourly: 'pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone,us_aqi,european_aqi',
+        timezone: 'Asia/Bangkok',
+      });
+
+      const url = `https://air-quality-api.open-meteo.com/v1/air-quality?${params.toString()}`;
+      const response = await fetch(url);
+      if (!response.ok) {
+        res.status(response.status).json({ error: 'Failed to fetch from Open-Meteo Air Quality API' });
+        return;
+      }
+      const data = await response.json();
+      res.json({
+        source: 'Open-Meteo Air Quality API • Copernicus Atmosphere Monitoring Service (CAMS) & NOAA GFS-Aerosol',
+        dataType: 'forecast_model',
+        apiUrl: url,
+        data,
+      });
+    } catch (err: any) {
+      console.warn('Air Quality API notice:', err?.message || err);
+      res.status(500).json({ error: err?.message || 'Air quality service error' });
+    }
+  });
+
   app.post('/api/ai/chat', async (req, res) => {
     try {
       const { prompt } = req.body;
