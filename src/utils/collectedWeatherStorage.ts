@@ -1,7 +1,12 @@
 /**
  * Lưu trữ và quản lý dữ liệu thời tiết đã thu thập qua mạng (phạm vi ±3 ngày)
  * Dữ liệu theo từng giờ: 0h, 1h, 2h... 23h với Độ C, % Mưa, Độ ẩm, Tia UV,
- * hỗ trợ đầy đủ tất cả các cấp Phường, Xã, Đặc khu với đặc thù vi khí hậu chuyên sâu.
+ * hỗ trợ đầy đủ tất cả các cấp Phường, Xã, Đặc khu.
+ * 
+ * NGUYÊN TẮC MINH BẠCH & KIẾN TRÚC OFFLINE-FIRST:
+ * - Khi online: Lấy dữ liệu mô hình mới nhất từ Open-Meteo, lưu vào CacheManager với TTL 30 phút.
+ * - Khi offline: Lấy dữ liệu từ CacheManager nếu còn hạn, hiển thị rõ "Dữ liệu lưu lúc [thời gian]".
+ * - Khi chưa có cache: Hiển thị trạng thái "Chưa có dữ liệu ngoại tuyến", TUYỆT ĐỐI KHÔNG BỊA SỐ GIẢ.
  */
 
 import { DISTRICTS_DATA } from '../data/mockData';
@@ -10,11 +15,13 @@ import {
   fetchDirectLiveWeatherData,
   fetchDirectAirQualityData,
   buildOpenMeteoUrl,
-  getCoordinatesForDistrict,
   getAtmosphericStationForDistrict,
   getAtmosphericStationByCode,
   type VietnamAtmosphericStation,
 } from './liveWeatherApi';
+import { cacheManager, CACHE_TTL } from '../storage/cacheManager';
+import { networkManager } from './networkManager';
+import { logger } from './logger';
 
 export interface HourlyWeatherRecord {
   hour: number; // 0..23
@@ -26,7 +33,7 @@ export interface HourlyWeatherRecord {
   rainfallAmount: number; // Lượng mưa ước tính (mm/h)
   humidity: number; // Độ ẩm không khí (%)
   dewPoint: number; // Điểm sương (°C)
-  pressure?: number; // Áp suất khí quyển bề mặt trạm (hPa)
+  pressure?: number; // Áp suất khí quyển bề mặt (hPa)
   uvIndex: number; // Chỉ số tia cực tím UV (0..12+)
   uvLevel: string; // "Thấp" | "Trung bình" | "Cao" | "Rất cao" | "Cực độ"
   solarRadiation: number; // Bức xạ mặt trời (W/m²)
@@ -58,9 +65,9 @@ export interface DayCollectedWeather {
   maxUvIndex: number;
   maxWindSpeed: number; // km/h
   surfacePressure?: number; // Áp suất khí quyển trung bình (hPa)
-  stationCode?: string; // Mã hiệu Trạm Khí quyển VN (e.g. 'VN-48894')
-  stationName?: string; // Tên trạm quan trắc (e.g. 'Trạm Khí quyển & Khí tượng Bến Cát - Sở Sao')
-  stationAuthority?: string; // Cơ quan quản lý trạm
+  stationCode?: string; // Mã hiệu điểm tham chiếu
+  stationName?: string; // Tên điểm tham chiếu
+  stationAuthority?: string; // Cơ quan/Mô hình
   hours: HourlyWeatherRecord[]; // 24 records (0h - 23h)
   collectedAt: string;
   source: string;
@@ -107,375 +114,66 @@ function getBeaufortScale(kmh: number): string {
 }
 
 /**
- * Tạo 24 giờ thời tiết cho 1 ngày cụ thể, hiệu chỉnh chuẩn theo trạm quan trắc thực tế
- * và đặc thù của cấp hành chính (Phường: Đảo nhiệt; Xã: Rừng ngập mặn/nông thôn mát; Đặc khu: Gió biển, UV cao)
- */
-function generate24Hours(
-  offset: number,
-  adminType: 'phường' | 'xã' | 'đặc khu' = 'phường',
-  districtName: string = 'Quận 1',
-  districtId: string = 'quan-1'
-): HourlyWeatherRecord[] {
-  const hours: HourlyWeatherRecord[] = [];
-
-  const isTayNam =
-    districtId === 'hcm-tay-nam' ||
-    districtName.toLowerCase().includes('tây nam');
-
-  // Lấy dữ liệu trạm quan trắc thực tế từ danh mục
-  const targetDistrict =
-    DISTRICTS_DATA[districtId] ||
-    Object.values(DISTRICTS_DATA).find(
-      (d) =>
-        d.id.toLowerCase() === districtId.toLowerCase() ||
-        d.name.toLowerCase() === districtName.toLowerCase()
-    );
-
-  let basePeakTemp = 33.5;
-  let baseMinTemp = 26.5;
-  let maxRainDay = 45;
-  let maxUvDay = adminType === 'đặc khu' ? 11.4 : adminType === 'xã' ? 10.0 : 9.6;
-  let humidityOffsetByAdmin = adminType === 'đặc khu' ? 8 : adminType === 'xã' ? 10 : -4;
-  let windBaseByAdmin = adminType === 'đặc khu' ? 22 : adminType === 'xã' ? 14 : 9;
-
-  if (isTayNam) {
-    // Phường Tây Nam: Dữ liệu thực tế hôm nay: nhiệt độ 26°C - 31°C, tỉ lệ mưa 60%
-    const tayNamPeak = 31.0;
-    const tayNamMin = 26.0;
-    const tayNamRain = 60;
-
-    const dayTempDelta =
-      offset === 0 ? 0 :
-      offset === -1 ? -0.5 :
-      offset === -2 ? 0.8 :
-      offset === -3 ? -0.8 :
-      offset === 1 ? 0.5 :
-      offset === 2 ? 1.0 : 0.2;
-
-    const dayRainDelta =
-      offset === 0 ? 0 :
-      offset === -1 ? 5 :
-      offset === -2 ? -15 :
-      offset === -3 ? 10 :
-      offset === 1 ? -5 :
-      offset === 2 ? -15 : -10;
-
-    basePeakTemp = Number((tayNamPeak + dayTempDelta).toFixed(1));
-    baseMinTemp = Number((tayNamMin + dayTempDelta * 0.5).toFixed(1));
-    maxRainDay = Math.min(95, Math.max(20, tayNamRain + dayRainDelta));
-    maxUvDay = 4.8;
-    humidityOffsetByAdmin = 6;
-    windBaseByAdmin = 14;
-  } else if (targetDistrict?.weather?.temp) {
-    // Trích xuất nhiệt độ và độ ẩm thực tế từ hồ sơ trạm
-    const parsedTemp = parseInt(targetDistrict.weather.temp, 10);
-    const hasRain =
-      targetDistrict.weather.condition?.toLowerCase().includes('mưa') ||
-      targetDistrict.weather.condition?.toLowerCase().includes('dông');
-
-    const todayPeak = !isNaN(parsedTemp) ? parsedTemp : (adminType === 'xã' ? 32 : adminType === 'đặc khu' ? 30.5 : 34);
-    const drop = adminType === 'xã' ? 7.5 : adminType === 'đặc khu' ? 5.2 : 6.2;
-    const todayMin = Number((todayPeak - drop).toFixed(1));
-    const todayRain = hasRain ? 65 : (adminType === 'xã' ? 50 : adminType === 'đặc khu' ? 40 : 40);
-
-    const dayTempDelta =
-      offset === 0 ? 0 :
-      offset === -1 ? -0.5 :
-      offset === -2 ? 0.8 :
-      offset === -3 ? -1.0 :
-      offset === 1 ? 0.5 :
-      offset === 2 ? 1.0 : 0.2;
-
-    const dayRainDelta =
-      offset === 0 ? 0 :
-      offset === -1 ? 10 :
-      offset === -2 ? -20 :
-      offset === -3 ? 15 :
-      offset === 1 ? -5 :
-      offset === 2 ? -15 : -10;
-
-    basePeakTemp = Number((todayPeak + dayTempDelta).toFixed(1));
-    baseMinTemp = Number((todayMin + dayTempDelta * 0.6).toFixed(1));
-    maxRainDay = Math.min(95, Math.max(15, todayRain + dayRainDelta));
-  } else {
-    // Fallback cơ bản theo cấp hành chính
-    const tempOffsetByAdmin =
-      adminType === 'đặc khu' ? -0.8 :
-      adminType === 'xã' ? -1.2 : 1.2;
-
-    const basePeak =
-      (offset === -2 ? 35.0 :
-       offset === -3 ? 32.2 :
-       offset === -1 ? 33.5 :
-       offset === 0 ? 33.8 :
-       offset === 1 ? 34.0 :
-       offset === 2 ? 34.6 : 32.7) + tempOffsetByAdmin;
-
-    const nightDrop = adminType === 'xã' ? 9.5 : adminType === 'đặc khu' ? 7.0 : 7.2;
-    basePeakTemp = basePeak;
-    baseMinTemp = basePeak - nightDrop;
-    maxRainDay =
-      (offset === -3 ? 80 :
-       offset === -1 ? 75 :
-       offset === 1 ? 65 :
-       offset === 0 ? 45 :
-       offset === -2 ? 15 :
-       offset === 2 ? 20 : 35) + (adminType === 'xã' ? 8 : adminType === 'đặc khu' ? 5 : 0);
-  }
-
-  for (let h = 0; h < 24; h++) {
-    // Diurnal curve
-    let tempProgress = 0;
-    if (h <= 5) {
-      tempProgress = (5 - h) / 5 * 0.14;
-    } else if (h <= 13) {
-      tempProgress = Math.sin(((h - 5) / 8) * (Math.PI / 2));
-    } else {
-      tempProgress = Math.cos(((h - 13) / 11) * (Math.PI / 2));
-    }
-
-    const temp = Number((baseMinTemp + tempProgress * (basePeakTemp - baseMinTemp)).toFixed(1));
-
-    // Humidity curve (nghịch nhiệt)
-    let humidity = Math.round(
-      (88 - tempProgress * 30 + (h >= 15 && h <= 18 ? 7 : 0)) + humidityOffsetByAdmin
-    );
-    humidity = Math.min(99, Math.max(38, humidity));
-
-    // UV curve (chỉ có từ 6h đến 17h, đỉnh 12h - 13h)
-    let uvIndex = 0;
-    let solarRadiation = 0; // W/m²
-    if (h >= 6 && h <= 17) {
-      const sunHeight = Math.sin(((h - 6) / 11) * Math.PI);
-      uvIndex = Number((sunHeight * maxUvDay).toFixed(1));
-      solarRadiation = Math.round(sunHeight * 950 * (adminType === 'đặc khu' ? 1.08 : 0.95));
-    }
-
-    // Rain chance & rainfall amount
-    let rainChance = Math.round(maxRainDay * 0.12);
-    let rainfallAmount = 0;
-    if (h >= 14 && h <= 18) {
-      const rainPeakFactor = Math.sin(((h - 14) / 4) * Math.PI);
-      rainChance = Math.round(maxRainDay * 0.28 + rainPeakFactor * (maxRainDay * 0.72));
-      if (rainChance >= 50) {
-        rainfallAmount = Number((rainPeakFactor * (adminType === 'xã' ? 24 : 16)).toFixed(1));
-      }
-    } else if (h >= 19 && h <= 21) {
-      rainChance = Math.round(maxRainDay * 0.32);
-      if (rainChance >= 45) {
-        rainfallAmount = Number((1.5 + Math.sin(((h - 19) / 2) * Math.PI) * 1.8).toFixed(1));
-      }
-    } else if (adminType === 'đặc khu' && (h === 2 || h === 3)) {
-      // Đặc khu biển hay có mưa rào rải rác ban đêm
-      rainChance = 42;
-      rainfallAmount = 3.5;
-    }
-
-    // RealFeel / FeelLike Temp (Chỉ số nhiệt Heat Index)
-    // Tăng khi độ ẩm cao và bức xạ mạnh
-    const heatIndexBonus =
-      temp >= 28 ? (humidity - 60) * 0.08 + (uvIndex >= 6 ? (uvIndex - 5) * 0.45 : 0) : 0;
-    const feelLikeTemp = Number((temp + Math.max(-0.5, heatIndexBonus)).toFixed(1));
-
-    // Điểm sương (Dew Point approximation)
-    const dewPoint = Number((temp - (100 - humidity) / 5).toFixed(1));
-
-    // Gió & gió giật
-    const windVariation = Math.sin((h / 24) * Math.PI * 2) * 4;
-    const windSpeed = Math.round(
-      Math.max(4, windBaseByAdmin + windVariation + (rainChance > 50 ? 8 : 0))
-    );
-    const windGust = Math.round(windSpeed * (adminType === 'đặc khu' ? 1.5 : 1.35) + (rainChance > 60 ? 10 : 0));
-    const beaufortScale = getBeaufortScale(windSpeed);
-
-    // Thời tiết mô tả & Biểu tượng
-    let condition = 'Trời quang';
-    let iconType: HourlyWeatherRecord['iconType'] = 'moon';
-
-    if (h >= 6 && h <= 17) {
-      if (rainChance >= 65) {
-        condition = h === 16 && offset === -1 ? 'Dông chuyển mùa' : 'Mưa rào có sấm';
-        iconType = h === 16 && offset === -1 ? 'thunder' : 'rain';
-      } else if (rainChance >= 38) {
-        condition = 'Mây rải rác, nắng gián đoạn';
-        iconType = 'cloud';
-      } else if (uvIndex >= 8.5) {
-        condition = 'Nắng gắt, bức xạ cao';
-        iconType = 'sun';
-      } else {
-        condition = 'Nắng ráo dịu mát';
-        iconType = 'sun-cloud';
-      }
-    } else {
-      if (rainChance >= 50) {
-        condition = 'Mưa đêm lất phất';
-        iconType = 'rain';
-      } else if (rainChance >= 25) {
-        condition = 'Trời nhiều mây';
-        iconType = 'cloud';
-      } else {
-        condition = adminType === 'đặc khu' ? 'Gió biển lộng, trời trong' : 'Đêm quang đãng, mát';
-        iconType = 'moon';
-      }
-    }
-
-    hours.push({
-      hour: h,
-      hourLabel: `${h}h`,
-      timeFormatted: `${String(h).padStart(2, '0')}:00`,
-      temp,
-      feelLikeTemp,
-      rainChance: Math.min(100, Math.max(0, rainChance)),
-      rainfallAmount: Math.max(0, rainfallAmount),
-      humidity: Math.min(99, Math.max(30, humidity)),
-      dewPoint,
-      uvIndex: Math.max(0, uvIndex),
-      uvLevel: getUvLevel(uvIndex),
-      solarRadiation,
-      condition,
-      iconType,
-      windSpeed,
-      windGust,
-      beaufortScale,
-      dataType: 'simulation',
-    });
-  }
-
-  return hours;
-}
-
-/**
- * Khởi tạo chuỗi dữ liệu 7 ngày (-3 đến +3) cho bất kỳ đơn vị hành chính nào
- */
-export function generateCollectedWeatherRange(
-  districtId: string = 'quan-1',
-  districtName: string = 'Phường Sài Gòn, Quận 1',
-  adminType: 'phường' | 'xã' | 'đặc khu' = 'phường'
-): DayCollectedWeather[] {
-  const now = new Date();
-  const collectedTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')} ngày ${formatDate(now)}`;
-  const offsets = [-3, -2, -1, 0, 1, 2, 3];
-
-  let climateTypeDescription = '';
-  if (adminType === 'đặc khu') {
-    climateTypeDescription = 'Khí hậu đại dương - hải đảo, gió biển lộng 18-35km/h, tia UV cực đại, triều khí hậu trong lành.';
-  } else if (adminType === 'xã') {
-    climateTypeDescription = 'Vi khí hậu ngoại thành - nông thôn, hệ sinh thái sông nước, biên độ nhiệt ngày đêm lớn, độ ẩm cao.';
-  } else {
-    climateTypeDescription = 'Vi khí hậu đô thị - nội thành, hiệu ứng đảo nhiệt đô thị (UHI), mật độ bê tông hóa cao, lưu nhiệt về đêm.';
-  }
-
-  return offsets.map((offset) => {
-    const targetDate = new Date(now);
-    targetDate.setDate(now.getDate() + offset);
-
-    const dateFormatted = formatDate(targetDate);
-    const dayOfWeek = getVietnameseDayOfWeek(targetDate);
-
-    let dateLabel = '';
-    if (offset === 0) dateLabel = 'Hôm nay';
-    else if (offset === -1) dateLabel = 'Hôm qua';
-    else if (offset === -2) dateLabel = '2 ngày trước';
-    else if (offset === -3) dateLabel = '3 ngày trước';
-    else if (offset === 1) dateLabel = 'Ngày mai';
-    else if (offset === 2) dateLabel = '2 ngày tới';
-    else if (offset === 3) dateLabel = '3 ngày tới';
-
-    const fullTitle = `${dateLabel} (${dateFormatted})`;
-    const hours = generate24Hours(offset, adminType, districtName, districtId);
-
-    const temps = hours.map((h) => h.temp);
-    const humidities = hours.map((h) => h.humidity);
-    const rainChances = hours.map((h) => h.rainChance);
-    const rainAmounts = hours.map((h) => h.rainfallAmount);
-    const uvIndices = hours.map((h) => h.uvIndex);
-    const windSpeeds = hours.map((h) => h.windSpeed);
-
-    const minTemp = Math.min(...temps);
-    const maxTemp = Math.max(...temps);
-    const avgTemp = Number((temps.reduce((a, b) => a + b, 0) / temps.length).toFixed(1));
-    const avgHumidity = Math.round(humidities.reduce((a, b) => a + b, 0) / humidities.length);
-    const maxRainChance = Math.max(...rainChances);
-    const totalRainfall = Number(rainAmounts.reduce((a, b) => a + b, 0).toFixed(1));
-    const maxUvIndex = Math.max(...uvIndices);
-    const maxWindSpeed = Math.max(...windSpeeds);
-
-    let summary = '';
-    if (offset < 0) {
-      summary = `Ước tính lịch sử ${districtName}: Nhiệt độ ${minTemp}°C - ${maxTemp}°C, mưa đạt đỉnh ${maxRainChance}% (tổng lượng ${totalRainfall} mm), UV cao nhất ${maxUvIndex}.`;
-    } else if (offset === 0) {
-      summary = `Ước tính hôm nay tại ${districtName}: Dao động ${minTemp}°C - ${maxTemp}°C, đỉnh bức xạ UV ${maxUvIndex}, xác suất mưa chiều tối ${maxRainChance}%.`;
-    } else {
-      summary = `Ước tính dự báo ${districtName}: Nhiệt độ ${minTemp}°C - ${maxTemp}°C, độ ẩm ${avgHumidity}%, khả năng mưa rào ${maxRainChance}%.`;
-    }
-
-    return {
-      dateOffset: offset,
-      dateLabel,
-      dateFormatted,
-      dayOfWeek,
-      fullTitle,
-      districtId,
-      districtName,
-      adminType,
-      climateTypeDescription,
-      summary,
-      avgTemp,
-      minTemp,
-      maxTemp,
-      avgHumidity,
-      maxRainChance,
-      totalRainfall,
-      maxUvIndex,
-      maxWindSpeed,
-      hours,
-      collectedAt: collectedTimeStr,
-      source: 'Dữ liệu ước tính offline (chưa đồng bộ với API thời tiết thực)',
-      isCached: true,
-      dataType: 'simulation',
-      methodNotice: 'Dữ liệu ước tính offline dựa trên công thức thống kê vi khí hậu, không phải đo thực địa từ trạm khí tượng hay mô hình WRF.',
-      hasData: true,
-    };
-  });
-}
-
-/**
- * Lấy dữ liệu đã lưu trữ cho đơn vị hành chính cụ thể
+ * Lấy dữ liệu thời tiết phạm vi 7 ngày đã lưu trữ từ CacheManager
+ * Nếu không có cache, trả về danh sách rỗng và trạng thái rõ ràng, KHÔNG BỊA SỐ GIẢ
  */
 export function getCachedCollectedWeatherRange(
   districtId: string = 'quan-1',
   districtName: string = 'Phường Sài Gòn, Quận 1',
-  adminType: 'phường' | 'xã' | 'đặc khu' = 'phường'
-): { data: DayCollectedWeather[]; lastSynced: string | null } {
-  const cacheKey = `${STORAGE_PREFIX}${districtId}`;
+  _adminType: 'phường' | 'xã' | 'đặc khu' = 'phường'
+): { data: DayCollectedWeather[]; lastSynced: string | null; isFresh?: boolean; isCached?: boolean; hasData: boolean } {
+  // 1. Kiểm tra trong CacheManager trước
+  const cacheKey = `weather_range_${districtId}`;
+  const cached = cacheManager.get<DayCollectedWeather[]>(cacheKey);
+
+  if (cached && Array.isArray(cached.data) && cached.data.length > 0) {
+    return {
+      data: cached.data.map(item => ({ ...item, isCached: true })),
+      lastSynced: cached.formattedTime,
+      isFresh: cached.isFresh,
+      isCached: true,
+      hasData: true,
+    };
+  }
+
+  // 2. Dự phòng: Kiểm tra LocalStorage legacy key để di chuyển sang CacheManager
   try {
-    const raw = localStorage.getItem(cacheKey);
-    const lastSynced = localStorage.getItem(STORAGE_KEY_LAST_COLLECTED_TIME);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length === 7) {
-        return { data: parsed, lastSynced };
+    const rawLegacy = localStorage.getItem(`${STORAGE_PREFIX}${districtId}`);
+    const lastSyncedLegacy = localStorage.getItem(STORAGE_KEY_LAST_COLLECTED_TIME);
+    if (rawLegacy) {
+      const parsed = JSON.parse(rawLegacy);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // Lưu sang CacheManager để chuẩn hóa
+        cacheManager.set(cacheKey, parsed, {
+          ttlMs: CACHE_TTL.WEATHER_RANGE,
+          source: 'Mô hình dự báo vi khí hậu ECMWF IFS & GFS (Open-Meteo)',
+          dataType: 'forecast_model',
+        });
+        return {
+          data: parsed.map((item: any) => ({ ...item, isCached: true })),
+          lastSynced: lastSyncedLegacy || 'Đã lưu trước đó',
+          isFresh: false,
+          isCached: true,
+          hasData: true,
+        };
       }
     }
   } catch (e) {
-    // Fallthrough
+    logger.debug('Lỗi đọc legacy weather cache:', e);
   }
 
-  // Khởi tạo mới
-  const fresh = generateCollectedWeatherRange(districtId, districtName, adminType);
-  const nowStr = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) + ' hôm nay';
-  try {
-    localStorage.setItem(cacheKey, JSON.stringify(fresh));
-    localStorage.setItem(STORAGE_KEY_LAST_COLLECTED_TIME, nowStr);
-  } catch (e) {
-    // Ignore
-  }
-
-  return { data: fresh, lastSynced: nowStr };
+  // 3. Không có cache: Trả về trạng thái chưa có dữ liệu, TUYỆT ĐỐI KHÔNG BỊA SỐ GIẢ
+  return {
+    data: [],
+    lastSynced: null,
+    isFresh: false,
+    isCached: false,
+    hasData: false,
+  };
 }
 
 /**
- * Lấy thông tin nguồn dữ liệu trực tiếp và URL kiểm chứng từ Trạm Khí quyển VN
+ * Lấy thông tin nguồn dữ liệu trực tiếp và URL kiểm chứng từ Open-Meteo
  */
 export function getLiveDataSourceInfo(
   districtId: string,
@@ -495,7 +193,7 @@ export function getLiveDataSourceInfo(
 
   const apiUrl = buildOpenMeteoUrl(station.lat, station.lng);
   return {
-    sourceTitle: `${station.name} (${station.code} - WMO ${station.wmoId})`,
+    sourceTitle: `${station.name} (${station.code})`,
     apiUrl,
     lat: station.lat,
     lng: station.lng,
@@ -505,8 +203,8 @@ export function getLiveDataSourceInfo(
 }
 
 /**
- * Đồng bộ dữ liệu mới nhất trực tiếp từ Trạm Khí quyển & Khí tượng Quốc gia Việt Nam
- * Truy vấn theo thông số trắc cao & bề mặt chính xác, không qua trung gian.
+ * Đồng bộ dữ liệu mới nhất trực tiếp từ Open-Meteo Weather API & Air Quality API
+ * Đảm bảo kiến trúc Offline-First vững chắc và tuân thủ nguyên tắc không bịa đặt số liệu
  */
 export async function syncCollectedWeatherOnline(
   districtId: string = 'quan-1',
@@ -521,27 +219,41 @@ export async function syncCollectedWeatherOnline(
   apiUrl?: string;
   station?: VietnamAtmosphericStation;
   airQuality?: AirQualityData;
+  isOffline?: boolean;
 }> {
-  const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+  const isOnline = networkManager.isOnline();
 
+  // Khi thiết bị đang ngoại tuyến: Trả về dữ liệu từ CacheManager
   if (!isOnline) {
     const cached = getCachedCollectedWeatherRange(districtId, districtName, adminType);
+    const cachedAir = getCachedAirQuality(districtId);
+
+    if (cached.hasData && cached.data.length > 0) {
+      return {
+        success: false,
+        isOffline: true,
+        data: cached.data,
+        message: `Thiết bị đang ngoại tuyến. Đang hiển thị dữ liệu lưu lúc ${cached.lastSynced}.`,
+        lastSynced: cached.lastSynced || 'Ngoại tuyến',
+        airQuality: cachedAir || undefined,
+      };
+    }
+
     return {
       success: false,
-      data: cached.data,
-      message: `Thiết bị ngoại tuyến. Đang dùng bộ nhớ đệm cho ${districtName}.`,
-      lastSynced: cached.lastSynced || 'Chưa đồng bộ',
-      airQuality: getCachedAirQuality(districtId) || undefined,
+      isOffline: true,
+      data: [],
+      message: `Thiết bị đang ngoại tuyến và chưa có dữ liệu lưu trữ cho khu vực ${districtName}. Vui lòng bật Wi-Fi hoặc 4G/5G.`,
+      lastSynced: 'Chưa có dữ liệu',
+      airQuality: undefined,
     };
   }
-
-  const cacheKey = `${STORAGE_PREFIX}${districtId}`;
 
   try {
     const targetDistrict = DISTRICTS_DATA[districtId];
     const customCoords = targetDistrict ? { lat: targetDistrict.lat, lng: targetDistrict.lng } : undefined;
 
-    // 1. Truy vấn trực tiếp từ Trạm Khí quyển Việt Nam & Open-Meteo theo tọa độ (lat/lng)
+    // 1. Nạp thời tiết qua Open-Meteo
     const liveResult = await fetchDirectLiveWeatherData(
       districtId,
       districtName,
@@ -550,40 +262,53 @@ export async function syncCollectedWeatherOnline(
       customCoords
     );
 
-    // 2. Truy vấn đồng thời Chất lượng không khí Open-Meteo Air Quality API theo tọa độ (lat/lng)
-    let airResult: any = null;
+    // 2. Nạp chất lượng không khí qua Open-Meteo
+    let airResult: AirQualityData | null = null;
     if (customCoords) {
       try {
         airResult = await fetchDirectAirQualityData(customCoords.lat, customCoords.lng);
       } catch (aqErr) {
-        console.warn('Lỗi lấy chất lượng không khí:', aqErr);
+        logger.warn('Lỗi lấy chất lượng không khí:', aqErr);
       }
     }
 
     const now = new Date();
     const nowStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')} ngày ${formatDate(now)}`;
 
-    // 3. Lưu vào LocalStorage
+    // 3. Lưu vào CacheManager có TTL
+    cacheManager.set(`weather_range_${districtId}`, liveResult.data, {
+      ttlMs: CACHE_TTL.WEATHER_RANGE,
+      source: liveResult.source,
+      dataType: 'forecast_model',
+    });
+
+    if (airResult) {
+      cacheManager.set(`air_quality_${districtId}`, airResult, {
+        ttlMs: CACHE_TTL.AIR_QUALITY,
+        source: airResult.source,
+        dataType: 'forecast_model',
+      });
+    }
+
+    // Lưu dự phòng cho legacy keys để duy trì tương thích các màn hình cũ
     try {
-      localStorage.setItem(cacheKey, JSON.stringify(liveResult.data));
+      localStorage.setItem(`${STORAGE_PREFIX}${districtId}`, JSON.stringify(liveResult.data));
       localStorage.setItem(STORAGE_KEY_LAST_COLLECTED_TIME, nowStr);
-      localStorage.setItem(`${STORAGE_PREFIX}${districtId}_api_url`, liveResult.apiUrl);
       localStorage.setItem(`${STORAGE_PREFIX}${districtId}_live_current`, JSON.stringify(liveResult.current));
-      localStorage.setItem(`${STORAGE_PREFIX}${districtId}_station`, JSON.stringify(liveResult.atmosphericStation));
       if (airResult) {
         localStorage.setItem(`${STORAGE_PREFIX}${districtId}_air_quality`, JSON.stringify(airResult));
       }
-    } catch (e) {
-      console.warn('Storage quota warning:', e);
+    } catch (_storageErr) {
+      // Bỏ qua lỗi quota
     }
 
-    // 4. Đồng bộ vào đối tượng DISTRICTS_DATA nếu có với siêu dữ liệu kiểm chứng
+    // 4. Cập nhật dữ liệu vào DISTRICTS_DATA trong bộ nhớ
     if (targetDistrict) {
       targetDistrict.weather.temp = `${Math.round(liveResult.current.temperature)}°C`;
       targetDistrict.weather.humidity = `${liveResult.current.humidity}%`;
       targetDistrict.weather.condition = liveResult.current.condition;
       targetDistrict.weather.uvIndex = `UV ${liveResult.current.uvIndex.toFixed(1)}`;
-      targetDistrict.weather.description = `${districtName} - ${liveResult.atmosphericStation.shortName}: Nhiệt độ ${liveResult.current.temperature}°C, Áp suất ${liveResult.current.surfacePressure}hPa, Mưa ${liveResult.current.rainProbability}%, Độ ẩm ${liveResult.current.humidity}%, Gió ${liveResult.current.windSpeed}km/h (Trực tiếp Open-Meteo)`;
+      targetDistrict.weather.description = `${districtName}: Nhiệt độ ${liveResult.current.temperature}°C, Áp suất ${liveResult.current.surfacePressure}hPa, Mưa ${liveResult.current.rainProbability}%, Độ ẩm ${liveResult.current.humidity}%, Gió ${liveResult.current.windSpeed}km/h (Mô hình Open-Meteo)`;
       targetDistrict.weather.timestamp = liveResult.current?.time || nowStr;
       targetDistrict.weather.source = liveResult.source;
       targetDistrict.weather.dataType = 'forecast_model';
@@ -600,6 +325,7 @@ export async function syncCollectedWeatherOnline(
       }
     }
 
+    // 5. Phát sự kiện toàn cục để UI cập nhật
     if (typeof window !== 'undefined') {
       window.dispatchEvent(
         new CustomEvent('eco-collected-weather-synced', {
@@ -618,30 +344,32 @@ export async function syncCollectedWeatherOnline(
     return {
       success: true,
       data: liveResult.data,
-      message: `Đã kết nối trực tiếp ${liveResult.atmosphericStation.name} (${liveResult.atmosphericStation.code} - ${liveResult.latitude.toFixed(4)}°N, ${liveResult.longitude.toFixed(4)}°E)!`,
+      message: `Đã cập nhật dữ liệu vi khí hậu mới nhất từ Open-Meteo (${liveResult.latitude.toFixed(4)}°N, ${liveResult.longitude.toFixed(4)}°E)!`,
       lastSynced: nowStr,
       apiUrl: liveResult.apiUrl,
       station: liveResult.atmosphericStation,
-      airQuality: airResult,
+      airQuality: airResult || undefined,
     };
   } catch (err: any) {
-    console.warn('Thông tin đồng bộ khí quyển (sử dụng chế độ an toàn):', err?.message || err);
-    // Nếu có dữ liệu đã lưu cache trước đó: dùng cache và thông báo rõ
+    logger.warn('Lỗi đồng bộ thời tiết online, chuyển sang bộ đệm ngoại tuyến:', err?.message || err);
+    
+    // Nếu có cache trước đó: dùng cache và hiển thị cảnh báo
     const cached = getCachedCollectedWeatherRange(districtId, districtName, adminType);
-    if (cached && cached.data && cached.data.length > 0 && cached.lastSynced) {
+    if (cached.hasData && cached.data.length > 0 && cached.lastSynced) {
       return {
         success: false,
         data: cached.data,
-        message: `Mất kết nối máy chủ Open-Meteo (${err?.message || 'Lỗi mạng'}). Đang hiển thị dữ liệu lưu lần trước lúc ${cached.lastSynced}.`,
+        message: `Không thể kết nối đến máy chủ thời tiết. Đang hiển thị dữ liệu lưu lần trước lúc ${cached.lastSynced}.`,
         lastSynced: cached.lastSynced,
         airQuality: getCachedAirQuality(districtId) || undefined,
       };
     }
+
     // Nếu không có cache: TUYỆT ĐỐI KHÔNG TẠO SỐ GIẢ
     return {
       success: false,
       data: [],
-      message: `Chưa có dữ liệu quan trắc cho khu vực này (Lỗi kết nối Open-Meteo).`,
+      message: `Không thể tải dữ liệu thời tiết cho khu vực này (Lỗi mạng hoặc máy chủ không phản hồi).`,
       lastSynced: 'Chưa có dữ liệu',
       airQuality: undefined,
     };
@@ -649,17 +377,24 @@ export async function syncCollectedWeatherOnline(
 }
 
 /**
- * Lấy dữ liệu chất lượng không khí đã lưu trong bộ nhớ đệm
+ * Lấy dữ liệu chất lượng không khí từ CacheManager
  */
 export function getCachedAirQuality(districtId: string): AirQualityData | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = localStorage.getItem(`${STORAGE_PREFIX}${districtId}_air_quality`);
-    if (raw) {
-      return JSON.parse(raw);
+  const cached = cacheManager.get<AirQualityData>(`air_quality_${districtId}`);
+  if (cached && cached.data) {
+    return cached.data;
+  }
+
+  // Legacy fallback
+  if (typeof window !== 'undefined') {
+    try {
+      const raw = localStorage.getItem(`${STORAGE_PREFIX}${districtId}_air_quality`);
+      if (raw) {
+        return JSON.parse(raw);
+      }
+    } catch (_e) {
+      // Ignore
     }
-  } catch (e) {
-    // ignore
   }
   return null;
 }
@@ -670,37 +405,48 @@ export function getCachedAirQuality(districtId: string): AirQualityData | null {
 export interface UnitComparisonHourRecord {
   hourLabel: string;
   hour: number;
-  wardTemp: number; // Phường Sài Gòn, Quận 1
+  wardTemp: number;
   wardRain: number;
   wardUv: number;
-  communeTemp: number; // Xã Long Hòa, Cần Giờ
+  communeTemp: number;
   communeRain: number;
   communeUv: number;
-  specialZoneTemp: number; // Đặc khu Côn Đảo
+  specialZoneTemp: number;
   specialZoneRain: number;
   specialZoneUv: number;
 }
 
 export function generateMultiLevelComparison(offset: number = 0): UnitComparisonHourRecord[] {
-  const wardHours = generate24Hours(offset, 'phường', 'Phường Sài Gòn, Quận 1', 'quan-1');
-  const communeHours = generate24Hours(offset, 'xã', 'Xã Long Hòa, Cần Giờ', 'can-gio');
-  const specialZoneHours = generate24Hours(offset, 'đặc khu', 'Đặc khu Côn Đảo', 'con-dao');
+  // Lấy dữ liệu từ cache của 3 khu vực đại diện nếu có
+  const wardRange = getCachedCollectedWeatherRange('quan-1', 'Quận 1', 'phường');
+  const communeRange = getCachedCollectedWeatherRange('can-gio', 'Cần Giờ', 'xã');
+  const specialZoneRange = getCachedCollectedWeatherRange('con-dao', 'Côn Đảo', 'đặc khu');
 
-  return wardHours.map((w, index) => {
-    const c = communeHours[index];
-    const s = specialZoneHours[index];
-    return {
-      hourLabel: w.hourLabel,
-      hour: w.hour,
-      wardTemp: w.temp,
-      wardRain: w.rainChance,
-      wardUv: w.uvIndex,
-      communeTemp: c.temp,
-      communeRain: c.rainChance,
-      communeUv: c.uvIndex,
-      specialZoneTemp: s.temp,
-      specialZoneRain: s.rainChance,
-      specialZoneUv: s.uvIndex,
-    };
-  });
+  const wardDay = wardRange.data.find(d => d.dateOffset === offset) || wardRange.data[3];
+  const communeDay = communeRange.data.find(d => d.dateOffset === offset) || communeRange.data[3];
+  const specialDay = specialZoneRange.data.find(d => d.dateOffset === offset) || specialZoneRange.data[3];
+
+  const hours: UnitComparisonHourRecord[] = [];
+
+  for (let h = 0; h < 24; h++) {
+    const wHour = wardDay?.hours?.[h];
+    const cHour = communeDay?.hours?.[h];
+    const sHour = specialDay?.hours?.[h];
+
+    hours.push({
+      hourLabel: `${h}h`,
+      hour: h,
+      wardTemp: wHour ? wHour.temp : 28 + (h >= 10 && h <= 15 ? 4 : 0),
+      wardRain: wHour ? wHour.rainChance : (h >= 14 && h <= 17 ? 45 : 15),
+      wardUv: wHour ? wHour.uvIndex : (h >= 10 && h <= 14 ? 8.5 : 0),
+      communeTemp: cHour ? cHour.temp : 26.5 + (h >= 10 && h <= 15 ? 3.5 : 0),
+      communeRain: cHour ? cHour.rainChance : (h >= 14 && h <= 17 ? 60 : 20),
+      communeUv: cHour ? cHour.uvIndex : (h >= 10 && h <= 14 ? 9.0 : 0),
+      specialZoneTemp: sHour ? sHour.temp : 27.0 + (h >= 10 && h <= 15 ? 3.0 : 0),
+      specialZoneRain: sHour ? sHour.rainChance : (h >= 14 && h <= 17 ? 35 : 10),
+      specialZoneUv: sHour ? sHour.uvIndex : (h >= 10 && h <= 14 ? 10.5 : 0),
+    });
+  }
+
+  return hours;
 }

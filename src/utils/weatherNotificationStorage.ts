@@ -17,6 +17,8 @@ import {
   getCachedCollectedWeatherRange,
   DayCollectedWeather,
 } from './collectedWeatherStorage';
+import { networkManager } from './networkManager';
+import { logger } from './logger';
 
 export interface WeatherNotificationItem {
   id: string;
@@ -801,7 +803,7 @@ export async function syncWeatherNotificationsOnline(
 ): Promise<{ success: boolean; count: number; message: string }> {
   const safeAdminType: 'phường' | 'xã' | 'đặc khu' =
     adminType === 'xã' || adminType === 'đặc khu' ? adminType : 'phường';
-  const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+  const isOnline = networkManager.isOnline();
 
   if (!isOnline) {
     return {
@@ -815,7 +817,7 @@ export async function syncWeatherNotificationsOnline(
     // 1. Gọi trực tiếp dữ liệu khí tượng thời gian thực từ liveWeatherApi
     const liveData = await fetchDirectLiveWeatherData(districtId, districtName, safeAdminType);
 
-    // 2. Sinh thông báo động từ số liệu trạm quan trắc thực tế
+    // 2. Sinh thông báo động từ số liệu mô hình thời tiết Open-Meteo
     const items = generateDynamicNotifications(districtId, districtName, liveData);
     const now = new Date();
     const formattedTime = formatDateTime(now);
@@ -841,12 +843,12 @@ export async function syncWeatherNotificationsOnline(
     const stationLabel =
       liveData.atmosphericStation?.shortName ||
       liveData.atmosphericStation?.name ||
-      'Trạm khí tượng';
+      'Mô hình vi khí hậu Open-Meteo';
 
     return {
       success: true,
       count: items.length,
-      message: `Đã lưu trữ thành công ${items.length} thông báo từ số liệu đo thực tế trạm ${stationLabel} (Nhiệt độ ${liveData.current.temperature}°C, UV ${liveData.current.uvIndex}, mưa ${liveData.current.rainProbability}%).`,
+      message: `Đã lưu trữ thành công ${items.length} thông báo từ mô hình thời tiết (${stationLabel}: Nhiệt độ ${liveData.current.temperature}°C, UV ${liveData.current.uvIndex}, mưa ${liveData.current.rainProbability}%).`,
     };
   } catch (err: any) {
     // Nếu gọi API trực tiếp gặp lỗi mạng, kiểm tra xem có dữ liệu cache quan trắc đã lưu hay không

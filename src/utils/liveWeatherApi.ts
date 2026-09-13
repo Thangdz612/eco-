@@ -1,142 +1,144 @@
 /**
- * Dịch vụ nạp Dữ liệu Khí tượng Trực tiếp từ Mạng lưới Trạm Quan trắc Khí quyển & Khí tượng Quốc gia Việt Nam
- * (Tổng cục Khí tượng Thủy văn Việt Nam - VNMHA / NCHMF kết nối mạng lưới WMO toàn cầu)
- * - Tự động đối soát và kết nối đến Trạm Khí quyển Việt Nam gần nhất phụ trách địa bàn (ví dụ: Trạm Khí quyển Bến Cát - Sở Sao VN-48894 cho Phường Tây Nam).
- * - Truy vấn trực tiếp các thông số khí quyển chuyên sâu: Áp suất bề mặt (hPa), Bức xạ mặt trời (W/m²), Điểm sương, UV, Lượng mưa & Gió tháp 10m.
- * - Cho phép người dùng kiểm chứng trực tiếp URL API và bản tin viễn thám thô không qua trung gian.
+ * Dịch vụ nạp Dữ liệu Khí tượng & Chất lượng Không khí (Open-Meteo Weather & Air Quality API)
+ * 
+ * NGUYÊN TẮC MINH BẠCH & TRUNG THỰC KHOA HỌC:
+ * - Nguồn dữ liệu thời tiết: Mô hình dự báo số trị toàn cầu ECMWF IFS & GFS thông qua Open-Meteo Weather API
+ * - Nguồn dữ liệu không khí: Mô hình viễn thám & khí quyển Copernicus CAMS & NOAA GFS-Aerosol thông qua Open-Meteo Air Quality API
+ * - Dữ liệu quá khứ (past 3 days): Dữ liệu tái phân tích khí quyển ERA5
+ * - TUYỆT ĐỐI KHÔNG: Bịa đặt trạm quan trắc thực địa, bịa mã trạm hay thiết bị cảm biến không có thật
+ * - TUYỆT ĐỐI KHÔNG: Bịa chỉ số AQI hay tạo số liệu giả khi ngoại tuyến
+ * - Kiến trúc mạng: Hỗ trợ cả Proxy Backend (`/api/...`) và gọi trực tiếp Open-Meteo HTTPS API từ APK Capacitor
  */
 
 import type { DayCollectedWeather, HourlyWeatherRecord } from './collectedWeatherStorage';
 import type { AirQualityData, AirQualityPollutant, DataVerificationType } from '../types';
 import { DISTRICTS_DATA } from '../data/mockData';
+import { requestManager, getApiBaseUrl } from './requestManager';
+import { cacheManager, CACHE_TTL } from '../storage/cacheManager';
+import { validateCoordinates, validateOpenMeteoWeatherResponse, validateOpenMeteoAirQualityResponse } from './validator';
+import { logger } from './logger';
 
 export interface VietnamAtmosphericStation {
-  code: string; // ví dụ: 'VN-48894'
-  wmoId: string; // '48894'
-  name: string; // 'Trạm Khí quyển & Khí tượng Bến Cát - Sở Sao'
-  shortName: string; // 'Trạm Bến Cát - Sở Sao (VN-48894)'
-  authority: string; // 'Đài Khí tượng Thủy văn khu vực Nam Bộ - Tổng cục Khí tượng Thủy văn (VNMHA)'
-  assignedArea: string; // 'Phường Tây Nam, Bến Cát, KCN Mỹ Phước & Lưu vực Sông Thị Tính'
+  code: string;
+  wmoId: string;
+  name: string;
+  shortName: string;
+  authority: string;
+  assignedArea: string;
   province: string;
   lat: number;
   lng: number;
   elevationMeters: number;
-  standard: string; // 'QCVN 46:2012/BTNMT & WMO-No. 8'
+  standard: string;
   instruments: string[];
 }
 
+/**
+ * Danh sách điểm tham chiếu vi khí hậu theo mô hình số trị khu vực Nam Bộ
+ */
 export const VIETNAM_ATMOSPHERIC_STATIONS: VietnamAtmosphericStation[] = [
   {
-    code: 'VN-48894',
+    code: 'REF-BENCAT',
     wmoId: '48894',
-    name: 'Trạm Khí quyển & Khí tượng Bến Cát - Sở Sao',
-    shortName: 'Trạm Bến Cát - Sở Sao (VN-48894)',
-    authority: 'Đài Khí tượng Thủy văn khu vực Nam Bộ - Tổng cục KTTV Việt Nam (VNMHA)',
-    assignedArea: 'Phường Tây Nam, Thị xã Bến Cát, KCN Mỹ Phước & Khu vực Bình Dương',
+    name: 'Điểm tham chiếu vi khí hậu Bến Cát (Bình Dương)',
+    shortName: 'Khu vực Bến Cát',
+    authority: 'Mô hình dự báo vi khí hậu ECMWF IFS & GFS (Open-Meteo)',
+    assignedArea: 'Phường Tây Nam, Thị xã Bến Cát, KCN Mỹ Phước & Vùng lân cận',
     province: 'Bình Dương',
     lat: 11.1352,
     lng: 106.5241,
     elevationMeters: 21,
-    standard: 'QCVN 46:2012/BTNMT (Quy chuẩn KTTV Quốc gia) & WMO-No. 8',
+    standard: 'Mô hình số trị thời tiết toàn cầu ECMWF IFS & GFS',
     instruments: [
-      'Nhiệt ẩm kế khí quyển tự động Campbell Scientific',
-      'Vũ kế đo mưa quang điện tử phân giải 0.1mm',
-      'Cảm biến phong tốc & phong hướng siêu âm tháp 10m',
-      'Cảm biến áp suất khí quyển áp trở silicon bề mặt (hPa)',
-      'Nhật quang kế & Cảm biến đo bức xạ tử ngoại UV mặt đất',
+      'Mô hình vi khí hậu độ phân giải cao Open-Meteo',
+      'Tái phân tích dữ liệu hoàn lưu khí quyển ERA5',
+      'Mô hình bức xạ tử ngoại mặt đất và điểm sương ECMWF',
     ],
   },
   {
-    code: 'VN-48900',
+    code: 'REF-SAIGON',
     wmoId: '48900',
-    name: 'Trạm Thám không & Khí quyển Tân Sơn Hòa (TP.HCM)',
-    shortName: 'Trạm Tân Sơn Hòa (VN-48900)',
-    authority: 'Trung tâm Mạng lưới KTTV Quốc gia & Đài KTTV Khu vực Nam Bộ (VNMHA)',
+    name: 'Điểm tham chiếu vi khí hậu Trung tâm TP.HCM (Tân Sơn Hòa)',
+    shortName: 'Khu vực Trung tâm TP.HCM',
+    authority: 'Mô hình dự báo vi khí hậu ECMWF IFS & GFS (Open-Meteo)',
     assignedArea: 'Khu vực nội thành TP.HCM (Quận 1, 3, 5, Phú Nhuận, Tân Bình, Bình Thạnh)',
     province: 'TP. Hồ Chí Minh',
     lat: 10.8167,
     lng: 106.6667,
     elevationMeters: 10,
-    standard: 'QCVN 46:2012/BTNMT & WMO-48900 / ICAO-VVTS',
+    standard: 'Mô hình số trị thời tiết toàn cầu ECMWF IFS & GFS',
     instruments: [
-      'Hệ thống máy thu thám không vô tuyến thám sát các tầng khí quyển cao Vaisala RS41',
-      'Trạm quan trắc khí tượng bề mặt tự động AWS',
-      'Cảm biến áp suất khí quyển kỹ thuật số PTB330',
-      'Cảm biến bức xạ tổng xạ & tia cực tím UV mặt đất',
+      'Mô hình dự báo thời tiết phân giải cao ECMWF',
+      'Mô hình đảo nhiệt đô thị (UHI) vi khí hậu nội thành',
+      'Dữ liệu khí quyển tái phân tích ERA5',
     ],
   },
   {
-    code: 'VN-48902',
+    code: 'REF-CANGIO',
     wmoId: '48902',
-    name: 'Trạm Khí tượng Thủy văn & Khí quyển Hải văn Cần Giờ',
-    shortName: 'Trạm Cần Giờ (VN-48902)',
-    authority: 'Đài Khí tượng Thủy văn khu vực Nam Bộ (VNMHA)',
-    assignedArea: 'Huyện Cần Giờ, Rừng ngập mặn sinh quyển & Vùng duyên hải Nam Bộ',
+    name: 'Điểm tham chiếu vi khí hậu Duyên hải & Rừng ngập mặn Cần Giờ',
+    shortName: 'Khu vực Cần Giờ',
+    authority: 'Mô hình dự báo vi khí hậu ECMWF IFS & GFS (Open-Meteo)',
+    assignedArea: 'Huyện Cần Giờ, Rừng ngập mặn sinh quyển & Vùng cửa sông',
     province: 'TP. Hồ Chí Minh',
     lat: 10.4223,
     lng: 106.9452,
     elevationMeters: 2,
-    standard: 'QCVN 46:2012/BTNMT & Tiêu chuẩn khí tượng hải văn WMO',
+    standard: 'Mô hình số trị thời tiết toàn cầu ECMWF IFS & GFS',
     instruments: [
-      'Cảm biến vi khí hậu vùng ngập mặn',
-      'Vũ kế điện tử đo mưa tự động độ phân giải cao',
-      'Hệ thống đo gió ven biển tháp 10m chịu ăn mòn mặn',
-      'Cảm biến đo áp suất khí quyển bề mặt',
+      'Mô hình vi khí hậu vùng duyên hải ven biển',
+      'Dự báo gió tầng thấp và vi mây ven biển ECMWF',
     ],
   },
   {
-    code: 'VN-48914',
+    code: 'REF-CONDAO',
     wmoId: '48914',
-    name: 'Trạm Khí tượng Thủy văn & Khí quyển Hải đảo Côn Đảo',
-    shortName: 'Trạm Côn Đảo (VN-48914)',
-    authority: 'Đài Khí tượng Thủy văn khu vực Nam Bộ (VNMHA / NCHMF)',
-    assignedArea: 'Đặc khu Côn Đảo, Vườn quốc gia Côn Đảo & Vùng biển Đông Nam Bộ',
+    name: 'Điểm tham chiếu vi khí hậu Hải đảo Côn Đảo',
+    shortName: 'Đặc khu Côn Đảo',
+    authority: 'Mô hình dự báo vi khí hậu ECMWF IFS & GFS (Open-Meteo)',
+    assignedArea: 'Đặc khu Côn Đảo, Vườn quốc gia Côn Đảo & Vùng biển Nam Bộ',
     province: 'Bà Rịa - Vũng Tàu',
     lat: 8.6835,
     lng: 106.6074,
     elevationMeters: 12,
-    standard: 'QCVN 46:2012/BTNMT & WMO-48914',
+    standard: 'Mô hình số trị thời tiết toàn cầu ECMWF IFS & GFS',
     instruments: [
-      'Hệ thống trạm tự động khí tượng hải đảo',
-      'Đo bức xạ mặt trời cực đại & chỉ số UV chuyên dụng',
-      'Cảm biến gió đa hướng tháp quan trắc hải đảo',
-      'Áp kế điện tử khí áp hải đảo',
+      'Mô hình vi khí hậu đại dương & hải đảo',
+      'Mô hình bức xạ tử ngoại cao vùng biển nhiệt đới',
     ],
   },
   {
-    code: 'VN-48893',
+    code: 'REF-CUCHI',
     wmoId: '48893',
-    name: 'Trạm Khí quyển Tự động Củ Chi (Tây Bắc TP.HCM)',
-    shortName: 'Trạm Củ Chi (VN-48893)',
-    authority: 'Đài Khí tượng Thủy văn khu vực Nam Bộ (VNMHA)',
+    name: 'Điểm tham chiếu vi khí hậu Tây Bắc TP.HCM (Củ Chi)',
+    shortName: 'Khu vực Củ Chi',
+    authority: 'Mô hình dự báo vi khí hậu ECMWF IFS & GFS (Open-Meteo)',
     assignedArea: 'Huyện Củ Chi, Hóc Môn & Vùng đệm nông thôn',
     province: 'TP. Hồ Chí Minh',
     lat: 11.0000,
     lng: 106.5000,
     elevationMeters: 14,
-    standard: 'QCVN 46:2012/BTNMT',
+    standard: 'Mô hình số trị thời tiết toàn cầu ECMWF IFS & GFS',
     instruments: [
-      'Trạm thời tiết tự động AWS năng lượng mặt trời',
-      'Cảm biến nhiệt ẩm điểm sương tầng mặt',
-      'Cảm biến bức xạ tia cực tím UV',
+      'Mô hình vi khí hậu vùng nông nghiệp ngoại thành',
+      'Mô hình bốc thoát hơi nước và điểm sương ERA5',
     ],
   },
   {
-    code: 'VN-48899',
+    code: 'REF-NHABE',
     wmoId: '48899',
-    name: 'Trạm Khí tượng Khí quyển Nhà Bè (Nam Sài Gòn)',
-    shortName: 'Trạm Nhà Bè (VN-48899)',
-    authority: 'Đài Khí tượng Thủy văn khu vực Nam Bộ (VNMHA)',
-    assignedArea: 'Huyện Nhà Bè, Quận 7, Quận 8, Bình Chánh & Vùng cửa sông',
+    name: 'Điểm tham chiếu vi khí hậu Nam TP.HCM (Nhà Bè)',
+    shortName: 'Khu vực Nhà Bè',
+    authority: 'Mô hình dự báo vi khí hậu ECMWF IFS & GFS (Open-Meteo)',
+    assignedArea: 'Huyện Nhà Bè, Quận 7, Quận 8, Bình Chánh & Vùng trũng',
     province: 'TP. Hồ Chí Minh',
     lat: 10.6833,
     lng: 106.7500,
     elevationMeters: 3,
-    standard: 'QCVN 46:2012/BTNMT',
+    standard: 'Mô hình số trị thời tiết toàn cầu ECMWF IFS & GFS',
     instruments: [
-      'Trạm đo mưa tự động VNMHA',
-      'Cảm biến nhiệt độ & độ ẩm chuẩn khí quyển bề mặt',
-      'Áp kế điện tử trạm đo ven sông',
+      'Mô hình vi khí hậu vùng đất ngập nước và triều cường',
+      'Dự báo hoàn lưu gió biển Nam Bộ',
     ],
   },
 ];
@@ -243,7 +245,7 @@ export function getBeaufortScale(windKmh: number): string {
 }
 
 /**
- * Tự động tìm Trạm Khí quyển & Khí tượng Việt Nam gần nhất phụ trách địa bàn
+ * Tự động tìm điểm tham chiếu mô hình vi khí hậu gần nhất cho địa bàn
  */
 export function getAtmosphericStationForDistrict(
   districtId: string,
@@ -253,22 +255,21 @@ export function getAtmosphericStationForDistrict(
   const dName = districtName.toLowerCase();
 
   if (dId.includes('tay-nam') || dName.includes('tây nam') || dId.includes('ben-cat') || dName.includes('bến cát') || dName.includes('bình dương')) {
-    return VIETNAM_ATMOSPHERIC_STATIONS[0]; // VN-48894 Bến Cát - Sở Sao
+    return VIETNAM_ATMOSPHERIC_STATIONS[0];
   }
   if (dId.includes('con-dao') || dName.includes('côn đảo')) {
-    return VIETNAM_ATMOSPHERIC_STATIONS[3]; // VN-48914 Côn Đảo
+    return VIETNAM_ATMOSPHERIC_STATIONS[3];
   }
   if (dId.includes('can-gio') || dName.includes('cần giờ')) {
-    return VIETNAM_ATMOSPHERIC_STATIONS[2]; // VN-48902 Cần Giờ
+    return VIETNAM_ATMOSPHERIC_STATIONS[2];
   }
   if (dId.includes('cu-chi') || dName.includes('củ chi') || dName.includes('hóc môn')) {
-    return VIETNAM_ATMOSPHERIC_STATIONS[4]; // VN-48893 Củ Chi
+    return VIETNAM_ATMOSPHERIC_STATIONS[4];
   }
   if (dId.includes('nha-be') || dName.includes('nhà bè') || dName.includes('quận 7') || dName.includes('bình chánh')) {
-    return VIETNAM_ATMOSPHERIC_STATIONS[5]; // VN-48899 Nhà Bè
+    return VIETNAM_ATMOSPHERIC_STATIONS[5];
   }
 
-  // Mặc định cho TP.HCM: Trạm Thám không & Khí quyển Tân Sơn Hòa VN-48900
   return VIETNAM_ATMOSPHERIC_STATIONS[1];
 }
 
@@ -276,9 +277,6 @@ export function getAtmosphericStationByCode(code: string): VietnamAtmosphericSta
   return VIETNAM_ATMOSPHERIC_STATIONS.find((s) => s.code === code) || VIETNAM_ATMOSPHERIC_STATIONS[0];
 }
 
-/**
- * Tìm trạm quan trắc khí quyển VNMHA gần nhất theo tọa độ WGS-84
- */
 export function getNearestAtmosphericStation(lat: number, lng: number): VietnamAtmosphericStation {
   let nearest = VIETNAM_ATMOSPHERIC_STATIONS[0];
   let minDistance = Infinity;
@@ -296,7 +294,6 @@ export function getNearestAtmosphericStation(lat: number, lng: number): VietnamA
   return nearest;
 }
 
-// Lấy tọa độ trạm quan trắc tương ứng
 export function getCoordinatesForDistrict(
   districtId: string,
   districtName: string
@@ -306,7 +303,7 @@ export function getCoordinatesForDistrict(
 }
 
 /**
- * Tạo URL API Open-Meteo Air Quality để truy vấn hoặc kiểm chứng minh bạch
+ * Xây dựng URL API Open-Meteo Air Quality
  */
 export function buildOpenMeteoAirQualityUrl(lat: number, lng: number): string {
   const params = new URLSearchParams({
@@ -320,6 +317,27 @@ export function buildOpenMeteoAirQualityUrl(lat: number, lng: number): string {
 }
 
 /**
+ * Xây dựng URL API Open-Meteo Weather
+ */
+export function buildOpenMeteoUrl(lat: number, lng: number): string {
+  const params = new URLSearchParams({
+    latitude: lat.toFixed(4),
+    longitude: lng.toFixed(4),
+    current:
+      'temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,rain,weather_code,surface_pressure,wind_speed_10m,wind_direction_10m,uv_index',
+    hourly:
+      'temperature_2m,relative_humidity_2m,dew_point_2m,apparent_temperature,precipitation_probability,precipitation,weather_code,surface_pressure,uv_index,direct_normal_irradiance,wind_speed_10m,wind_gusts_10m',
+    daily:
+      'temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,uv_index_max,wind_speed_10m_max',
+    past_days: '3',
+    forecast_days: '4',
+    timezone: 'Asia/Bangkok',
+  });
+
+  return `https://api.open-meteo.com/v1/forecast?${params.toString()}`;
+}
+
+/**
  * Đánh giá chỉ số AQI theo tiêu chuẩn US EPA & Quy chuẩn Việt Nam
  */
 export function evaluateAqi(aqi: number | null): { status: string; colorHex: string; categoryText: string } {
@@ -327,7 +345,7 @@ export function evaluateAqi(aqi: number | null): { status: string; colorHex: str
     return {
       status: 'Không có dữ liệu',
       colorHex: '#64748B',
-      categoryText: 'Chưa có số liệu quan trắc viễn thám cho khu vực này',
+      categoryText: 'Chưa có số liệu mô hình chất lượng không khí cho khu vực này',
     };
   }
   if (aqi <= 50) {
@@ -383,7 +401,7 @@ export function evaluatePollutant(
     return {
       status: 'Không có dữ liệu',
       benchmark: 'Chưa xác định',
-      evaluation: 'Chưa có số liệu quan trắc viễn thám',
+      evaluation: 'Chưa có số liệu mô hình',
     };
   }
 
@@ -434,60 +452,53 @@ export function evaluatePollutant(
 }
 
 /**
- * Tích hợp Open-Meteo Air Quality API theo tọa độ (lat/lng) thực của từng phường/xã.
- * Phân định rõ:
- * - Phân loại: Dữ liệu mô hình viễn thám số trị Copernicus CAMS & NOAA GFS-Aerosol
- * - Có timestamp cụ thể và nguồn minh bạch
- * - Nếu API lỗi hoặc thiếu số liệu: hiển thị "Không có dữ liệu", TUYỆT ĐỐI KHÔNG BỊA SỐ GIẢ
+ * Nạp dữ liệu chất lượng không khí từ Open-Meteo Air Quality API
+ * Kết hợp Proxy Backend và Fallback gọi trực tiếp an toàn
  */
 export async function fetchDirectAirQualityData(
   lat: number,
   lng: number
 ): Promise<AirQualityData> {
-  const apiUrl = buildOpenMeteoAirQualityUrl(lat, lng);
+  const coordValid = validateCoordinates(lat, lng);
+  const safeLat = coordValid.isValid ? coordValid.lat : 10.7769;
+  const safeLng = coordValid.isValid ? coordValid.lng : 106.7009;
+
+  const directUrl = buildOpenMeteoAirQualityUrl(safeLat, safeLng);
+  const baseUrl = getApiBaseUrl();
+  const proxyUrl = baseUrl 
+    ? `${baseUrl}/api/air-quality/live?lat=${safeLat.toFixed(4)}&lng=${safeLng.toFixed(4)}`
+    : `/api/air-quality/live?lat=${safeLat.toFixed(4)}&lng=${safeLng.toFixed(4)}`;
+
   let json: any = null;
 
-  // 1. Thử gọi qua endpoint proxy nội bộ của server trước để tránh CORS/sandbox
+  // 1. Thử gọi qua endpoint proxy backend
   try {
-    const proxyUrl = `/api/air-quality/live?lat=${lat.toFixed(4)}&lng=${lng.toFixed(4)}`;
-    const proxyRes = await fetch(proxyUrl, {
-      method: 'GET',
-      headers: { Accept: 'application/json' },
-    });
-    if (proxyRes.ok) {
-      const proxyData = await proxyRes.json();
-      if (proxyData?.data?.current) {
-        json = proxyData.data;
-      } else if (proxyData?.current) {
-        json = proxyData;
-      }
+    const proxyData = await requestManager.fetchJson<any>(proxyUrl, { timeoutMs: 6000, maxRetries: 1 });
+    if (proxyData?.data?.current) {
+      json = proxyData.data;
+    } else if (proxyData?.current) {
+      json = proxyData;
     }
-  } catch (_err) {
-    // Bỏ qua lỗi proxy và thử gọi trực tiếp API
+  } catch (_proxyErr) {
+    logger.debug('Proxy air-quality không khả dụng, chuyển sang gọi trực tiếp Open-Meteo API');
   }
 
-  // 2. Gọi trực tiếp Open-Meteo Air Quality API
+  // 2. Nếu proxy không phản hồi, gọi trực tiếp Open-Meteo HTTPS API (hoạt động tốt trong cả APK Capacitor)
   if (!json) {
     try {
-      const directRes = await fetch(apiUrl, {
-        method: 'GET',
-        headers: { Accept: 'application/json' },
-      });
-      if (directRes.ok) {
-        const directJson = await directRes.json();
-        json = directJson?.data || directJson;
-      }
+      const directData = await requestManager.fetchJson<any>(directUrl, { timeoutMs: 8000, maxRetries: 2 });
+      json = directData?.data || directData;
     } catch (_directErr) {
-      // Xử lý lỗi bên dưới
+      logger.warn('Lỗi gọi trực tiếp Open-Meteo Air Quality:', _directErr);
     }
   }
 
-  // Nếu API lỗi hoặc không có dữ liệu: KHÔNG BỊA SỐ GIẢ!
-  if (!json || !json.current) {
+  // Kiểm tra tính hợp lệ của phản hồi
+  if (!json || !validateOpenMeteoAirQualityResponse(json) || !json.current) {
     return {
       aqi: null,
       status: 'Không có dữ liệu',
-      categoryText: 'Chưa có dữ liệu quan trắc viễn thám cho khu vực này (Lỗi kết nối Open-Meteo)',
+      categoryText: 'Chưa có dữ liệu chất lượng không khí từ mô hình (Ngoại tuyến hoặc lỗi máy chủ)',
       colorHex: '#64748B',
       pollutants: {
         pm2_5: null,
@@ -498,19 +509,19 @@ export async function fetchDirectAirQualityData(
         co: null,
       },
       details: [
-        { code: 'pm2_5', name: 'Bụi mịn PM2.5', formula: 'PM2.5', value: null, unit: 'µg/m³', status: 'Không có dữ liệu', benchmark: 'QCVN 05:2023: 50 µg/m³ (24h)', evaluation: 'Chưa có số liệu đo' },
-        { code: 'pm10', name: 'Bụi thô PM10', formula: 'PM10', value: null, unit: 'µg/m³', status: 'Không có dữ liệu', benchmark: 'QCVN 05:2023: 100 µg/m³ (24h)', evaluation: 'Chưa có số liệu đo' },
-        { code: 'o3', name: 'Ozone mặt đất O3', formula: 'O3', value: null, unit: 'µg/m³', status: 'Không có dữ liệu', benchmark: 'QCVN 05:2023: 120 µg/m³ (8h)', evaluation: 'Chưa có số liệu đo' },
-        { code: 'no2', name: 'Nitơ dioxit NO2', formula: 'NO2', value: null, unit: 'µg/m³', status: 'Không có dữ liệu', benchmark: 'QCVN 05:2023: 200 µg/m³ (1h)', evaluation: 'Chưa có số liệu đo' },
-        { code: 'so2', name: 'Lưu huỳnh dioxit SO2', formula: 'SO2', value: null, unit: 'µg/m³', status: 'Không có dữ liệu', benchmark: 'QCVN 05:2023: 50 µg/m³ (24h)', evaluation: 'Chưa có số liệu đo' },
-        { code: 'co', name: 'Cacbon monoxit CO', formula: 'CO', value: null, unit: 'µg/m³', status: 'Không có dữ liệu', benchmark: 'QCVN 05:2023: 10.000 µg/m³ (8h)', evaluation: 'Chưa có số liệu đo' },
+        { code: 'pm2_5', name: 'Bụi mịn PM2.5', formula: 'PM2.5', value: null, unit: 'µg/m³', status: 'Không có dữ liệu', benchmark: 'QCVN 05:2023: 50 µg/m³ (24h)', evaluation: 'Chưa có số liệu' },
+        { code: 'pm10', name: 'Bụi thô PM10', formula: 'PM10', value: null, unit: 'µg/m³', status: 'Không có dữ liệu', benchmark: 'QCVN 05:2023: 100 µg/m³ (24h)', evaluation: 'Chưa có số liệu' },
+        { code: 'o3', name: 'Ozone mặt đất O3', formula: 'O3', value: null, unit: 'µg/m³', status: 'Không có dữ liệu', benchmark: 'QCVN 05:2023: 120 µg/m³ (8h)', evaluation: 'Chưa có số liệu' },
+        { code: 'no2', name: 'Nitơ dioxit NO2', formula: 'NO2', value: null, unit: 'µg/m³', status: 'Không có dữ liệu', benchmark: 'QCVN 05:2023: 200 µg/m³ (1h)', evaluation: 'Chưa có số liệu' },
+        { code: 'so2', name: 'Lưu huỳnh dioxit SO2', formula: 'SO2', value: null, unit: 'µg/m³', status: 'Không có dữ liệu', benchmark: 'QCVN 05:2023: 50 µg/m³ (24h)', evaluation: 'Chưa có số liệu' },
+        { code: 'co', name: 'Cacbon monoxit CO', formula: 'CO', value: null, unit: 'µg/m³', status: 'Không có dữ liệu', benchmark: 'QCVN 05:2023: 10.000 µg/m³ (8h)', evaluation: 'Chưa có số liệu' },
       ],
-      source: 'Open-Meteo Air Quality API • Copernicus CAMS & NOAA GFS-Aerosol',
+      source: 'Mô hình chất lượng không khí Copernicus CAMS & NOAA GFS-Aerosol (Open-Meteo)',
       dataType: 'forecast_model',
       timestamp: 'Không có kết nối',
-      apiUrl,
+      apiUrl: directUrl,
       isAvailable: false,
-      errorMessage: 'Không thể kết nối đến máy chủ viễn thám khí quyển Open-Meteo',
+      errorMessage: 'Không thể kết nối đến máy chủ mô hình không khí Open-Meteo',
     };
   }
 
@@ -586,11 +597,11 @@ export async function fetchDirectAirQualityData(
   ];
 
   const rawTime = json.current?.time;
-  let formattedTime = 'Thời gian thực';
+  let formattedTime = 'Thời gian mô hình';
   if (rawTime) {
     try {
       const dateObj = new Date(rawTime);
-      formattedTime = `${String(dateObj.getHours()).padStart(2, '0')}:00 ngày ${String(dateObj.getDate()).padStart(2, '0')}/${String(dateObj.getMonth() + 1).padStart(2, '0')}/${dateObj.getFullYear()} (GMT+7)`;
+      formattedTime = `${String(dateObj.getHours()).padStart(2, '0')}:00 ngày ${String(dateObj.getDate()).padStart(2, '0')}/${String(dateObj.getMonth() + 1).padStart(2, '0')}/${dateObj.getFullYear()}`;
     } catch {
       formattedTime = rawTime;
     }
@@ -604,19 +615,18 @@ export async function fetchDirectAirQualityData(
     colorHex: aqiEvaluation.colorHex,
     pollutants,
     details,
-    source: 'Open-Meteo Air Quality API • Copernicus Atmosphere Monitoring Service (CAMS) & NOAA GFS-Aerosol',
-    dataType: 'forecast_model', // Phân loại rõ: Dữ liệu mô hình viễn thám số trị
+    source: 'Mô hình chất lượng không khí Copernicus CAMS & NOAA GFS-Aerosol (Open-Meteo Air Quality API)',
+    dataType: 'forecast_model',
     timestamp: formattedTime,
-    apiUrl,
+    apiUrl: directUrl,
     isAvailable: true,
   };
 }
 
 /**
- * Lấy khung dữ liệu chỉ số chất lượng không khí (AQI & bụi mịn) đảm bảo luôn sẵn sàng:
- * 1. Ưu tiên dữ liệu đã lưu trong localStorage hoặc từ API Open-Meteo
- * 2. Nếu chưa tải xong hoặc offline, tự động cung cấp khung chỉ số chuẩn hóa khoa học theo vùng địa lý thực tế
- * (Luôn đảm bảo có khung hiển thị đầy đủ, minh bạch, không để trống giao diện)
+ * Lấy khung chất lượng không khí an toàn:
+ * Đọc từ cacheManager. Nếu chưa có cache, trả về trạng thái rõ ràng "Chưa có dữ liệu ngoại tuyến"
+ * KHÔNG BỊA SỐ GIẢ!
  */
 export function getReliableAirQuality(
   districtId: string,
@@ -624,169 +634,51 @@ export function getReliableAirQuality(
   lng?: number,
   districtName?: string
 ): AirQualityData {
-  if (typeof window !== 'undefined') {
-    try {
-      const raw = localStorage.getItem(`hcm_eco_weather_${districtId}_air_quality`);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed && parsed.isAvailable && parsed.aqi !== null) {
-          return parsed;
-        }
-      }
-    } catch {
-      // ignore
-    }
+  // 1. Kiểm tra cache trong cacheManager
+  const cached = cacheManager.get<AirQualityData>(`air_quality_${districtId}`);
+  if (cached && cached.data && cached.data.isAvailable && cached.data.aqi !== null) {
+    return {
+      ...cached.data,
+      timestamp: `Lưu lúc ${cached.formattedTime}${cached.isFresh ? '' : ' (Cũ)'}`,
+    };
   }
 
-  // Phân vùng vi khí hậu và nền khí quyển thực tế Nam Bộ / TP.HCM
-  const isMarineOrIsland =
-    districtId.includes('condao') ||
-    districtId.includes('cg') ||
-    districtName?.includes('Cần Giờ') ||
-    districtName?.includes('Côn Đảo') ||
-    districtName?.includes('Long Sơn');
-
-  const isSuburbanOrIndustrial =
-    districtId.includes('cc') ||
-    districtId.includes('hm') ||
-    districtId.includes('bc') ||
-    districtId.includes('nb') ||
-    districtName?.includes('Củ Chi') ||
-    districtName?.includes('Hóc Môn') ||
-    districtName?.includes('Bình Chánh') ||
-    districtName?.includes('Bến Cát') ||
-    districtName?.includes('Nhà Bè');
-
-  let rawAqi = 72;
-  let rawEuropeanAqi = 54;
-  let pm25Val = 24.5;
-  let pm10Val = 32.0;
-  let o3Val = 44.0;
-  let no2Val = 39.5;
-  let so2Val = 13.5;
-  let coVal = 880;
-
-  if (isMarineOrIsland) {
-    rawAqi = 34;
-    rawEuropeanAqi = 26;
-    pm25Val = 9.2;
-    pm10Val = 14.5;
-    o3Val = 36.0;
-    no2Val = 11.5;
-    so2Val = 5.5;
-    coVal = 310;
-  } else if (isSuburbanOrIndustrial) {
-    rawAqi = 63;
-    rawEuropeanAqi = 48;
-    pm25Val = 19.8;
-    pm10Val = 27.2;
-    o3Val = 41.5;
-    no2Val = 31.0;
-    so2Val = 11.0;
-    coVal = 670;
-  }
-
-  const aqiEvaluation = evaluateAqi(rawAqi);
-  const pollutants = {
-    pm2_5: pm25Val,
-    pm10: pm10Val,
-    o3: o3Val,
-    no2: no2Val,
-    so2: so2Val,
-    co: coVal,
-  };
-
-  const details: AirQualityPollutant[] = [
-    {
-      code: 'pm2_5',
-      name: 'Bụi mịn PM2.5',
-      formula: 'PM2.5',
-      value: pm25Val,
-      unit: 'µg/m³',
-      ...evaluatePollutant('pm2_5', pm25Val),
-    },
-    {
-      code: 'pm10',
-      name: 'Bụi thô PM10',
-      formula: 'PM10',
-      value: pm10Val,
-      unit: 'µg/m³',
-      ...evaluatePollutant('pm10', pm10Val),
-    },
-    {
-      code: 'o3',
-      name: 'Ozone mặt đất O3',
-      formula: 'O3',
-      value: o3Val,
-      unit: 'µg/m³',
-      ...evaluatePollutant('o3', o3Val),
-    },
-    {
-      code: 'no2',
-      name: 'Nitơ dioxit NO2',
-      formula: 'NO2',
-      value: no2Val,
-      unit: 'µg/m³',
-      ...evaluatePollutant('no2', no2Val),
-    },
-    {
-      code: 'so2',
-      name: 'Lưu huỳnh dioxit SO2',
-      formula: 'SO2',
-      value: so2Val,
-      unit: 'µg/m³',
-      ...evaluatePollutant('so2', so2Val),
-    },
-    {
-      code: 'co',
-      name: 'Cacbon monoxit CO',
-      formula: 'CO',
-      value: coVal,
-      unit: 'µg/m³',
-      ...evaluatePollutant('co', coVal),
-    },
-  ];
-
+  // 2. Không có cache: Trả về trạng thái chưa có dữ liệu, KHÔNG BỊA SỐ GIẢ!
+  const safeLat = lat || 10.7769;
+  const safeLng = lng || 106.7009;
   return {
-    aqi: rawAqi,
-    europeanAqi: rawEuropeanAqi,
-    status: aqiEvaluation.status,
-    categoryText: aqiEvaluation.categoryText,
-    colorHex: aqiEvaluation.colorHex,
-    pollutants,
-    details,
-    source: 'Trạm Khí quyển & Mô hình Viễn thám CAMS / Open-Meteo',
+    aqi: null,
+    europeanAqi: null,
+    status: 'Chưa có dữ liệu ngoại tuyến',
+    categoryText: 'Chưa có dữ liệu chất lượng không khí trong bộ nhớ đệm cho khu vực này (Vui lòng bật mạng để tải)',
+    colorHex: '#94A3B8',
+    pollutants: {
+      pm2_5: null,
+      pm10: null,
+      o3: null,
+      no2: null,
+      so2: null,
+      co: null,
+    },
+    details: [
+      { code: 'pm2_5', name: 'Bụi mịn PM2.5', formula: 'PM2.5', value: null, unit: 'µg/m³', status: 'Chưa có dữ liệu', benchmark: 'QCVN 05:2023: 50 µg/m³ (24h)', evaluation: 'Chưa có dữ liệu ngoại tuyến' },
+      { code: 'pm10', name: 'Bụi thô PM10', formula: 'PM10', value: null, unit: 'µg/m³', status: 'Chưa có dữ liệu', benchmark: 'QCVN 05:2023: 100 µg/m³ (24h)', evaluation: 'Chưa có dữ liệu ngoại tuyến' },
+      { code: 'o3', name: 'Ozone mặt đất O3', formula: 'O3', value: null, unit: 'µg/m³', status: 'Chưa có dữ liệu', benchmark: 'QCVN 05:2023: 120 µg/m³ (8h)', evaluation: 'Chưa có dữ liệu ngoại tuyến' },
+      { code: 'no2', name: 'Nitơ dioxit NO2', formula: 'NO2', value: null, unit: 'µg/m³', status: 'Chưa có dữ liệu', benchmark: 'QCVN 05:2023: 200 µg/m³ (1h)', evaluation: 'Chưa có dữ liệu ngoại tuyến' },
+      { code: 'so2', name: 'Lưu huỳnh dioxit SO2', formula: 'SO2', value: null, unit: 'µg/m³', status: 'Chưa có dữ liệu', benchmark: 'QCVN 05:2023: 50 µg/m³ (24h)', evaluation: 'Chưa có dữ liệu ngoại tuyến' },
+      { code: 'co', name: 'Cacbon monoxit CO', formula: 'CO', value: null, unit: 'µg/m³', status: 'Chưa có dữ liệu', benchmark: 'QCVN 05:2023: 10.000 µg/m³ (8h)', evaluation: 'Chưa có dữ liệu ngoại tuyến' },
+    ],
+    source: 'Mô hình chất lượng không khí Copernicus CAMS & NOAA GFS-Aerosol',
     dataType: 'forecast_model',
-    timestamp: 'Dữ liệu thời gian thực',
-    apiUrl: buildOpenMeteoUrl(lat || 10.7769, lng || 106.7009),
-    isAvailable: true,
+    timestamp: 'Chưa tải dữ liệu',
+    apiUrl: buildOpenMeteoAirQualityUrl(safeLat, safeLng),
+    isAvailable: false,
+    errorMessage: 'Chưa có dữ liệu ngoại tuyến',
   };
 }
 
 /**
- * Tạo URL API gốc để truy vấn hoặc cho người dùng mở kiểm chứng
-
- */
-export function buildOpenMeteoUrl(lat: number, lng: number): string {
-  const params = new URLSearchParams({
-    latitude: lat.toFixed(4),
-    longitude: lng.toFixed(4),
-    current:
-      'temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,rain,weather_code,surface_pressure,wind_speed_10m,wind_direction_10m,uv_index',
-    hourly:
-      'temperature_2m,relative_humidity_2m,dew_point_2m,apparent_temperature,precipitation_probability,precipitation,weather_code,surface_pressure,uv_index,direct_normal_irradiance,wind_speed_10m,wind_gusts_10m',
-    daily:
-      'temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,uv_index_max,wind_speed_10m_max',
-    past_days: '3',
-    forecast_days: '4',
-    timezone: 'Asia/Bangkok',
-  });
-
-  return `https://api.open-meteo.com/v1/forecast?${params.toString()}`;
-}
-
-/**
- * Gọi trực tiếp dữ liệu từ Trạm Khí quyển & Khí tượng Việt Nam
+ * Nạp dữ liệu khí tượng Open-Meteo cho 7 ngày (±3 ngày)
  */
 export async function fetchDirectLiveWeatherData(
   districtId: string,
@@ -803,68 +695,50 @@ export async function fetchDirectLiveWeatherData(
 
   const lat = customCoords ? customCoords.lat : station.lat;
   const lng = customCoords ? customCoords.lng : station.lng;
-  const apiUrl = buildOpenMeteoUrl(lat, lng);
+  const directUrl = buildOpenMeteoUrl(lat, lng);
+  const baseUrl = getApiBaseUrl();
+  const proxyUrl = baseUrl
+    ? `${baseUrl}/api/weather/live?lat=${lat.toFixed(4)}&lng=${lng.toFixed(4)}`
+    : `/api/weather/live?lat=${lat.toFixed(4)}&lng=${lng.toFixed(4)}`;
 
   let json: any = null;
 
-  // 1. Ưu tiên gọi qua proxy nội bộ (/api/weather/live) để tránh hoàn toàn lỗi CORS / sandbox iframe
+  // 1. Thử gọi qua endpoint backend proxy
   try {
-    const proxyUrl = `/api/weather/live?lat=${lat.toFixed(4)}&lng=${lng.toFixed(4)}`;
-    const proxyRes = await fetch(proxyUrl, {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-      },
-    });
-
-    if (proxyRes.ok) {
-      const proxyData = await proxyRes.json();
-      if (proxyData?.data && (proxyData.data.daily || proxyData.data.hourly)) {
-        json = proxyData.data;
-      } else if (proxyData?.daily || proxyData?.hourly) {
-        json = proxyData;
-      }
+    const proxyData = await requestManager.fetchJson<any>(proxyUrl, { timeoutMs: 6000, maxRetries: 1 });
+    if (proxyData?.data && (proxyData.data.daily || proxyData.data.hourly)) {
+      json = proxyData.data;
+    } else if (proxyData?.daily || proxyData?.hourly) {
+      json = proxyData;
     }
   } catch (_proxyErr) {
-    // Không kết nối được qua proxy nội bộ, tiếp tục thử gọi trực tiếp bên dưới
+    logger.debug('Proxy weather không khả dụng, gọi trực tiếp Open-Meteo Weather API');
   }
 
-  // 2. Dự phòng: Nếu proxy chưa trả dữ liệu, thử gọi trực tiếp Open-Meteo
+  // 2. Dự phòng: Gọi trực tiếp Open-Meteo HTTPS API (chạy hoàn hảo trong APK)
   if (!json) {
     try {
-      const response = await fetch(apiUrl, {
-        method: 'GET',
-        headers: {
-          Accept: 'application/json',
-        },
-      });
-
-      if (response.ok) {
-        const directJson = await response.json();
-        json = directJson?.data || directJson;
-      }
+      const directData = await requestManager.fetchJson<any>(directUrl, { timeoutMs: 8000, maxRetries: 2 });
+      json = directData?.data || directData;
     } catch (_directErr) {
-      // Bỏ qua lỗi direct fetch để báo lỗi có kiểm soát phía dưới
+      logger.warn('Lỗi gọi trực tiếp Open-Meteo Weather API:', _directErr);
     }
   }
 
-  if (!json || (!json.daily && !json.hourly)) {
-    throw new Error(`Trạm Khí quyển VN API: Không thể nạp dữ liệu từ máy chủ quan trắc`);
+  if (!json || !validateOpenMeteoWeatherResponse(json)) {
+    throw new Error('Không thể nạp dữ liệu từ máy chủ mô hình dự báo thời tiết Open-Meteo');
   }
 
   const dailyTimes: string[] = json.daily?.time || [];
-  const hourlyTimes: string[] = json.hourly?.time || [];
-
   const now = new Date();
   const collectedTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')} ngày ${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
 
-  // Chuỗi 7 ngày tương ứng offsets: [-3, -2, -1, 0, 1, 2, 3]
   const offsets = [-3, -2, -1, 0, 1, 2, 3];
   const daysResult: DayCollectedWeather[] = [];
 
   for (let dayIndex = 0; dayIndex < Math.min(7, dailyTimes.length); dayIndex++) {
     const offset = offsets[dayIndex] ?? (dayIndex - 3);
-    const dateStr = dailyTimes[dayIndex]; // YYYY-MM-DD
+    const dateStr = dailyTimes[dayIndex];
     const [year, month, day] = dateStr.split('-').map(Number);
     const targetDate = new Date(year, month - 1, day);
 
@@ -882,8 +756,6 @@ export async function fetchDirectLiveWeatherData(
     else if (offset === 3) dateLabel = '3 ngày tới';
 
     const fullTitle = `${dateLabel} (${dateFormatted})`;
-
-    // Trích xuất 24 giờ cho ngày này
     const startHourIdx = dayIndex * 24;
     const hours: HourlyWeatherRecord[] = [];
 
@@ -923,7 +795,7 @@ export async function fetchDirectLiveWeatherData(
         windSpeed: Number(rawWindSpeed.toFixed(1)),
         windGust: Number(rawWindGust.toFixed(1)),
         beaufortScale: getBeaufortScale(rawWindSpeed),
-        dataType: offset <= 0 ? ('observation' as const) : ('forecast_model' as const),
+        dataType: 'forecast_model' as const,
       });
     }
 
@@ -941,9 +813,9 @@ export async function fetchDirectLiveWeatherData(
     if (maxRainChance >= 60) {
       summary = `Mưa dông khả năng cao (${maxRainChance}%), lượng mưa tích lũy ~${totalRainfall.toFixed(1)}mm.`;
     } else if (maxTemp >= 35) {
-      summary = `Nắng nóng gay gắt, đỉnh nhiệt ${maxTemp}°C, chú ý phòng chống say nắng.`;
+      summary = `Nắng nóng, đỉnh nhiệt ${maxTemp}°C, chỉ số UV cao điểm trưa.`;
     } else {
-      summary = `Thời tiết tương đối ổn định, nhiệt độ dao động ${minTemp}°C - ${maxTemp}°C, độ ẩm ${avgHumidity}%.`;
+      summary = `Thời tiết ổn định, nhiệt độ ${minTemp}°C - ${maxTemp}°C, độ ẩm ${avgHumidity}%.`;
     }
 
     daysResult.push({
@@ -955,7 +827,7 @@ export async function fetchDirectLiveWeatherData(
       districtId,
       districtName,
       adminType,
-      climateTypeDescription: `Quan trắc trực tiếp từ ${station.name} (${station.code} / WMO ${station.wmoId}). Tọa độ ${station.lat.toFixed(4)}°N, ${station.lng.toFixed(4)}°E, Độ cao trạm ${station.elevationMeters}m. ${station.standard}`,
+      climateTypeDescription: `Mô hình dự báo vi khí hậu ECMWF IFS & GFS theo tọa độ ${lat.toFixed(4)}°N, ${lng.toFixed(4)}°E (Open-Meteo).`,
       summary,
       avgTemp,
       minTemp: Number(minTemp.toFixed(1)),
@@ -973,15 +845,15 @@ export async function fetchDirectLiveWeatherData(
       collectedAt: collectedTimeStr,
       source:
         offset <= 0
-          ? `${station.name} (${station.code} - WMO ${station.wmoId}) • Quan trắc bề mặt & Tái phân tích ERA5`
+          ? 'Tái phân tích khí quyển ERA5 & Mô hình vi khí hậu ECMWF (Open-Meteo)'
           : 'Mô hình dự báo số trị vi khí hậu ECMWF IFS & GFS (Open-Meteo)',
-      dataType: offset <= 0 ? ('observation' as const) : ('forecast_model' as const),
+      dataType: 'forecast_model' as const,
       hasData: true,
       isCached: false,
     });
   }
 
-  // Dữ liệu thời gian thực hiện tại
+  // Thông số hiện tại
   const currentTemp = json.current?.temperature_2m ?? 28;
   const currentFeelsLike = json.current?.apparent_temperature ?? currentTemp;
   const currentHumidity = json.current?.relative_humidity_2m ?? 75;
@@ -991,7 +863,6 @@ export async function fetchDirectLiveWeatherData(
   const currentRainMm = json.current?.precipitation ?? 0;
   const currentPressure = json.current?.surface_pressure ?? 1008;
 
-  // Lấy xác suất mưa giờ hiện tại
   const currentHourIdx = 3 * 24 + now.getHours();
   const currentRainProb = json.hourly?.precipitation_probability?.[currentHourIdx] ?? 40;
   const currentDewPoint = json.hourly?.dew_point_2m?.[currentHourIdx] ?? 23.5;
@@ -999,13 +870,13 @@ export async function fetchDirectLiveWeatherData(
   const currentWindGust = json.hourly?.wind_gusts_10m?.[currentHourIdx] ?? currentWind * 1.3;
 
   return {
-    source: `${station.name} (${station.code} - WMO ${station.wmoId}) • Mạng lưới Trạm Khí tượng Thủy văn Quốc gia Việt Nam & Open-Meteo`,
-    apiUrl,
+    source: 'Mô hình dự báo số trị vi khí hậu ECMWF IFS & GFS (Open-Meteo Weather API)',
+    apiUrl: directUrl,
     latitude: json.latitude,
     longitude: json.longitude,
-    elevation: station.elevationMeters || json.elevation,
-    generationTimeMs: json.generationtime_ms,
-    timezone: json.timezone,
+    elevation: json.elevation || 10,
+    generationTimeMs: json.generationtime_ms || 0,
+    timezone: json.timezone || 'Asia/Bangkok',
     atmosphericStation: station,
     data: daysResult,
     dataType: 'forecast_model' as const,
@@ -1027,4 +898,3 @@ export async function fetchDirectLiveWeatherData(
     },
   };
 }
-

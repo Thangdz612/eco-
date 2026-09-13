@@ -1977,7 +1977,7 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
             {/* Danh sách các trạm */}
             <div className="p-4 overflow-y-auto space-y-3 flex-1 custom-scrollbar">
               <div className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                Hiển thị {VIETNAM_ATMOSPHERIC_STATIONS.length} trạm quan trắc chuẩn WMO khu vực phụ trách Nam Bộ:
+                Hiển thị {VIETNAM_ATMOSPHERIC_STATIONS.length} điểm tham chiếu vi khí hậu theo mô hình số trị ECMWF & GFS:
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -2055,7 +2055,7 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
             {/* Footer */}
             <div className="p-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 flex items-center justify-between">
               <span className="text-xs text-slate-500">
-                Theo danh mục trạm quan trắc tài nguyên khí tượng thủy văn Quốc gia Việt Nam
+                Dữ liệu mô hình số trị vi khí hậu ECMWF IFS & GFS (Open-Meteo)
               </span>
               <button
                 type="button"
