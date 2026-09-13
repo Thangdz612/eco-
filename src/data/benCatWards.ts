@@ -716,7 +716,7 @@ export const BEN_CAT_WARDS_DATA: Record<string, DistrictData> = {
         value: 'Địa chất chuyển tiếp phù sa cổ',
         quality: 'Vững chắc',
         progress: 92,
-        note: 'Độ lún an toàn tuyệt đối'
+        note: 'Nền địa chất phù sa cổ ổn định, tốc độ chuyển dịch < 2.5 mm/năm theo mốc trắc địa'
       }
     },
     alerts: {

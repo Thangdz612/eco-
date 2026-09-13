@@ -261,7 +261,7 @@ function generate24Hours(
     } else if (h >= 19 && h <= 21) {
       rainChance = Math.round(maxRainDay * 0.32);
       if (rainChance >= 45) {
-        rainfallAmount = Number((Math.random() * 4 + 1).toFixed(1));
+        rainfallAmount = Number((1.5 + Math.sin(((h - 19) / 2) * Math.PI) * 1.8).toFixed(1));
       }
     } else if (adminType === 'đặc khu' && (h === 2 || h === 3)) {
       // Đặc khu biển hay có mưa rào rải rác ban đêm
