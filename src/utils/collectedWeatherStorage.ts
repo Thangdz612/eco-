@@ -35,6 +35,7 @@ export interface HourlyWeatherRecord {
   windSpeed: number; // Tốc độ gió trung bình (km/h)
   windGust: number; // Gió giật cực đại (km/h)
   beaufortScale: string; // Cấp gió Beaufort (e.g. "Cấp 2 - Gió nhẹ", "Cấp 4 - Gió vừa")
+  dataType?: 'observation' | 'forecast_model' | 'simulation';
 }
 
 export interface DayCollectedWeather {
@@ -65,11 +66,12 @@ export interface DayCollectedWeather {
   source: string;
   isCached: boolean;
   dataType?: 'observation' | 'forecast_model' | 'simulation';
+  methodNotice?: string;
   hasData?: boolean;
 }
 
-const STORAGE_PREFIX = 'eco_collected_weather_v5_';
-const STORAGE_KEY_LAST_COLLECTED_TIME = 'eco_collected_weather_timestamp_v5';
+const STORAGE_PREFIX = 'eco_collected_weather_v6_';
+const STORAGE_KEY_LAST_COLLECTED_TIME = 'eco_collected_weather_timestamp_v6';
 
 // Helper: Format DD/MM/YYYY
 function formatDate(date: Date): string {
@@ -335,6 +337,7 @@ function generate24Hours(
       windSpeed,
       windGust,
       beaufortScale,
+      dataType: 'simulation',
     });
   }
 
@@ -399,11 +402,11 @@ export function generateCollectedWeatherRange(
 
     let summary = '';
     if (offset < 0) {
-      summary = `Lịch sử trạm đo ${districtName}: Nhiệt độ ${minTemp}°C - ${maxTemp}°C, mưa đạt đỉnh ${maxRainChance}% (tổng lượng ${totalRainfall} mm), UV cao nhất ${maxUvIndex}.`;
+      summary = `Ước tính lịch sử ${districtName}: Nhiệt độ ${minTemp}°C - ${maxTemp}°C, mưa đạt đỉnh ${maxRainChance}% (tổng lượng ${totalRainfall} mm), UV cao nhất ${maxUvIndex}.`;
     } else if (offset === 0) {
-      summary = `Hôm nay tại ${districtName}: Dao động ${minTemp}°C - ${maxTemp}°C, đỉnh bức xạ UV ${maxUvIndex}, xác suất mưa chiều tối ${maxRainChance}%.`;
+      summary = `Ước tính hôm nay tại ${districtName}: Dao động ${minTemp}°C - ${maxTemp}°C, đỉnh bức xạ UV ${maxUvIndex}, xác suất mưa chiều tối ${maxRainChance}%.`;
     } else {
-      summary = `Dự báo ${districtName}: Nhiệt độ ${minTemp}°C - ${maxTemp}°C, độ ẩm ${avgHumidity}%, khả năng mưa rào ${maxRainChance}%.`;
+      summary = `Ước tính dự báo ${districtName}: Nhiệt độ ${minTemp}°C - ${maxTemp}°C, độ ẩm ${avgHumidity}%, khả năng mưa rào ${maxRainChance}%.`;
     }
 
     return {
@@ -427,8 +430,11 @@ export function generateCollectedWeatherRange(
       maxWindSpeed,
       hours,
       collectedAt: collectedTimeStr,
-      source: offset <= 0 ? 'Trạm quan trắc IoT & Trạm khí tượng chuyên dụng' : 'Dự báo vi khí hậu WRF độ phân giải 1km',
+      source: 'Dữ liệu ước tính offline (chưa đồng bộ với API thời tiết thực)',
       isCached: true,
+      dataType: 'simulation',
+      methodNotice: 'Dữ liệu ước tính offline dựa trên công thức thống kê vi khí hậu, không phải đo thực địa từ trạm khí tượng hay mô hình WRF.',
+      hasData: true,
     };
   });
 }

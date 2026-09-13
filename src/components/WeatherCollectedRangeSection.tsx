@@ -533,26 +533,33 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
           </div>
 
           <div className="flex items-center gap-2 shrink-0 self-start sm:self-center">
-            {/* Online/Offline Badge */}
-            <span
-              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${
-                isOnline
-                  ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
-                  : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
-              }`}
-            >
-              {isOnline ? (
-                <>
-                  <Wifi className="w-3.5 h-3.5 text-emerald-600" />
-                  Đã thu thập qua mạng
-                </>
-              ) : (
-                <>
-                  <WifiOff className="w-3.5 h-3.5 text-amber-600" />
-                  Đang dùng đệm ngoại tuyến
-                </>
-              )}
-            </span>
+            {/* Online/Offline Badge & Simulation Warning */}
+            {selectedDay?.dataType === 'simulation' ? (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 shadow-2xs">
+                <Database className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                ⚠️ Dữ liệu ước tính - đang chờ đồng bộ mạng
+              </span>
+            ) : (
+              <span
+                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${
+                  isOnline
+                    ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                    : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                }`}
+              >
+                {isOnline ? (
+                  <>
+                    <Wifi className="w-3.5 h-3.5 text-emerald-600" />
+                    Đã đồng bộ trạm thực tế (WMO)
+                  </>
+                ) : (
+                  <>
+                    <WifiOff className="w-3.5 h-3.5 text-amber-600" />
+                    Đang dùng đệm ngoại tuyến
+                  </>
+                )}
+              </span>
+            )}
 
             {/* Refresh/Sync button */}
             <button
@@ -784,25 +791,32 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
                 >
                   {/* Hàng trên: Nhãn ngày và Icon khí hậu */}
                   <div className="flex items-center justify-between gap-1 mb-1">
-                    <span
-                      className={`text-[10.5px] uppercase font-bold tracking-wider truncate ${
-                        isSelected
-                          ? 'text-blue-100'
-                          : isToday
-                          ? 'text-blue-600 dark:text-blue-400 font-extrabold'
-                          : 'text-slate-500 dark:text-slate-400'
-                      }`}
-                    >
-                      {day.dateOffset === 0
-                        ? 'Hôm nay'
-                        : day.dateOffset === -1
-                        ? 'Hôm qua'
-                        : day.dateOffset === 1
-                        ? 'Ngày mai'
-                        : day.dateOffset < 0
-                        ? `${Math.abs(day.dateOffset)} ngày trước`
-                        : `${day.dateOffset} ngày tới`}
-                    </span>
+                    <div className="flex items-center gap-1 min-w-0">
+                      <span
+                        className={`text-[10.5px] uppercase font-bold tracking-wider truncate ${
+                          isSelected
+                            ? 'text-blue-100'
+                            : isToday
+                            ? 'text-blue-600 dark:text-blue-400 font-extrabold'
+                            : 'text-slate-500 dark:text-slate-400'
+                        }`}
+                      >
+                        {day.dateOffset === 0
+                          ? 'Hôm nay'
+                          : day.dateOffset === -1
+                          ? 'Hôm qua'
+                          : day.dateOffset === 1
+                          ? 'Ngày mai'
+                          : day.dateOffset < 0
+                          ? `${Math.abs(day.dateOffset)} ngày trước`
+                          : `${day.dateOffset} ngày tới`}
+                      </span>
+                      {day.dataType === 'simulation' && (
+                        <span className="text-[9px] px-1 py-0.2 rounded bg-amber-200/90 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200 font-bold shrink-0">
+                          Ước tính
+                        </span>
+                      )}
+                    </div>
                     <DayIcon
                       className={`w-4.5 h-4.5 shrink-0 ${
                         isSelected
@@ -893,6 +907,11 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
                 <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${adminMeta.badgeClass}`}>
                   {adminMeta.label}
                 </span>
+                {selectedDay.dataType === 'simulation' && (
+                  <span className="text-[10.5px] px-2.5 py-0.5 rounded-full font-bold bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 flex items-center gap-1 shadow-2xs">
+                    ⚠️ Dữ liệu ước tính - đang chờ đồng bộ mạng
+                  </span>
+                )}
               </div>
               <p className="text-[12px] text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
                 {selectedDay.summary}
@@ -903,12 +922,25 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
             </div>
 
             <div className="text-[11px] text-slate-500 dark:text-slate-400 shrink-0 font-medium flex items-center gap-1.5 flex-wrap">
-              <span>Trạm quan trắc:</span>
-              <span className="font-bold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 px-2 py-0.5 rounded-md border border-blue-200 dark:border-blue-800">
-                {selectedDay.stationName || liveSourceInfo.station.name} ({selectedDay.stationCode || liveSourceInfo.station.code})
+              <span>{selectedDay.dataType === 'simulation' ? 'Nguồn dữ liệu:' : 'Trạm quan trắc:'}</span>
+              <span className={`font-bold px-2 py-0.5 rounded-md border ${
+                selectedDay.dataType === 'simulation'
+                  ? 'text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 border-amber-200 dark:border-amber-800'
+                  : 'text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800'
+              }`}>
+                {selectedDay.dataType === 'simulation'
+                  ? (selectedDay.source || 'Dữ liệu ước tính offline (chưa đồng bộ với API thời tiết thực)')
+                  : (selectedDay.stationName ? `${selectedDay.stationName} (${selectedDay.stationCode})` : liveSourceInfo.station.name)}
               </span>
             </div>
           </div>
+
+          {selectedDay.dataType === 'simulation' && (
+            <div className="mt-2.5 p-2.5 rounded-xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/70 text-[11px] text-amber-900 dark:text-amber-200 flex items-start sm:items-center gap-2">
+              <span className="font-bold shrink-0">⚠️ Phương pháp:</span>
+              <span>Dữ liệu ước tính offline dựa trên thống kê vi khí hậu khu vực, chưa đồng bộ với API thời tiết thực (không phải số liệu đo trạm khí tượng hay mô hình WRF). Vui lòng nhấn nút làm mới để tải số đo thực tế.</span>
+            </div>
+          )}
 
           {/* 6 Thống kê chính của ngày từ trạm khí quyển */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 mt-2.5">
@@ -1003,11 +1035,16 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
       <div className="flex flex-col gap-3 pt-1">
         {/* Header điều khiển biểu đồ */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <TrendingUp className="w-4.5 h-4.5 text-blue-600 dark:text-blue-400" />
             <span className="text-sm font-bold text-slate-800 dark:text-slate-100">
               Hệ thống Biểu đồ Khí tượng Chuyên sâu (24 giờ)
             </span>
+            {selectedDay?.dataType === 'simulation' && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 inline-flex items-center gap-1 shadow-2xs">
+                ⚠️ Dữ liệu ước tính - đang chờ đồng bộ mạng
+              </span>
+            )}
           </div>
 
           {/* Toggle Chế độ xem: Từng biểu đồ chi tiết (Tab) vs Xem lưới Dashboard (Grid) */}
@@ -1472,13 +1509,18 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
       {/* 5. Giao diện chi tiết từng giờ: 1h - độ C - % mưa - độ ẩm - tia UV; 2h... */}
       <div className="flex flex-col gap-3 pt-2">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div>
-            <h3 className="text-[16px] font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="text-[16px] font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 flex-wrap">
               <span>Bảng dữ liệu 24 giờ chi tiết ({currentName})</span>
               <span className="text-xs font-normal text-slate-500 dark:text-slate-400">
                 (1h, 2h... Độ C, % Mưa, Độ ẩm, Tia UV, Gió)
               </span>
             </h3>
+            {selectedDay?.dataType === 'simulation' && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 inline-flex items-center gap-1 shadow-2xs">
+                ⚠️ Dữ liệu ước tính - đang chờ đồng bộ mạng
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-2">

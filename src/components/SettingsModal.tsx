@@ -1181,6 +1181,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                               <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
                                 {item.dateFormatted}
                               </span>
+                              {item.hasRealData ? (
+                                <span className="text-[9.5px] px-1.5 py-0.5 rounded font-semibold bg-emerald-100 dark:bg-emerald-950/70 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                                  Số đo thực tế
+                                </span>
+                              ) : (
+                                <span className="text-[9.5px] px-1.5 py-0.5 rounded font-medium bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                                  Khuyến cáo chung
+                                </span>
+                              )}
                             </div>
                             <span className="text-[9.5px] text-slate-400 font-mono flex items-center gap-1">
                               <Database className="w-2.5 h-2.5" /> Bộ nhớ máy

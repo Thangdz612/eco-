@@ -923,6 +923,7 @@ export async function fetchDirectLiveWeatherData(
         windSpeed: Number(rawWindSpeed.toFixed(1)),
         windGust: Number(rawWindGust.toFixed(1)),
         beaufortScale: getBeaufortScale(rawWindSpeed),
+        dataType: offset <= 0 ? ('observation' as const) : ('forecast_model' as const),
       });
     }
 

@@ -28,13 +28,30 @@ for (const [key, item] of Object.entries(BASE_DISTRICTS_DATA)) {
   processedBaseData[key] = {
     ...item,
     districtGroup: regionGroup,
+    weather: {
+      ...item.weather,
+      dataType: 'simulation',
+      source: 'Dữ liệu ước tính ban đầu (chưa đồng bộ mạng)',
+    },
+  };
+}
+
+const processedBenCatData: Record<string, DistrictData> = {};
+for (const [key, item] of Object.entries(BEN_CAT_WARDS_DATA)) {
+  processedBenCatData[key] = {
+    ...item,
+    weather: {
+      ...item.weather,
+      dataType: 'simulation',
+      source: 'Dữ liệu ước tính ban đầu (chưa đồng bộ mạng)',
+    },
   };
 }
 
 // 168 đơn vị hành chính: 113 Phường + 54 Xã + 1 Đặc khu Côn Đảo
 export const DISTRICTS_DATA: Record<string, DistrictData> = {
   ...processedBaseData,
-  ...BEN_CAT_WARDS_DATA,
+  ...processedBenCatData,
 };
 
 // 3 khu vực hành chính theo Nghị quyết 1685/NQ-UBTVQH15

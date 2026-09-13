@@ -59,7 +59,7 @@ export default function App() {
       const config = getStorageConfig();
       if (typeof navigator === 'undefined' || navigator.onLine) {
         if (config.autoSyncWhenOnline) {
-          syncWeatherNotificationsOnline(currentDistrict.id, currentDistrict.name);
+          syncWeatherNotificationsOnline(currentDistrict.id, currentDistrict.name, currentDistrict.adminType);
         }
         try {
           await syncCollectedWeatherOnline(currentDistrict.id, currentDistrict.name, currentDistrict.adminType);
@@ -352,6 +352,7 @@ export default function App() {
         onClose={() => setIsNotificationsOpen(false)}
         districtName={currentDistrict.name}
         districtId={currentDistrict.id}
+        adminType={currentDistrict.adminType}
         onOpenSettings={() => {
           setIsNotificationsOpen(false);
           setIsSettingsOpen(true);

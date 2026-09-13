@@ -73,15 +73,21 @@ export const WeatherTab: React.FC<WeatherTabProps> = ({
       : data.weather.altitude;
 
   // Nhãn phân loại dữ liệu thời tiết
+  const isSimulation = data.weather.dataType === 'simulation' || !data.weather.isLive;
   const weatherTypeLabel =
     data.weather.dataType === 'observation'
       ? 'Dữ liệu quan trắc thực địa'
-      : data.weather.dataType === 'simulation'
-      ? 'Dữ liệu mô phỏng'
+      : isSimulation
+      ? '⚠️ Dữ liệu ước tính - đang chờ đồng bộ mạng'
       : 'Dữ liệu mô hình dự báo số trị';
 
-  const weatherSourceLabel = data.weather.source || 'Open-Meteo Weather API (ECMWF & GFS)';
-  const weatherTimestamp = data.weather.timestamp || 'Đang cập nhật';
+  const weatherSourceLabel =
+    data.weather.source ||
+    (isSimulation
+      ? 'Dữ liệu ước tính offline (chưa đồng bộ với API thời tiết thực)'
+      : 'Open-Meteo Weather API (ECMWF & GFS)');
+  const weatherTimestamp =
+    data.weather.timestamp || (isSimulation ? 'Dữ liệu ước tính offline' : 'Đang cập nhật');
 
   return (
     <div className="flex flex-col gap-5 px-5 pb-6">
@@ -109,7 +115,9 @@ export const WeatherTab: React.FC<WeatherTabProps> = ({
               `Thời điểm quan trắc / mô hình: ${weatherTimestamp}`,
             ],
             tips: [
-              'Dữ liệu được cập nhật tự động từ mô hình số trị Open-Meteo vi khí hậu.',
+              isSimulation
+                ? 'Dữ liệu hiện tại là ước tính mô phỏng offline. Vui lòng kết nối mạng và làm mới để đồng bộ số đo thực tế.'
+                : 'Dữ liệu được cập nhật tự động từ mô hình số trị Open-Meteo vi khí hậu.',
               'Trang bị mũ nón và kem chống nắng khi hoạt động ngoài trời vào khung giờ trưa từ 11:00 đến 14:00.',
             ],
           })
@@ -122,10 +130,17 @@ export const WeatherTab: React.FC<WeatherTabProps> = ({
               <span className="text-[14px] font-bold text-[#1E40AF] dark:text-blue-300 tracking-tight">
                 Thời tiết tại {data.name.split(',')[0]}
               </span>
-              <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800">
-                <Database className="w-3 h-3 text-blue-600 dark:text-blue-300" />
-                {weatherTypeLabel}
-              </span>
+              {isSimulation ? (
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 shadow-2xs">
+                  <Database className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                  ⚠️ Dữ liệu ước tính - đang chờ đồng bộ mạng
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800">
+                  <Database className="w-3 h-3 text-blue-600 dark:text-blue-300" />
+                  {weatherTypeLabel}
+                </span>
+              )}
             </div>
             <span className="text-[28px] font-black text-[#0F3B73] dark:text-blue-100 mt-1 tracking-tight leading-tight">
               {data.weather.temp}, {data.weather.condition}
@@ -154,6 +169,13 @@ export const WeatherTab: React.FC<WeatherTabProps> = ({
             <span>Cập nhật: {weatherTimestamp}</span>
           </div>
         </div>
+
+        {isSimulation && (
+          <div className="mt-1 p-2.5 rounded-xl bg-amber-100/80 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 text-[11.5px] text-amber-900 dark:text-amber-200 flex items-start sm:items-center gap-2">
+            <span className="font-bold shrink-0">⚠️ Lưu ý nguồn gốc:</span>
+            <span>Dữ liệu ước tính offline chưa đồng bộ với API thời tiết thực. Các chỉ số nhiệt độ, độ ẩm chỉ mang tính tham khảo vi khí hậu ban đầu.</span>
+          </div>
+        )}
       </div>
 
       {/* KHUNG CHỈ SỐ KHÔNG KHÍ (OPEN-METEO AIR QUALITY API) */}
