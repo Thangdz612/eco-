@@ -26,6 +26,7 @@ import {
   Building2,
   FileCheck,
   ShoppingBag,
+  Info,
 } from 'lucide-react';
 import { DISTRICTS_DATA, HCM_DISTRICT_GROUPS } from '../data/mockData';
 import { getGeologySubsidenceRecord } from '../utils/geologySubsidenceData';
@@ -34,6 +35,8 @@ import {
   HCM_BIODIVERSITY_SPECIES,
   COMMERCIAL_SPECIES_STATS,
   SpeciesItem,
+  enrichSpeciesItem,
+  getDistrictBiodiversityMetadata,
 } from '../data/biodiversitySpeciesData';
 import { BiodiversityTrendChart } from './BiodiversityTrendChart';
 
@@ -165,7 +168,7 @@ const HCM_ECOLOGICAL_ZONES: EcologicalZone[] = [
       amphibian: 'Cua xe tăng (cua cạn khổng lồ Côn Đảo), thằn lằn ngón Côn Đảo, ếch nhái đảo',
     },
     keyStatus: 'Bảo tồn nghiêm ngặt cấp quốc tế • Vườn di sản Ramsar Công ước Quốc tế',
-    vitalRole: 'Nơi sinh sản và ấp nở hơn 85% số lượng rùa biển tại Việt Nam, là kho dự trữ gen sinh học biển vô giá của quốc gia.',
+    vitalRole: 'Nơi sinh sản và ấp nở khoảng 90% số lượng rùa biển tại Việt Nam (theo thống kê của VQG Côn Đảo & Sách Kỷ lục Việt Nam), là kho dự trữ gen sinh học biển vô giá của quốc gia.',
     protectionMeasures: [
       'Kiểm lâm Vườn Quốc gia tuần tra 24/7 bảo vệ các bãi đẻ trứng rùa biển (Bãi Cát Lớn, Bãi Dương).',
       'Cấm tuyệt đối hoạt động đánh bắt hải sản trong vùng lõi bảo tồn san hô nghiêm ngặt.',
@@ -250,7 +253,7 @@ export const HcmCityBiodiversitySection: React.FC<HcmCityBiodiversitySectionProp
         sp.habitat.toLowerCase().includes(speciesSearchQuery.toLowerCase()) ||
         (sp.commercialProducts && sp.commercialProducts.some((p) => p.toLowerCase().includes(speciesSearchQuery.toLowerCase())));
       return matchRealm && matchSearch;
-    });
+    }).map(enrichSpeciesItem);
   }, [speciesRealmFilter, speciesSearchQuery]);
 
   // Lọc danh sách loài theo góc độ kinh doanh & pháp lý thương mại
@@ -747,7 +750,19 @@ export const HcmCityBiodiversitySection: React.FC<HcmCityBiodiversitySectionProp
             ))}
           </div>
 
-          {/* Danh sách thẻ chi tiết các loài */}
+          {/* Ghi chú minh bạch về nguồn tham chiếu vùng sinh thái */}
+          <div className="p-3 rounded-2xl bg-sky-50/70 dark:bg-sky-950/30 border border-sky-200/70 dark:border-sky-800/50 text-[11px] text-slate-600 dark:text-slate-400 flex items-start gap-2.5">
+            <Info className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0 mt-0.5" />
+            <div className="space-y-0.5">
+              <span className="font-bold text-slate-800 dark:text-slate-200 block">
+                Cơ sở tham chiếu theo vùng sinh thái (chưa kiểm chứng riêng từng loài)
+              </span>
+              <p className="text-slate-500 dark:text-slate-400 text-[10.5px] leading-relaxed">
+                Thông tin sinh cảnh phân bố và nguồn tài liệu được tổng hợp theo vùng sinh thái tổng quát (Khu DTSQ Cần Giờ, VQG Côn Đảo, nông nghiệp Củ Chi - Hóc Môn và đô thị trung tâm), không đại diện cho phiếu điều tra thực địa riêng cho từng loài riêng biệt.
+              </p>
+            </div>
+          </div>
+
           {/* Danh sách thẻ chi tiết các loài */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[620px] overflow-y-auto pr-1 custom-scrollbar">
             {filteredSpecies.map((sp) => (
@@ -774,6 +789,8 @@ export const HcmCityBiodiversitySection: React.FC<HcmCityBiodiversitySectionProp
                       `Khu vực & sinh cảnh phân bố: ${sp.habitat}`,
                       `Đặc điểm sinh học nhận dạng: ${sp.keyFeatures}`,
                       `Vai trò sinh thái & giá trị bảo tồn: ${sp.ecologicalRole}`,
+                      `Cơ sở tham chiếu theo vùng sinh thái (chưa kiểm chứng riêng từng loài): ${sp.source}`,
+                      `Phương thức đối chiếu thông tin: ${sp.verificationMethod}`,
                       `Tình trạng kinh doanh & Khung pháp lý: ${
                         sp.commercialStatus === 'permitted_free'
                           ? '🟢 ĐƯỢC PHÉP KINH DOANH & NUÔI TRỒNG TỰ DO (Đặc sản OCOP, thủy hải sản, hoa kiểng, nông lâm nghiệp bền vững)'
@@ -1401,6 +1418,13 @@ export const HcmCityBiodiversitySection: React.FC<HcmCityBiodiversitySectionProp
                       <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                         {d.adminType}
                       </span>
+                      <span className={`text-[9.5px] font-semibold px-1.5 py-0.5 rounded-md border ${
+                        getDistrictBiodiversityMetadata(d.id, d.name).isFieldSurveyDistrict
+                          ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                          : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                      }`}>
+                        {getDistrictBiodiversityMetadata(d.id, d.name).isFieldSurveyDistrict ? 'Khảo sát thực địa' : 'Tham chiếu vùng'}
+                      </span>
                       {isCurrent && (
                         <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 font-semibold">
                           Đang xem
@@ -1447,6 +1471,7 @@ export const HcmCityBiodiversitySection: React.FC<HcmCityBiodiversitySectionProp
                       id={`btn-inspect-ward-${d.id}`}
                       onClick={() => {
                         const geo = getGeologySubsidenceRecord(d.id, d.name, d.location?.lat, d.location?.lng);
+                        const bioMeta = getDistrictBiodiversityMetadata(d.id, d.name);
                         onOpenDetail({
                           title: `Quần xã Sinh vật & Địa chất tại ${d.name}`,
                           category: 'Hồ sơ sinh thái & địa tầng địa bàn',
@@ -1456,10 +1481,12 @@ export const HcmCityBiodiversitySection: React.FC<HcmCityBiodiversitySectionProp
                             `Trên cạn (${d.biodiversity.terrestrial.count} loài ghi nhận): ${d.biodiversity.terrestrial.status}. Điểm nhấn: ${d.biodiversity.terrestrial.highlights.join(', ')}.`,
                             `Trên trời (${d.biodiversity.aerial.count} loài ghi nhận): ${d.biodiversity.aerial.status}. Điểm nhấn: ${d.biodiversity.aerial.highlights.join(', ')}.`,
                             `Lưỡng cư (${d.biodiversity.amphibian.count} loài ghi nhận): ${d.biodiversity.amphibian.status}. Điểm nhấn: ${d.biodiversity.amphibian.highlights.join(', ')}.`,
+                            `Cơ sở tham chiếu sinh thái (${bioMeta.isFieldSurveyDistrict ? 'Vùng có điểm khảo sát thực địa' : 'Tham chiếu vùng'}): ${bioMeta.dataSource} — ${bioMeta.dataNotice}.`,
+                            `Phương pháp đối chiếu sinh thái: ${bioMeta.surveyMethod}.`,
                             `Đặc điểm địa chất: Hệ tầng ${geo.geology.formationName} (${geo.geology.lithology}) - Sức chịu tải: ${geo.geology.bearingCapacity}.`,
                             `Địa hình số hóa DEM: ${geo.topography.elevationMsl} (${geo.topography.terrainType}).`,
                             `Sụt lún bề mặt InSAR Sentinel-1: ${geo.subsidence.insarRateMmYear || 'Chưa có mốc đo thực địa tại phường — Tham chiếu mô hình radar vùng'} (${geo.subsidence.statusLabel}).`,
-                            `Nguồn dữ liệu: Địa chất (${geo.geology.source}), Viễn thám radar (${geo.subsidence.dataSource}, ${geo.subsidence.surveyMethod}).`,
+                            `Nguồn dữ liệu trắc địa & vệ tinh: Địa chất (${geo.geology.source}), Viễn thám radar (${geo.subsidence.dataSource}, ${geo.subsidence.surveyMethod}).`,
                           ],
                           tips: [
                             'Tích cực tham gia các phong trào trồng cây xanh và ngày Chủ nhật xanh tại địa phương.',

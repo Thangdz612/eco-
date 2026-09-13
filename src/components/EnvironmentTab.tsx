@@ -21,10 +21,10 @@ import {
   Fish,
   Bird,
   TrendingUp,
-  Activity,
   Database,
   Clock,
   Wind,
+  Info,
 } from 'lucide-react';
 import { DistrictData, ModalContent, AirQualityData } from '../types';
 import { HcmCityBiodiversitySection } from './HcmCityBiodiversitySection';
@@ -33,6 +33,7 @@ import {
   getSpeciesByRealm,
   getSpeciesForDistrict,
   HCM_BIODIVERSITY_SPECIES,
+  getDistrictBiodiversityMetadata,
 } from '../data/biodiversitySpeciesData';
 import { getCachedAirQuality } from '../utils/collectedWeatherStorage';
 import { getReliableAirQuality } from '../utils/liveWeatherApi';
@@ -56,6 +57,11 @@ export const EnvironmentTab: React.FC<EnvironmentTabProps> = ({
   const currentDistrictSpecies = useMemo(() => {
     return getSpeciesForDistrict(data.id, data.districtGroup);
   }, [data.id, data.districtGroup]);
+
+  // Thông tin siêu dữ liệu khảo sát và cơ sở tham chiếu vùng sinh thái
+  const bioDistrictMeta = useMemo(() => {
+    return getDistrictBiodiversityMetadata(data.id, data.name);
+  }, [data.id, data.name]);
 
   // Lọc theo phân hệ và tìm kiếm (bao gồm cả trạng thái kinh doanh & thương phẩm)
   const filteredLocalSpecies = useMemo(() => {
@@ -452,111 +458,6 @@ export const EnvironmentTab: React.FC<EnvironmentTabProps> = ({
           </span>
         </div>
       </div>
-
-      {/* KHUNG CHỈ SỐ KHÔNG KHÍ (OPEN-METEO) TRONG TAB MÔI TRƯỜNG */}
-      <section id="khung-chi-so-khong-khi-env" className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-[19px] font-extrabold text-[#0F172A] dark:text-slate-100 tracking-tight flex items-center gap-1.5">
-            <Activity className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-            Khung chỉ số không khí (AQI & Bụi mịn)
-          </h2>
-          <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded-md flex items-center gap-1">
-            <Sparkles className="w-3 h-3 text-emerald-600" />
-            Mô hình CAMS & GFS
-          </span>
-        </div>
-
-        {airQuality && airQuality.isAvailable ? (
-          <div
-            id="env-air-quality-card"
-            onClick={() =>
-              onOpenDetail({
-                title: 'Tổng quan Chất lượng Không khí & Ô nhiễm',
-                category: 'Môi trường không khí',
-                description: `AQI: ${airQuality.aqi ?? 'Chưa xác định'} (${airQuality.status}) tại ${data.name}.`,
-                details: [
-                  `Chỉ số US-AQI: ${airQuality.aqi !== null ? airQuality.aqi : 'Không có dữ liệu'}`,
-                  `Đánh giá mức độ: ${airQuality.categoryText}`,
-                  `PM2.5: ${airQuality.pollutants.pm2_5 !== null ? `${airQuality.pollutants.pm2_5} µg/m³` : 'Không có dữ liệu'} (QCVN 05:2023: 50 µg/m³ 24h)`,
-                  `PM10: ${airQuality.pollutants.pm10 !== null ? `${airQuality.pollutants.pm10} µg/m³` : 'Không có dữ liệu'} (QCVN 05:2023: 100 µg/m³ 24h)`,
-                  `O3 (Ozone): ${airQuality.pollutants.o3 !== null ? `${airQuality.pollutants.o3} µg/m³` : 'Không có dữ liệu'}`,
-                  `NO2: ${airQuality.pollutants.no2 !== null ? `${airQuality.pollutants.no2} µg/m³` : 'Không có dữ liệu'}`,
-                  `SO2: ${airQuality.pollutants.so2 !== null ? `${airQuality.pollutants.so2} µg/m³` : 'Không có dữ liệu'}`,
-                  `CO: ${airQuality.pollutants.co !== null ? `${airQuality.pollutants.co} µg/m³` : 'Không có dữ liệu'}`,
-                  `Phân loại dữ liệu: Dữ liệu mô hình viễn thám khí quyển`,
-                  `Nguồn gốc: ${airQuality.source}`,
-                  `Thời gian: ${airQuality.timestamp}`,
-                ],
-                tips: [
-                  'Quy chuẩn so sánh: QCVN 05:2023/BTNMT của Bộ Tài nguyên và Môi trường.',
-                  'Có thể xem chi tiết từng chỉ số và bảng theo giờ tại thẻ "Thời tiết".',
-                ],
-              })
-            }
-            className="rounded-2xl p-4.5 border transition-all cursor-pointer shadow-xs"
-            style={{
-              backgroundColor: `${airQuality.colorHex}15`,
-              borderColor: `${airQuality.colorHex}40`,
-            }}
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs uppercase tracking-wider font-extrabold text-slate-600 dark:text-slate-300">
-                    AQI Hoa Kỳ
-                  </span>
-                  <span
-                    className="px-2 py-0.5 rounded-full text-xs font-black text-white"
-                    style={{ backgroundColor: airQuality.colorHex }}
-                  >
-                    {airQuality.status}
-                  </span>
-                </div>
-                <div className="flex items-baseline gap-2 mt-1">
-                  <span
-                    className="text-2xl font-black tracking-tight"
-                    style={{ color: airQuality.colorHex }}
-                  >
-                    {airQuality.aqi !== null ? airQuality.aqi : '—'}
-                  </span>
-                  <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                    {airQuality.categoryText}
-                  </span>
-                </div>
-              </div>
-
-              <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-xs"
-                style={{ backgroundColor: `${airQuality.colorHex}25` }}
-              >
-                <Activity className="w-5 h-5" style={{ color: airQuality.colorHex }} />
-              </div>
-            </div>
-
-            {/* Tóm tắt nhanh PM2.5 & PM10 */}
-            <div className="mt-3 pt-2.5 border-t border-slate-200/60 dark:border-slate-800 grid grid-cols-2 gap-2 text-xs">
-              <div className="flex items-center justify-between bg-white/50 dark:bg-slate-800/50 px-2.5 py-1.5 rounded-lg">
-                <span className="text-slate-600 dark:text-slate-400 font-medium">PM2.5:</span>
-                <span className="font-bold text-slate-900 dark:text-slate-100">
-                  {airQuality.pollutants.pm2_5 !== null ? `${airQuality.pollutants.pm2_5} µg/m³` : 'Không có dữ liệu'}
-                </span>
-              </div>
-              <div className="flex items-center justify-between bg-white/50 dark:bg-slate-800/50 px-2.5 py-1.5 rounded-lg">
-                <span className="text-slate-600 dark:text-slate-400 font-medium">PM10:</span>
-                <span className="font-bold text-slate-900 dark:text-slate-100">
-                  {airQuality.pollutants.pm10 !== null ? `${airQuality.pollutants.pm10} µg/m³` : 'Không có dữ liệu'}
-                </span>
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="bg-slate-50 dark:bg-slate-800/40 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 text-center">
-            <span className="text-xs font-semibold text-slate-600 dark:text-slate-400">
-              Chưa có dữ liệu quan trắc cho khu vực này (Hệ thống không tạo số giả khi mất kết nối Open-Meteo)
-            </span>
-          </div>
-        )}
-      </section>
 
       {/* Chỉ số môi trường (Không khí, Nước, Ánh sáng, Địa chất) */}
       <section className="flex flex-col gap-3">
@@ -1016,6 +917,29 @@ export const EnvironmentTab: React.FC<EnvironmentTabProps> = ({
                 </div>
               </div>
 
+              {/* Ghi chú minh bạch về nguồn tham chiếu vùng sinh thái của địa phương */}
+              <div className="p-2.5 rounded-xl bg-sky-50/70 dark:bg-sky-950/30 border border-sky-200/70 dark:border-sky-800/50 text-[11px] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-start sm:items-center gap-2">
+                  <Info className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0 mt-0.5 sm:mt-0" />
+                  <div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-bold text-slate-800 dark:text-slate-200">
+                        Cơ sở tham chiếu theo vùng sinh thái ({data.name}):
+                      </span>
+                      <span className="text-slate-600 dark:text-slate-300 font-medium">
+                        {bioDistrictMeta.dataSource}
+                      </span>
+                    </div>
+                    <p className="text-[10.5px] text-slate-500 dark:text-slate-400 mt-0.5">
+                      {bioDistrictMeta.dataNotice} • Thông tin nguồn được suy ra theo khu vực sinh thái tổng quát, chưa kiểm chứng thực địa riêng từng loài.
+                    </p>
+                  </div>
+                </div>
+                <span className="text-[10px] font-semibold text-sky-800 dark:text-sky-300 shrink-0 bg-sky-100/80 dark:bg-sky-900/60 px-2 py-1 rounded-lg border border-sky-200/80 dark:border-sky-800/80">
+                  {bioDistrictMeta.isFieldSurveyDistrict ? '📍 Vùng có điểm khảo sát thực địa' : '📊 Tham chiếu sinh thái vùng'}
+                </span>
+              </div>
+
               {/* Lọc phân hệ */}
               <div className="flex items-center gap-1 overflow-x-auto pb-0.5 custom-scrollbar">
                 {[
@@ -1062,6 +986,8 @@ export const EnvironmentTab: React.FC<EnvironmentTabProps> = ({
                         details: [
                           `Tên khoa học (danh pháp quốc tế): ${sp.scientificName}`,
                           `Sinh cảnh phân bố: ${sp.habitat}`,
+                          `Cơ sở tham chiếu theo vùng sinh thái (chưa kiểm chứng riêng từng loài): ${sp.source || bioDistrictMeta.dataSource}`,
+                          `Phương thức đối chiếu thông tin: ${sp.verificationMethod || bioDistrictMeta.surveyMethod}`,
                           `Quy chế kinh doanh & Pháp lý: ${
                             sp.commercialStatus === 'permitted_free'
                               ? '🟢 ĐƯỢC PHÉP KINH DOANH & NUÔI TRỒNG TỰ DO (Đặc sản OCOP, thủy hải sản, hoa kiểng, nông lâm nghiệp bền vững)'

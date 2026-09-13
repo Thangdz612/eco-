@@ -502,10 +502,10 @@ export const BiodiversityTrendChart: React.FC<BiodiversityTrendChartProps> = ({
           <div>
             <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
               <Sparkles className="w-4 h-4 text-emerald-600" />
-              Danh Lục Loài Sinh Vật Tiêu Biểu Có Nguồn Kiểm Kê Xác Thực
+              Danh Lục Loài Sinh Vật Chỉ Thị Biến Động Sinh Thái
             </h4>
             <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-              Mỗi bản ghi hiển thị rõ: Tên loài & tên khoa học → Vị trí ghi nhận → Thời gian → Nguồn dữ liệu & phương pháp
+              Theo dõi biến động số lượng các loài chỉ thị chủ chốt giai đoạn 2023 - 2026 kèm cơ sở tham chiếu vùng
             </p>
           </div>
 
@@ -546,6 +546,14 @@ export const BiodiversityTrendChart: React.FC<BiodiversityTrendChartProps> = ({
           ))}
         </div>
 
+        {/* Ghi chú minh bạch phương pháp & tham chiếu vùng */}
+        <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-200/80 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-400 flex items-start gap-2">
+          <Info className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0 mt-0.5" />
+          <span>
+            <strong>Ghi chú cơ sở tham chiếu:</strong> Thông tin nguồn tài liệu và chuỗi thời gian được tổng hợp theo báo cáo chuyên đề và phân vùng sinh thái của các đơn vị quản lý bảo tồn, không phải phiếu điều tra độc lập riêng cho từng cá thể.
+          </span>
+        </div>
+
         {/* Danh sách các thẻ loài chi tiết */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 max-h-[500px] overflow-y-auto pr-1 custom-scrollbar">
           {filteredSpecies.map((sp) => {
@@ -558,16 +566,16 @@ export const BiodiversityTrendChart: React.FC<BiodiversityTrendChartProps> = ({
                   onOpenDetail?.({
                     title: `${sp.name} (${sp.scientificName})`,
                     category: `${sp.recordTypeLabel} • ${sp.trendLabel}`,
-                    description: `Vị trí: ${sp.recordedLocation} • Thời gian: ${sp.recordedYear}`,
+                    description: `Khu vực: ${sp.recordedLocation} • Thời gian: ${sp.recordedYear}`,
                     details: [
                       `Tên khoa học: ${sp.scientificName}`,
                       `Phân hệ sinh thái: ${sp.realmLabel}`,
                       `Phân loại dữ liệu: ${sp.recordTypeLabel}`,
                       `Tình trạng IUCN / Sách Đỏ: ${sp.iucnStatus}`,
-                      `Vị trí ghi nhận thực địa: ${sp.recordedLocation}`,
-                      `Thời gian quan trắc: ${sp.recordedYear}`,
-                      `Nguồn dữ liệu kiểm chứng: ${sp.source}`,
-                      `Phương pháp điều tra: ${sp.verificationMethod}`,
+                      `Khu vực / Sinh cảnh ghi nhận: ${sp.recordedLocation}`,
+                      `Thời gian tham chiếu quan trắc: ${sp.recordedYear}`,
+                      `Cơ sở tham chiếu theo vùng sinh thái: ${sp.source}`,
+                      `Phương thức đối chiếu thông tin: ${sp.verificationMethod}`,
                       `Ghi nhận 2023: ${sp.val2023}`,
                       `Ghi nhận 2026: ${sp.val2026}`,
                       `Đánh giá tổng quan: ${sp.statusText}`,
@@ -622,10 +630,10 @@ export const BiodiversityTrendChart: React.FC<BiodiversityTrendChartProps> = ({
                     <span className="text-slate-400 font-mono">{sp.recordedYear}</span>
                   </div>
                   <div className="text-slate-600 dark:text-slate-300 text-[10px] line-clamp-1">
-                    <strong>Nguồn: </strong>{sp.source}
+                    <strong>Cơ sở tham chiếu: </strong>{sp.source}
                   </div>
                   <div className="text-slate-500 dark:text-slate-400 text-[10px] line-clamp-1">
-                    <strong>Vị trí: </strong>{sp.recordedLocation}
+                    <strong>Khu vực: </strong>{sp.recordedLocation}
                   </div>
                 </div>
 
