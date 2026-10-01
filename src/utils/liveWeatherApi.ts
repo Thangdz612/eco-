@@ -16,6 +16,7 @@ import { DISTRICTS_DATA } from '../data/mockData';
 import { requestManager, getApiBaseUrl } from './requestManager';
 import { cacheManager, CACHE_TTL } from '../storage/cacheManager';
 import { validateCoordinates, validateOpenMeteoWeatherResponse, validateOpenMeteoAirQualityResponse } from './validator';
+import { DEFAULT_LOCATION, calculateDistanceKm } from './geolocation';
 import { logger } from './logger';
 
 export interface VietnamAtmosphericStation {
@@ -245,32 +246,18 @@ export function getBeaufortScale(windKmh: number): string {
 }
 
 /**
- * Tự động tìm điểm tham chiếu mô hình vi khí hậu gần nhất cho địa bàn
+ * Tự động tìm điểm tham chiếu mô hình vi khí hậu gần nhất cho địa bàn bằng khoảng cách Haversine
  */
 export function getAtmosphericStationForDistrict(
   districtId: string,
-  districtName: string
+  _districtName?: string
 ): VietnamAtmosphericStation {
-  const dId = districtId.toLowerCase();
-  const dName = districtName.toLowerCase();
-
-  if (dId.includes('tay-nam') || dName.includes('tây nam') || dId.includes('ben-cat') || dName.includes('bến cát') || dName.includes('bình dương')) {
-    return VIETNAM_ATMOSPHERIC_STATIONS[0];
-  }
-  if (dId.includes('con-dao') || dName.includes('côn đảo')) {
-    return VIETNAM_ATMOSPHERIC_STATIONS[3];
-  }
-  if (dId.includes('can-gio') || dName.includes('cần giờ')) {
-    return VIETNAM_ATMOSPHERIC_STATIONS[2];
-  }
-  if (dId.includes('cu-chi') || dName.includes('củ chi') || dName.includes('hóc môn')) {
-    return VIETNAM_ATMOSPHERIC_STATIONS[4];
-  }
-  if (dId.includes('nha-be') || dName.includes('nhà bè') || dName.includes('quận 7') || dName.includes('bình chánh')) {
-    return VIETNAM_ATMOSPHERIC_STATIONS[5];
+  const district = DISTRICTS_DATA[districtId] || Object.values(DISTRICTS_DATA).find((d) => d.id === districtId);
+  if (district && typeof district.lat === 'number' && typeof district.lng === 'number') {
+    return getNearestAtmosphericStation(district.lat, district.lng);
   }
 
-  return VIETNAM_ATMOSPHERIC_STATIONS[1];
+  return getNearestAtmosphericStation(DEFAULT_LOCATION.lat, DEFAULT_LOCATION.lng);
 }
 
 export function getAtmosphericStationByCode(code: string): VietnamAtmosphericStation {
@@ -282,9 +269,7 @@ export function getNearestAtmosphericStation(lat: number, lng: number): VietnamA
   let minDistance = Infinity;
 
   for (const station of VIETNAM_ATMOSPHERIC_STATIONS) {
-    const dLat = station.lat - lat;
-    const dLng = station.lng - lng;
-    const dist = Math.hypot(dLat, dLng);
+    const dist = calculateDistanceKm(lat, lng, station.lat, station.lng);
     if (dist < minDistance) {
       minDistance = dist;
       nearest = station;
@@ -460,8 +445,8 @@ export async function fetchDirectAirQualityData(
   lng: number
 ): Promise<AirQualityData> {
   const coordValid = validateCoordinates(lat, lng);
-  const safeLat = coordValid.isValid ? coordValid.lat : 10.7769;
-  const safeLng = coordValid.isValid ? coordValid.lng : 106.7009;
+  const safeLat = coordValid.isValid ? coordValid.lat : DEFAULT_LOCATION.lat;
+  const safeLng = coordValid.isValid ? coordValid.lng : DEFAULT_LOCATION.lng;
 
   const directUrl = buildOpenMeteoAirQualityUrl(safeLat, safeLng);
   const baseUrl = getApiBaseUrl();
@@ -644,8 +629,8 @@ export function getReliableAirQuality(
   }
 
   // 2. Không có cache: Trả về trạng thái chưa có dữ liệu, KHÔNG BỊA SỐ GIẢ!
-  const safeLat = lat || 10.7769;
-  const safeLng = lng || 106.7009;
+  const safeLat = lat || DEFAULT_LOCATION.lat;
+  const safeLng = lng || DEFAULT_LOCATION.lng;
   return {
     aqi: null,
     europeanAqi: null,

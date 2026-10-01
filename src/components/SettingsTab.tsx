@@ -28,7 +28,7 @@ import {
   Zap,
 } from 'lucide-react';
 import { UserLocation, ThemeMode } from '../types';
-import { isRunningInIframe } from '../utils/geolocation';
+import { isRunningInIframe, requestGeolocationPermission } from '../utils/geolocation';
 import {
   WeatherNotificationItem,
   WeatherStorageConfig,
@@ -219,12 +219,12 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
 
   const handleRequestGeo = async () => {
     setStatusFeedback(null);
-    if (onRefreshLocation) {
+    const res = await requestGeolocationPermission();
+    setStatusFeedback(res.message);
+    if (res.granted && onRefreshLocation) {
       onRefreshLocation();
     }
-    if (isRunningInIframe()) {
-      setStatusFeedback('Nếu trình duyệt chặn yêu cầu GPS trong khung xem trước, vui lòng nhấn "Mở tab mới" bên dưới.');
-    }
+    setTimeout(() => setStatusFeedback(null), 4000);
   };
 
   const handleRequestNotification = async () => {
@@ -670,13 +670,17 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             <div>
               <span className="text-[#64748B] dark:text-slate-400 block text-[10px]">Trạm gần nhất</span>
               <span className="font-bold text-[#0F172A] dark:text-white truncate block">
-                {userLocation.nearestDistrictName}
+                {userLocation.nearestDistrictName || (userLocation.status === 'out_of_region' ? 'Ngoài khu vực phục vụ' : 'Chưa xác định')}
               </span>
             </div>
             <div>
               <span className="text-[#64748B] dark:text-slate-400 block text-[10px]">Khoảng cách</span>
               <span className="font-bold text-emerald-600 dark:text-emerald-400">
-                {userLocation.distanceKm === 0 ? 'Tại điểm trạm' : `Cách ~${userLocation.distanceKm} km`}
+                {userLocation.status === 'out_of_region'
+                  ? `Cách trạm gần nhất ~${userLocation.distanceKm} km`
+                  : userLocation.distanceKm === 0
+                  ? 'Tại điểm trạm'
+                  : `Cách ~${userLocation.distanceKm} km`}
               </span>
             </div>
           </div>

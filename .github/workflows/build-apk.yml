@@ -28,7 +28,7 @@ jobs:
 
       - name: Install Capacitor & Plugins
         run: |
-          npm install @capacitor/core @capacitor/cli @capacitor/android @capacitor/geolocation @capacitor/local-notifications
+          npm install @capacitor/cli @capacitor/android @capacitor/local-notifications
 
       - name: Initialize Capacitor
         run: |

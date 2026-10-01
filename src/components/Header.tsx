@@ -43,7 +43,7 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="text-[12px] sm:text-[13px] text-[#64748B] dark:text-slate-400 font-medium block leading-tight truncate">
               {subtitle}
             </span>
-            {userLocation && (
+            {userLocation?.isRealGps && (
               <span className="inline-flex items-center gap-1 text-[9.5px] sm:text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-1.5 py-0.2 rounded-full shrink-0">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 GPS

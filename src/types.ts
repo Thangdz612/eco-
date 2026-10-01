@@ -46,13 +46,15 @@ export interface UserLocation {
   lng: number;
   altitude?: number | null;
   accuracy?: number;
-  nearestDistrictId: string;
-  nearestDistrictName: string;
+  nearestDistrictId?: string;
+  nearestDistrictName?: string;
   distanceKm: number;
   timestamp: string;
   isRealGps: boolean;
-  status?: 'success' | 'denied' | 'timeout' | 'unavailable' | 'unsupported';
+  status?: 'success' | 'denied' | 'timeout' | 'unavailable' | 'unsupported' | 'out_of_region';
   errorMessage?: string;
+  isStale?: boolean;
+  source?: 'gps' | 'network' | 'default';
 }
 
 export interface DistrictData {

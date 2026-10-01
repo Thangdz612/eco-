@@ -13,7 +13,7 @@ import { DistrictModal } from './components/DistrictModal';
 import { NotificationsModal } from './components/NotificationsModal';
 import { LocationModal } from './components/LocationModal';
 import { SettingsModal } from './components/SettingsModal';
-import { getCurrentUserLocation, isRunningInIframe } from './utils/geolocation';
+import { getCurrentUserLocation, isRunningInIframe, ACCURACY_POOR_M } from './utils/geolocation';
 import { 
   getSystemTheme, 
   getStoredThemeMode, 
@@ -129,12 +129,27 @@ export default function App() {
     try {
       const loc = await getCurrentUserLocation();
       setUserLocation(loc);
-      if (loc.isRealGps) {
-        if (autoSwitchDistrict && loc.nearestDistrictId) {
-          setSelectedDistrictId(loc.nearestDistrictId);
+      if (loc.status === 'success' && loc.nearestDistrictId) {
+        const isVeryInaccurate = typeof loc.accuracy === 'number' && loc.accuracy > ACCURACY_POOR_M;
+        const accuracyText = loc.accuracy !== undefined ? `sai số ±${loc.accuracy}m` : 'không rõ sai số';
+
+        if (isVeryInaccurate) {
+          // > 1000m: Không tự động chuyển phường, chỉ gợi ý để người dùng xác nhận
+          setLocationBannerMessage(
+            `📡 Vị trí rất không chính xác (${accuracyText}, định vị theo mạng). Gợi ý: ${loc.nearestDistrictName}. Bấm xác nhận để chuyển.`
+          );
+        } else {
+          if (autoSwitchDistrict) {
+            setSelectedDistrictId(loc.nearestDistrictId);
+          }
+          setLocationBannerMessage(
+            `🎯 Đã định vị: ${loc.nearestDistrictName} (cách ~${loc.distanceKm} km, ${accuracyText})`
+          );
         }
+      } else if (loc.status === 'out_of_region') {
+        // Ngoài khu vực phục vụ: giữ nguyên phường/xã đang chọn, chỉ hiển thị banner cảnh báo
         setLocationBannerMessage(
-          `🎯 Đã định vị: ${loc.nearestDistrictName} (cách ~${loc.distanceKm} km, sai số ±${loc.accuracy}m)`
+          `⚠️ ${loc.errorMessage || 'Vị trí của bạn nằm ngoài khu vực phục vụ của ứng dụng (TP.HCM). Vui lòng chọn thủ công phường/xã.'}`
         );
       } else {
         setLocationBannerMessage(
@@ -216,6 +231,18 @@ export default function App() {
               </span>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
+              {locationBannerMessage.startsWith('📡') && userLocation?.nearestDistrictId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedDistrictId(userLocation.nearestDistrictId!);
+                    setLocationBannerMessage(null);
+                  }}
+                  className="text-[10.5px] px-2 py-0.5 rounded-md bg-blue-600 text-white font-semibold hover:bg-blue-700 cursor-pointer transition-colors"
+                >
+                  Xác nhận
+                </button>
+              )}
               {locationBannerMessage.startsWith('⚠️') && (
                 <>
                   {isRunningInIframe() && (

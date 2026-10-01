@@ -33,7 +33,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { UserLocation, ThemeMode } from '../types';
-import { isRunningInIframe } from '../utils/geolocation';
+import { isRunningInIframe, requestGeolocationPermission } from '../utils/geolocation';
 import {
   WeatherNotificationItem,
   WeatherStorageConfig,
@@ -222,29 +222,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setIsRequestingPermission('geo');
     setStatusFeedback(null);
     try {
-      if (!navigator.geolocation) {
-        setStatusFeedback('Trình duyệt không hỗ trợ định vị GPS');
-        return;
+      const res = await requestGeolocationPermission();
+      setGeoStatus(res.status === 'granted' ? 'granted' : res.status === 'denied' ? 'denied' : 'prompt');
+      setStatusFeedback(res.message);
+      if (res.granted && onRefreshLocation) {
+        onRefreshLocation();
       }
-
-      navigator.geolocation.getCurrentPosition(
-        () => {
-          setGeoStatus('granted');
-          setStatusFeedback('Đã cấp quyền GPS thành công!');
-          if (onRefreshLocation) onRefreshLocation();
-          setTimeout(() => setStatusFeedback(null), 3500);
-        },
-        (error) => {
-          if (error.code === error.PERMISSION_DENIED) {
-            setGeoStatus('denied');
-            setStatusFeedback('Quyền định vị đã bị từ chối trong cài đặt trình duyệt.');
-          } else {
-            setStatusFeedback(`Lỗi định vị: ${error.message}`);
-          }
-          setTimeout(() => setStatusFeedback(null), 4000);
-        },
-        { enableHighAccuracy: true, timeout: 8000 }
-      );
+      setTimeout(() => setStatusFeedback(null), 4000);
     } finally {
       setIsRequestingPermission(null);
     }
@@ -760,7 +744,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                           <span>
                             Tọa độ: {userLocation.lat.toFixed(4)}°N, {userLocation.lng.toFixed(4)}°E (Độ cao: {userLocation.altitude || 12}m)
                           </span>
-                          <span className="text-emerald-700 dark:text-emerald-400 font-bold">{userLocation.nearestDistrictName}</span>
+                          <span className="text-emerald-700 dark:text-emerald-400 font-bold">
+                            {userLocation.nearestDistrictName || (userLocation.status === 'out_of_region' ? 'Ngoài khu vực phục vụ' : 'Chưa xác định')}
+                          </span>
                         </div>
                       )}
 

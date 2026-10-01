@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
+import { DEFAULT_LOCATION } from './src/utils/geolocation';
 
 dotenv.config();
 
@@ -37,8 +38,8 @@ async function startServer() {
   // Direct meteorological query endpoint from Open-Meteo & ECMWF
   app.get('/api/weather/live', async (req, res) => {
     try {
-      const lat = parseFloat(req.query.lat as string) || 11.1352;
-      const lng = parseFloat(req.query.lng as string) || 106.5241;
+      const lat = parseFloat(req.query.lat as string) || DEFAULT_LOCATION.lat;
+      const lng = parseFloat(req.query.lng as string) || DEFAULT_LOCATION.lng;
 
       const params = new URLSearchParams({
         latitude: lat.toFixed(4),
@@ -75,13 +76,8 @@ async function startServer() {
   // Direct atmospheric & air quality query endpoint from Open-Meteo Air Quality & Copernicus CAMS
   app.get('/api/air-quality/live', async (req, res) => {
     try {
-      const lat = parseFloat(req.query.lat as string);
-      const lng = parseFloat(req.query.lng as string);
-
-      if (isNaN(lat) || isNaN(lng)) {
-        res.status(400).json({ error: 'Valid latitude and longitude required' });
-        return;
-      }
+      const lat = parseFloat(req.query.lat as string) || DEFAULT_LOCATION.lat;
+      const lng = parseFloat(req.query.lng as string) || DEFAULT_LOCATION.lng;
 
       const params = new URLSearchParams({
         latitude: lat.toFixed(4),

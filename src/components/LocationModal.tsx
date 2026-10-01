@@ -8,7 +8,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { UserLocation, DistrictData } from '../types';
-import { isRunningInIframe } from '../utils/geolocation';
+import { isRunningInIframe, ACCURACY_GOOD_M, ACCURACY_POOR_M } from '../utils/geolocation';
 
 interface LocationModalProps {
   isOpen: boolean;
@@ -35,7 +35,73 @@ export const LocationModal: React.FC<LocationModalProps> = ({
 
   const isRealGps = userLocation?.isRealGps ?? false;
   const status = userLocation?.status;
-  const inIframe = isRunningInIframe();
+
+  const getStatusBadge = () => {
+    if (status === 'out_of_region') {
+      return {
+        label: 'NGOÀI KHU VỰC PHỤC VỤ',
+        badgeClass: 'text-rose-700 dark:text-rose-400',
+        dotClass: 'bg-rose-500',
+        cardClass: 'bg-gradient-to-br from-rose-50 to-orange-50/70 dark:from-rose-950/30 dark:to-orange-950/20 border-rose-200 dark:border-rose-800/60',
+      };
+    }
+    if (status === 'success') {
+      if (typeof userLocation?.accuracy === 'number') {
+        if (userLocation.accuracy <= ACCURACY_GOOD_M) {
+          return {
+            label: 'GPS CHÍNH XÁC',
+            badgeClass: 'text-emerald-700 dark:text-emerald-400',
+            dotClass: 'bg-emerald-500 animate-ping',
+            cardClass: 'bg-gradient-to-br from-[#EBF5FF] to-[#EFF6FF] dark:from-blue-950/40 dark:to-indigo-950/40 border-blue-200 dark:border-blue-800/80',
+          };
+        }
+        if (userLocation.accuracy <= ACCURACY_POOR_M) {
+          return {
+            label: 'VỊ TRÍ GẦN ĐÚNG',
+            badgeClass: 'text-blue-700 dark:text-blue-400',
+            dotClass: 'bg-blue-500',
+            cardClass: 'bg-gradient-to-br from-[#EBF5FF] to-[#EFF6FF] dark:from-blue-950/40 dark:to-indigo-950/40 border-blue-200 dark:border-blue-800/80',
+          };
+        }
+        return {
+          label: 'VỊ TRÍ RẤT KHÔNG CHÍNH XÁC (định vị theo mạng)',
+          badgeClass: 'text-amber-800 dark:text-amber-400',
+          dotClass: 'bg-amber-500',
+          cardClass: 'bg-gradient-to-br from-amber-50 to-orange-50/70 dark:from-amber-950/30 dark:to-orange-950/20 border-amber-200 dark:border-amber-800/60',
+        };
+      }
+      return {
+        label: 'VỊ TRÍ GẦN ĐÚNG',
+        badgeClass: 'text-blue-700 dark:text-blue-400',
+        dotClass: 'bg-blue-500',
+        cardClass: 'bg-gradient-to-br from-[#EBF5FF] to-[#EFF6FF] dark:from-blue-950/40 dark:to-indigo-950/40 border-blue-200 dark:border-blue-800/80',
+      };
+    }
+    if (status === 'denied') {
+      return {
+        label: 'CHƯA CẤP ĐƯỢC QUYỀN VỊ TRÍ',
+        badgeClass: 'text-amber-800 dark:text-amber-400',
+        dotClass: 'bg-amber-500',
+        cardClass: 'bg-gradient-to-br from-amber-50 to-orange-50/70 dark:from-amber-950/30 dark:to-orange-950/20 border-amber-200 dark:border-amber-800/60',
+      };
+    }
+    if (status === 'timeout') {
+      return {
+        label: 'HẾT THỜI GIAN CHỜ TÍN HIỆU GPS',
+        badgeClass: 'text-amber-800 dark:text-amber-400',
+        dotClass: 'bg-amber-500',
+        cardClass: 'bg-gradient-to-br from-amber-50 to-orange-50/70 dark:from-amber-950/30 dark:to-orange-950/20 border-amber-200 dark:border-amber-800/60',
+      };
+    }
+    return {
+      label: 'ĐANG TÌM TÍN HIỆU VỊ TRÍ',
+      badgeClass: 'text-amber-800 dark:text-amber-400',
+      dotClass: 'bg-amber-500',
+      cardClass: 'bg-gradient-to-br from-amber-50 to-orange-50/70 dark:from-amber-950/30 dark:to-orange-950/20 border-amber-200 dark:border-amber-800/60',
+    };
+  };
+
+  const statusBadge = getStatusBadge();
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-xs animate-in fade-in duration-200 p-0 sm:p-4">
@@ -71,35 +137,19 @@ export const LocationModal: React.FC<LocationModalProps> = ({
         {/* Content */}
         <div className="p-6 overflow-y-auto space-y-4 text-sm text-[#334155] dark:text-slate-300">
           {/* Main GPS Status Card */}
-          <div
-            className={`p-5 rounded-2xl border relative overflow-hidden transition-all ${
-              isRealGps
-                ? 'bg-gradient-to-br from-[#EBF5FF] to-[#EFF6FF] dark:from-blue-950/40 dark:to-indigo-950/40 border-blue-200 dark:border-blue-800/80'
-                : 'bg-gradient-to-br from-amber-50 to-orange-50/70 dark:from-amber-950/30 dark:to-orange-950/20 border-amber-200 dark:border-amber-800/60'
-            }`}
-          >
+          <div className={`p-5 rounded-2xl border relative overflow-hidden transition-all ${statusBadge.cardClass}`}>
             <div className="flex items-start justify-between">
               <div>
-                <div
-                  className={`flex items-center gap-1.5 text-xs font-bold ${
-                    isRealGps ? 'text-[#1E40AF] dark:text-blue-400' : 'text-amber-800 dark:text-amber-400'
-                  }`}
-                >
-                  <span
-                    className={`w-2 h-2 rounded-full ${
-                      isRealGps ? 'bg-emerald-500 animate-ping' : 'bg-amber-500'
-                    }`}
-                  />
-                  <span>
-                    {isRealGps
-                      ? 'GPS THIẾT BỊ HOẠT ĐỘNG CHÍNH XÁC'
-                      : status === 'denied'
-                      ? 'CHƯA CẤP ĐƯỢC QUYỀN VỊ TRÍ'
-                      : 'ĐANG TÌM TÍN HIỆU VỊ TRÍ'}
-                  </span>
+                <div className={`flex items-center gap-1.5 text-xs font-bold ${statusBadge.badgeClass}`}>
+                  <span className={`w-2 h-2 rounded-full ${statusBadge.dotClass}`} />
+                  <span>{statusBadge.label}</span>
                 </div>
                 <h4 className="text-[17px] font-black text-[#0F172A] dark:text-slate-100 mt-1">
-                  {userLocation ? userLocation.nearestDistrictName : 'Đang tìm kiếm...'}
+                  {status === 'success' && userLocation?.nearestDistrictName 
+                    ? userLocation.nearestDistrictName 
+                    : status === 'out_of_region' 
+                    ? 'Ngoài khu vực phục vụ (TP.HCM)' 
+                    : 'Chưa xác định vị trí'}
                 </h4>
               </div>
 
@@ -114,10 +164,20 @@ export const LocationModal: React.FC<LocationModalProps> = ({
               </button>
             </div>
 
-            {/* Error Message if GPS wasn't obtained */}
+            {/* Error / Warning Message if not success or out of region */}
             {!isRealGps && userLocation?.errorMessage && (
-              <div className="mt-3 p-2.5 rounded-xl bg-amber-100/90 dark:bg-amber-900/40 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-2">
-                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div
+                className={`mt-3 p-2.5 rounded-xl text-xs flex items-start gap-2 ${
+                  status === 'out_of_region'
+                    ? 'bg-rose-100/90 dark:bg-rose-900/40 text-rose-900 dark:text-rose-200'
+                    : 'bg-amber-100/90 dark:bg-amber-900/40 text-amber-900 dark:text-amber-200'
+                }`}
+              >
+                <AlertTriangle
+                  className={`w-4 h-4 shrink-0 mt-0.5 ${
+                    status === 'out_of_region' ? 'text-rose-600 dark:text-rose-400' : 'text-amber-600'
+                  }`}
+                />
                 <div className="leading-relaxed font-medium">{userLocation.errorMessage}</div>
               </div>
             )}
@@ -139,26 +199,51 @@ export const LocationModal: React.FC<LocationModalProps> = ({
                 </div>
                 <div>
                   <span className="text-[#64748B] dark:text-slate-400 block text-[11px]">Trạng thái dữ liệu</span>
-                  <span className={`font-bold text-[12px] ${isRealGps ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}`}>
-                    {isRealGps ? `GPS thực tế (±${userLocation.accuracy}m)` : 'Tọa độ mặc định'}
+                  <span
+                    className={`font-bold text-[12px] ${
+                      status === 'out_of_region'
+                        ? 'text-rose-600 dark:text-rose-400'
+                        : isRealGps
+                        ? 'text-emerald-700 dark:text-emerald-400'
+                        : 'text-amber-700 dark:text-amber-400'
+                    }`}
+                  >
+                    {status === 'out_of_region'
+                      ? 'Ngoài vùng phục vụ'
+                      : isRealGps
+                      ? userLocation.accuracy !== undefined
+                        ? `GPS thực tế (±${userLocation.accuracy}m)`
+                        : 'GPS thực tế (không rõ sai số)'
+                      : 'Tọa độ mặc định'}
                   </span>
+                  {userLocation.isStale && (
+                    <span className="block text-[10.5px] text-amber-600 dark:text-amber-400 font-medium">
+                      (Dữ liệu lưu tạm &gt;60s)
+                    </span>
+                  )}
                 </div>
                 <div>
                   <span className="text-[#64748B] dark:text-slate-400 block text-[11px]">Khoảng cách trạm</span>
                   <span className="font-bold text-slate-800 dark:text-slate-200 text-[12px]">
-                    {userLocation.distanceKm === 0 ? 'Tại trạm' : `Cách ~${userLocation.distanceKm} km`}
+                    {status === 'success'
+                      ? userLocation.distanceKm === 0
+                        ? 'Tại trạm'
+                        : `Cách ~${userLocation.distanceKm} km`
+                      : status === 'out_of_region'
+                      ? `Cách trạm gần nhất ~${userLocation.distanceKm} km`
+                      : 'Chưa xác định'}
                   </span>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Action button if GPS is working */}
-          {isRealGps && userLocation && (
+          {/* Action button: only shown when GPS is success and valid district exists */}
+          {status === 'success' && userLocation?.nearestDistrictId && (
             <button
               type="button"
               onClick={() => {
-                onSelectDistrict(userLocation.nearestDistrictId);
+                onSelectDistrict(userLocation.nearestDistrictId!);
                 onClose();
               }}
               className="w-full py-3 px-4 rounded-xl bg-[#0D47A1] dark:bg-blue-600 hover:bg-[#1565C0] dark:hover:bg-blue-500 active:scale-98 text-white font-bold text-sm shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer"

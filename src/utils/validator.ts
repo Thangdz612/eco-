@@ -15,6 +15,13 @@ export interface ValidatedCoordinate {
  * Kiểm tra tọa độ địa lý WGS-84
  */
 export function validateCoordinates(lat: any, lng: any): ValidatedCoordinate {
+  if (lat === null || lat === undefined || (typeof lat === 'string' && lat.trim() === '')) {
+    return { isValid: false, lat: 0, lng: 0, reason: 'Vĩ độ không hợp lệ' };
+  }
+  if (lng === null || lng === undefined || (typeof lng === 'string' && lng.trim() === '')) {
+    return { isValid: false, lat: 0, lng: 0, reason: 'Kinh độ không hợp lệ' };
+  }
+
   const numLat = Number(lat);
   const numLng = Number(lng);
 
@@ -23,6 +30,9 @@ export function validateCoordinates(lat: any, lng: any): ValidatedCoordinate {
   }
   if (typeof numLng !== 'number' || isNaN(numLng) || !isFinite(numLng)) {
     return { isValid: false, lat: 0, lng: 0, reason: 'Kinh độ không hợp lệ' };
+  }
+  if (numLat === 0 && numLng === 0) {
+    return { isValid: false, lat: 0, lng: 0, reason: 'Tọa độ (0,0) không hợp lệ' };
   }
   if (numLat < -90 || numLat > 90) {
     return { isValid: false, lat: numLat, lng: numLng, reason: 'Vĩ độ vượt ngưỡng [-90, 90]' };

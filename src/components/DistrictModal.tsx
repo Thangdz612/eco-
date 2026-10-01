@@ -130,7 +130,7 @@ export const DistrictModal: React.FC<DistrictModalProps> = ({
                 <div className="text-left">
                   <div className="text-[12.5px] font-bold">Định vị GPS vị trí của tôi</div>
                   <div className="text-[11px] text-blue-100 dark:text-blue-200 line-clamp-1">
-                    {userLocation?.isRealGps
+                    {userLocation?.isRealGps && userLocation?.nearestDistrictName
                       ? `Trạm gần nhất: ${userLocation.nearestDistrictName}`
                       : 'Tự động xác định xã/phường gần vị trí thực tế của bạn'}
                   </div>
