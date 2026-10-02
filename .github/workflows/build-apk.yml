@@ -56,6 +56,8 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: ''
 
       - name: Make gradlew executable
         working-directory: android
