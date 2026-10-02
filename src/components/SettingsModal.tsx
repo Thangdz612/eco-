@@ -606,7 +606,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     type="checkbox"
                     checked={preferences.gpsHighAccuracy}
                     onChange={(e) => savePreferences({ gpsHighAccuracy: e.target.checked })}
-                    className="w-4 h-4 text-[#0D47A1] rounded cursor-pointer accent-[#0D47A1]"
+                    className="w-4 h-4 text-[#0D47A1] dark:text-blue-400 rounded cursor-pointer accent-[#0D47A1]"
                   />
                 </div>
 
@@ -619,7 +619,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     type="checkbox"
                     checked={preferences.offlineAutoSync}
                     onChange={(e) => savePreferences({ offlineAutoSync: e.target.checked })}
-                    className="w-4 h-4 text-[#0D47A1] rounded cursor-pointer accent-[#0D47A1]"
+                    className="w-4 h-4 text-[#0D47A1] dark:text-blue-400 rounded cursor-pointer accent-[#0D47A1]"
                   />
                 </div>
               </div>
@@ -653,7 +653,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     type="checkbox"
                     checked={weatherConfig.autoSyncWhenOnline}
                     onChange={(e) => handleToggleAutoSync(e.target.checked)}
-                    className="w-4 h-4 text-[#0D47A1] rounded cursor-pointer accent-[#0D47A1]"
+                    className="w-4 h-4 text-[#0D47A1] dark:text-blue-400 rounded cursor-pointer accent-[#0D47A1]"
                   />
                 </div>
 
@@ -991,7 +991,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     id="toggle-weather-autosync"
                     checked={weatherConfig.autoSyncWhenOnline}
                     onChange={(e) => handleToggleAutoSync(e.target.checked)}
-                    className="w-4 h-4 text-[#0D47A1] rounded cursor-pointer accent-[#0D47A1]"
+                    className="w-4 h-4 text-[#0D47A1] dark:text-blue-400 rounded cursor-pointer accent-[#0D47A1]"
                   />
                 </div>
 

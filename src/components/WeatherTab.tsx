@@ -19,7 +19,12 @@ import {
 } from 'lucide-react';
 import { DistrictData, ModalContent, UserLocation, AirQualityData } from '../types';
 import { WeatherCollectedRangeSection } from './WeatherCollectedRangeSection';
-import { getCachedAirQuality, syncCollectedWeatherOnline } from '../utils/collectedWeatherStorage';
+import {
+  getCachedAirQuality,
+  syncCollectedWeatherOnline,
+  getCachedCurrentLiveWeather,
+  CurrentLiveWeather,
+} from '../utils/collectedWeatherStorage';
 import { getReliableAirQuality } from '../utils/liveWeatherApi';
 
 interface WeatherTabProps {
@@ -38,22 +43,29 @@ export const WeatherTab: React.FC<WeatherTabProps> = ({
   const [airQuality, setAirQuality] = useState<AirQualityData>(() => {
     return data.airQuality || getReliableAirQuality(data.id, data.lat, data.lng, data.name);
   });
+  const [currentWeather, setCurrentWeather] = useState<CurrentLiveWeather>(() => {
+    return getCachedCurrentLiveWeather(data.id, data.name);
+  });
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
   useEffect(() => {
     const aq = data.airQuality || getReliableAirQuality(data.id, data.lat, data.lng, data.name);
     setAirQuality(aq);
+    setCurrentWeather(getCachedCurrentLiveWeather(data.id, data.name));
   }, [data.id, data.airQuality, data.lat, data.lng, data.name]);
 
   useEffect(() => {
     const handleSyncEvent = (e: any) => {
-      if (e.detail?.districtId === data.id && e.detail?.airQuality) {
-        setAirQuality(e.detail.airQuality);
+      if (e.detail?.districtId === data.id) {
+        if (e.detail?.airQuality) {
+          setAirQuality(e.detail.airQuality);
+        }
+        setCurrentWeather(getCachedCurrentLiveWeather(data.id, data.name));
       }
     };
     window.addEventListener('eco-collected-weather-synced', handleSyncEvent);
     return () => window.removeEventListener('eco-collected-weather-synced', handleSyncEvent);
-  }, [data.id]);
+  }, [data.id, data.name]);
 
   const handleManualRefresh = async () => {
     setIsRefreshing(true);
@@ -62,6 +74,7 @@ export const WeatherTab: React.FC<WeatherTabProps> = ({
       if (res.airQuality) {
         setAirQuality(res.airQuality);
       }
+      setCurrentWeather(getCachedCurrentLiveWeather(data.id, data.name));
     } finally {
       setIsRefreshing(false);
     }
@@ -70,24 +83,34 @@ export const WeatherTab: React.FC<WeatherTabProps> = ({
   const displayAltitude =
     userLocation?.altitude !== null && userLocation?.altitude !== undefined
       ? `${userLocation.altitude} m`
-      : data.weather.altitude;
+      : currentWeather.altitude || data.weather?.altitude || '10 m (Mô hình DEM)';
 
   // Nhãn phân loại dữ liệu thời tiết
-  const isSimulation = data.weather.dataType === 'simulation' || !data.weather.isLive;
-  const weatherTypeLabel =
-    data.weather.dataType === 'observation'
-      ? 'Dữ liệu quan trắc thực địa'
-      : isSimulation
-      ? '⚠️ Dữ liệu ước tính - đang chờ đồng bộ mạng'
-      : 'Dữ liệu mô hình dự báo số trị';
+  const isSimulation = currentWeather.dataType === 'simulation' || !currentWeather.hasData;
+  const weatherTypeLabel = !currentWeather.hasData
+    ? 'Chờ đồng bộ mạng'
+    : currentWeather.dataType === 'observation'
+    ? 'Dữ liệu quan trắc thực địa'
+    : isSimulation
+    ? '⚠️ Dữ liệu ước tính - đang chờ đồng bộ mạng'
+    : 'Dữ liệu mô hình dự báo số trị';
 
   const weatherSourceLabel =
-    data.weather.source ||
+    currentWeather.source ||
     (isSimulation
       ? 'Dữ liệu ước tính offline (chưa đồng bộ với API thời tiết thực)'
       : 'Open-Meteo Weather API (ECMWF & GFS)');
   const weatherTimestamp =
-    data.weather.timestamp || (isSimulation ? 'Dữ liệu ước tính offline' : 'Đang cập nhật');
+    currentWeather.timestamp || (isSimulation ? 'Dữ liệu ước tính offline' : 'Đang cập nhật');
+
+  const weatherAlert = data.alerts?.weatherAlert || {
+    title: currentWeather.hasData ? `Thời tiết ${currentWeather.condition}` : 'Thời tiết ổn định',
+    desc: currentWeather.hasData
+      ? `Nhiệt độ ${currentWeather.temp}, độ ẩm ${currentWeather.humidity} tại ${data.name.split(',')[0]}.`
+      : `Thời tiết tại ${data.name.split(',')[0]} duy trì trạng thái ổn định, không có cảnh báo thời tiết bất thường.`,
+    level: 'info' as const,
+    actionAdvice: 'Điều kiện thời tiết bình thường, thuận lợi cho sinh hoạt và lao động ngoài trời.',
+  };
 
   return (
     <div className="flex flex-col gap-5 px-5 pb-6">
@@ -98,18 +121,18 @@ export const WeatherTab: React.FC<WeatherTabProps> = ({
           onOpenDetail({
             title: 'Chi tiết Khí hậu & Thời tiết Hiện tại',
             category: 'Thời tiết',
-            description: `${data.weather.description || `${data.weather.temp}, ${data.weather.condition}`} tại ${data.name}.`,
+            description: `${currentWeather.description || `${currentWeather.temp}, ${currentWeather.condition}`} tại ${data.name}.`,
             details: [
-              `Nhiệt độ hiện tại: ${data.weather.temp}`,
-              `Tình trạng mây & khí hậu: ${data.weather.condition}`,
-              `Độ ẩm tương đối: ${data.weather.humidity}`,
-              `Áp suất bề mặt: ${data.weather.surfacePressure || '1012 hPa'}`,
-              `Điểm sương (Dew point): ${data.weather.dewPoint || '24.5°C'}`,
-              `Tốc độ gió bề mặt: ${data.weather.windSpeed || '9 km/h'}`,
-              `Gió giật: ${data.weather.windGust || '15 km/h'}`,
-              `Xác suất mưa: ${data.weather.rainProbability !== undefined ? `${data.weather.rainProbability}%` : 'Chưa có mưa'}`,
+              `Nhiệt độ hiện tại: ${currentWeather.temp}`,
+              `Tình trạng mây & khí hậu: ${currentWeather.condition}`,
+              `Độ ẩm tương đối: ${currentWeather.humidity}`,
+              `Áp suất bề mặt: ${currentWeather.surfacePressure || '1012 hPa'}`,
+              `Điểm sương (Dew point): ${currentWeather.dewPoint || '24.5°C'}`,
+              `Tốc độ gió bề mặt: ${currentWeather.windSpeed || 'Chưa có dữ liệu'}`,
+              `Gió giật: ${currentWeather.windGust || 'Chưa có dữ liệu'}`,
+              `Xác suất mưa: ${currentWeather.rainProbability !== undefined ? `${currentWeather.rainProbability}%` : 'Chưa có mưa'}`,
               `Độ cao quan trắc: ${displayAltitude} (so với mực nước biển MSL)`,
-              `Chỉ số bức xạ tia UV: ${data.weather.uvIndex} (${data.weather.uvLevel})`,
+              `Chỉ số bức xạ tia UV: ${currentWeather.uvIndex} (${currentWeather.uvLevel})`,
               `Phân loại dữ liệu: ${weatherTypeLabel}`,
               `Nguồn kiểm chứng: ${weatherSourceLabel}`,
               `Thời điểm quan trắc / mô hình: ${weatherTimestamp}`,
@@ -143,7 +166,7 @@ export const WeatherTab: React.FC<WeatherTabProps> = ({
               )}
             </div>
             <span className="text-[28px] font-black text-[#0F3B73] dark:text-blue-100 mt-1 tracking-tight leading-tight">
-              {data.weather.temp}, {data.weather.condition}
+              {currentWeather.temp}, {currentWeather.condition}
             </span>
           </div>
 
@@ -156,12 +179,12 @@ export const WeatherTab: React.FC<WeatherTabProps> = ({
         <div className="pt-2.5 border-t border-blue-200/60 dark:border-blue-800/60 flex items-center justify-between text-xs text-slate-600 dark:text-slate-300 flex-wrap gap-2">
           <div className="flex items-center gap-1 font-medium">
             <Wind className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-            <span>Gió: {data.weather.windSpeed || '9 - 14 km/h'}</span>
+            <span>Gió: {currentWeather.windSpeed || 'Chưa có dữ liệu'}</span>
           </div>
-          {data.weather.surfacePressure && (
+          {currentWeather.surfacePressure && (
             <div className="flex items-center gap-1 font-medium">
               <Gauge className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-              <span>Khí áp: {data.weather.surfacePressure}</span>
+              <span>Khí áp: {currentWeather.surfacePressure}</span>
             </div>
           )}
           <div className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
@@ -404,10 +427,10 @@ export const WeatherTab: React.FC<WeatherTabProps> = ({
               onOpenDetail({
                 title: 'Độ ẩm Không khí',
                 category: 'Thời tiết',
-                description: `Độ ẩm tương đối hiện tại: ${data.weather.humidity} tại ${data.name}.`,
+                description: `Độ ẩm tương đối hiện tại: ${currentWeather.humidity} tại ${data.name}.`,
                 details: [
-                  `Độ ẩm đo được: ${data.weather.humidity}`,
-                  `Điểm sương (Dew Point): ${data.weather.dewPoint || '24.2°C'}`,
+                  `Độ ẩm đo được: ${currentWeather.humidity}`,
+                  `Điểm sương (Dew Point): ${currentWeather.dewPoint || '24.2°C'}`,
                   'Đánh giá cảm giác thoải mái: Độ ẩm lý tưởng, cơ thể bài tiết mồ hôi tự nhiên tốt.',
                   'Khả năng ngưng tụ hơi ẩm: Thấp, tầm nhìn xa quang đãng trên 10 km.',
                   `Nguồn dữ liệu: ${weatherSourceLabel}`,
@@ -429,7 +452,7 @@ export const WeatherTab: React.FC<WeatherTabProps> = ({
               Độ ẩm
             </span>
             <span className="text-[17px] font-black text-[#0F3B73] dark:text-blue-200 tracking-tight">
-              {data.weather.humidity}
+              {currentWeather.humidity}
             </span>
             <span className="text-[11px] font-medium text-[#64748B] dark:text-slate-400">
               Tương đối
@@ -449,7 +472,7 @@ export const WeatherTab: React.FC<WeatherTabProps> = ({
                   `Độ cao đo được: ${displayAltitude}`,
                   `Nguồn dữ liệu: ${userLocation?.altitude ? 'Cảm biến GPS / Khí áp kế người dùng' : 'Mô hình số hóa độ cao địa hình khu vực (DEM)'}`,
                   'Mức chênh lệch thủy triều sông: +1.2 m vào giờ đỉnh triều',
-                  `Áp suất khí quyển tương ứng: ${data.weather.surfacePressure || '1011.8 hPa'} (Bình thường)`,
+                  `Áp suất khí quyển tương ứng: ${currentWeather.surfacePressure || '1011.8 hPa'} (Bình thường)`,
                   'Đặc điểm địa hình: Đồng bằng phù sa trũng ven sông, địa thế bằng phẳng.',
                 ],
                 tips: [
@@ -482,11 +505,11 @@ export const WeatherTab: React.FC<WeatherTabProps> = ({
               onOpenDetail({
                 title: 'Chỉ số Ánh sáng & Tia UV',
                 category: 'Bức xạ mặt trời',
-                description: `Chỉ số bức xạ: ${data.weather.uvIndex} (${data.weather.uvLevel}) - Cường độ: ${data.weather.lightIntensity}.`,
+                description: `Chỉ số bức xạ: ${currentWeather.uvIndex} (${currentWeather.uvLevel}) - Cường độ: ${currentWeather.lightIntensity || 'Không có dữ liệu'}.`,
                 details: [
-                  `Chỉ số UV đo được: ${data.weather.uvIndex}`,
-                  `Mức độ cảnh báo: ${data.weather.uvLevel}`,
-                  `Cường độ bức xạ nhiệt mặt trời: ${data.weather.lightIntensity}`,
+                  `Chỉ số UV đo được: ${currentWeather.uvIndex}`,
+                  `Mức độ cảnh báo: ${currentWeather.uvLevel}`,
+                  `Cường độ bức xạ nhiệt mặt trời: ${currentWeather.lightIntensity || 'Không có dữ liệu'}`,
                   'Khung giờ UV đạt đỉnh trong ngày: 11:30 - 13:30',
                   'Thời gian an toàn tiếp xúc trực tiếp không bảo vệ: 30 - 45 phút',
                   `Nguồn dữ liệu: ${weatherSourceLabel}`,
@@ -508,10 +531,10 @@ export const WeatherTab: React.FC<WeatherTabProps> = ({
               Tia UV
             </span>
             <span className="text-[17px] font-black text-[#0F3B73] dark:text-blue-200 tracking-tight">
-              {data.weather.uvIndex}
+              {currentWeather.uvIndex}
             </span>
             <span className="text-[11px] font-medium text-[#64748B] dark:text-slate-400">
-              {data.weather.uvLevel}
+              {currentWeather.uvLevel}
             </span>
           </button>
         </div>
@@ -536,11 +559,11 @@ export const WeatherTab: React.FC<WeatherTabProps> = ({
           id="weather-alert-card"
           onClick={() =>
             onOpenDetail({
-              title: data.alerts.weatherAlert.title,
+              title: weatherAlert.title,
               category: 'Cảnh báo thời tiết',
-              description: data.alerts.weatherAlert.desc,
+              description: weatherAlert.desc,
               details: [
-                `Cấp độ cảnh báo: ${data.alerts.weatherAlert.level === 'warning' ? 'Mức Cảnh Báo Vàng' : 'Thông Tin Thường Nhật'}`,
+                `Cấp độ cảnh báo: ${weatherAlert.level === 'warning' ? 'Mức Cảnh Báo Vàng' : 'Thông Tin Thường Nhật'}`,
                 `Nguồn kiểm chứng: Trạm khí tượng & Open-Meteo vi khí hậu`,
                 `Phân loại: ${weatherTypeLabel}`,
                 `Thời gian: ${weatherTimestamp}`,
@@ -549,7 +572,7 @@ export const WeatherTab: React.FC<WeatherTabProps> = ({
                   : 'Chưa có số đo bụi mịn trực tiếp cho khung giờ này',
               ],
               tips: [
-                data.alerts.weatherAlert.actionAdvice,
+                weatherAlert.actionAdvice,
                 'Đóng kín cửa sổ hướng đường lớn khi lưu lượng xe đông đúc.',
                 'Sử dụng máy lọc không khí hoặc trồng các loại cây như trầu bà, lưỡi hổ trong nhà.',
               ],
@@ -562,10 +585,10 @@ export const WeatherTab: React.FC<WeatherTabProps> = ({
           </div>
           <div className="flex-1">
             <h3 className="text-[16px] font-bold text-[#78350F] dark:text-amber-200 leading-snug">
-              {data.alerts.weatherAlert.title}
+              {weatherAlert.title}
             </h3>
             <p className="text-[14px] text-[#92400E] dark:text-amber-300/90 mt-0.5 leading-snug">
-              {data.alerts.weatherAlert.desc}
+              {weatherAlert.desc}
             </p>
           </div>
           <ArrowRight className="w-4 h-4 text-[#B45309] dark:text-amber-400 mt-1 shrink-0 opacity-60" />

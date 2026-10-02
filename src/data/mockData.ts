@@ -1,58 +1,9 @@
 import { DistrictData } from '../types';
-import { DISTRICTS_DATA as BASE_DISTRICTS_DATA, AdminUnitInfo } from './hcmWards168';
-import { BEN_CAT_WARDS_DATA } from './benCatWards';
-
-// Loại bỏ các đơn vị thị trấn/trùng lặp cũ để thay thế bằng các phường/xã chuẩn xác của Bến Cát (Bình Dương cũ)
-// Đảm bảo tổng số chuẩn xác tuyệt đối 168 đơn vị hành chính theo Nghị quyết 1685/NQ-UBTVQH15
-const EXCLUDED_IDS = new Set([
-  'hcm-cc-ttcuchi',
-  'hcm-hm-tthocmon',
-  'hcm-bc-tttantuc',
-  'hcm-nb-ttnhabe',
-  'hcm-cg-ttcanthanh',
-  'hcm-td-thoihoa',
-  'hcm-q12-donghungthuan',
-  'hcm-cc-phuocvinhan',
-]);
-
-const processedBaseData: Record<string, DistrictData> = {};
-
-for (const [key, item] of Object.entries(BASE_DISTRICTS_DATA)) {
-  if (EXCLUDED_IDS.has(key)) continue;
-
-  let regionGroup = 'Khu vực TP.HCM cũ';
-  if (key === 'hcm-vt-longson' || key === 'hcm-dac-khu-condao') {
-    regionGroup = 'Khu vực Bà Rịa – Vũng Tàu cũ';
-  }
-
-  processedBaseData[key] = {
-    ...item,
-    districtGroup: regionGroup,
-    weather: {
-      ...item.weather,
-      dataType: 'simulation',
-      source: 'Dữ liệu ước tính ban đầu (chưa đồng bộ mạng)',
-    },
-  };
-}
-
-const processedBenCatData: Record<string, DistrictData> = {};
-for (const [key, item] of Object.entries(BEN_CAT_WARDS_DATA)) {
-  processedBenCatData[key] = {
-    ...item,
-    weather: {
-      ...item.weather,
-      dataType: 'simulation',
-      source: 'Dữ liệu ước tính ban đầu (chưa đồng bộ mạng)',
-    },
-  };
-}
+import { ADMIN_UNITS, ADMIN_UNITS_DATA, AdminUnitInfo } from './adminUnits';
 
 // 168 đơn vị hành chính: 113 Phường + 54 Xã + 1 Đặc khu Côn Đảo
-export const DISTRICTS_DATA: Record<string, DistrictData> = {
-  ...processedBaseData,
-  ...processedBenCatData,
-};
+// Chuẩn hóa theo Nghị quyết 1685/NQ-UBTVQH15
+export const DISTRICTS_DATA: Record<string, DistrictData> = ADMIN_UNITS_DATA as unknown as Record<string, DistrictData>;
 
 // 3 khu vực hành chính theo Nghị quyết 1685/NQ-UBTVQH15
 export const HCM_DISTRICT_GROUPS = [
@@ -63,3 +14,4 @@ export const HCM_DISTRICT_GROUPS = [
 ] as const;
 
 export type { AdminUnitInfo };
+export { ADMIN_UNITS, ADMIN_UNITS_DATA };

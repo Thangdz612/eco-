@@ -504,7 +504,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
             <span className="text-xs font-bold text-[#0F172A] dark:text-white">
               Xem danh sách thông báo đã lưu trong máy:
             </span>
-            <span className="text-[10px] text-slate-500 font-mono">
+            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
               {filteredWeatherNotifs.length}/{weatherNotifs.length}
             </span>
           </div>
@@ -781,7 +781,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({
               type="checkbox"
               checked={preferences.gpsHighAccuracy}
               onChange={(e) => savePreferences({ gpsHighAccuracy: e.target.checked })}
-              className="w-4 h-4 text-[#0D47A1] rounded cursor-pointer"
+              className="w-4 h-4 text-[#0D47A1] dark:text-blue-400 rounded cursor-pointer"
             />
           </div>
         </div>

@@ -72,6 +72,7 @@ import {
 } from '../utils/liveWeatherApi';
 import { DISTRICTS_DATA } from '../data/mockData';
 import { ModalContent } from '../types';
+import { useActiveTheme } from '../utils/theme';
 
 interface WeatherCollectedRangeSectionProps {
   districtId: string;
@@ -90,6 +91,8 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
   onOpenDetail,
   onSelectDistrict,
 }) => {
+  const theme = useActiveTheme();
+  const isDark = theme === 'dark';
   const safeAdminType: 'phường' | 'xã' | 'đặc khu' = adminType || 'phường';
 
   // State for current selected unit
@@ -493,7 +496,7 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
             ))}
 
             {data.beaufortScale && (
-              <div className="pt-1 mt-1 border-t border-slate-100 dark:border-slate-800 text-[10.5px] text-slate-500">
+              <div className="pt-1 mt-1 border-t border-slate-100 dark:border-slate-800 text-[10.5px] text-slate-500 dark:text-slate-400">
                 Gió: <span className="font-semibold text-slate-700 dark:text-slate-300">{data.beaufortScale}</span>
               </div>
             )}
@@ -1185,11 +1188,11 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
                 <div className="w-full h-64 sm:h-72">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={selectedDay?.hours} margin={{ top: 10, right: 15, left: -20, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.15} />
-                      <XAxis dataKey="hourLabel" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} interval={2} />
-                      <YAxis domain={[20, 42]} tick={{ fontSize: 10 }} unit="°C" axisLine={false} tickLine={false} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? '#334155' : '#E2E8F0'} />
+                      <XAxis dataKey="hourLabel" tick={{ fontSize: 10, fill: isDark ? '#94A3B8' : '#64748B' }} axisLine={false} tickLine={false} interval={2} />
+                      <YAxis domain={[20, 42]} tick={{ fontSize: 10, fill: isDark ? '#94A3B8' : '#64748B' }} unit="°C" axisLine={false} tickLine={false} />
                       <Tooltip content={<CustomDetailedTooltip />} />
-                      <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '4px' }} iconType="circle" />
+                      <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '4px' }} iconType="circle" formatter={(value) => <span className="text-slate-600 dark:text-slate-300 font-medium">{value}</span>} />
                       <ReferenceLine y={35} stroke="#EF4444" strokeDasharray="3 3" label={{ value: 'Ngưỡng nắng nóng (35°C)', fill: '#EF4444', fontSize: 10 }} />
                       <Line type="monotone" dataKey="temp" name="Nhiệt độ thực tế" unit="°C" stroke="#F59E0B" strokeWidth={2.5} dot={{ r: 2 }} activeDot={{ r: 5 }} />
                       <Line type="monotone" dataKey="feelLikeTemp" name="Nhiệt độ cảm nhận (RealFeel)" unit="°C" stroke="#DC2626" strokeWidth={2} strokeDasharray="4 4" dot={false} />
@@ -1219,12 +1222,12 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
                           <stop offset="95%" stopColor="#2563EB" stopOpacity={0.0} />
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.15} />
-                      <XAxis dataKey="hourLabel" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} interval={2} />
-                      <YAxis yAxisId="rainPct" domain={[0, 100]} unit="%" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                      <YAxis yAxisId="rainMm" orientation="right" domain={[0, 30]} unit="mm" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? '#334155' : '#E2E8F0'} />
+                      <XAxis dataKey="hourLabel" tick={{ fontSize: 10, fill: isDark ? '#94A3B8' : '#64748B' }} axisLine={false} tickLine={false} interval={2} />
+                      <YAxis yAxisId="rainPct" domain={[0, 100]} unit="%" tick={{ fontSize: 10, fill: isDark ? '#94A3B8' : '#64748B' }} axisLine={false} tickLine={false} />
+                      <YAxis yAxisId="rainMm" orientation="right" domain={[0, 30]} unit="mm" tick={{ fontSize: 10, fill: isDark ? '#94A3B8' : '#64748B' }} axisLine={false} tickLine={false} />
                       <Tooltip content={<CustomDetailedTooltip />} />
-                      <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '4px' }} iconType="circle" />
+                      <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '4px' }} iconType="circle" formatter={(value) => <span className="text-slate-600 dark:text-slate-300 font-medium">{value}</span>} />
                       <Area yAxisId="rainPct" type="monotone" dataKey="rainChance" name="Xác suất mưa" unit="%" stroke="#2563EB" fill="url(#rainFill)" />
                       <Bar yAxisId="rainMm" dataKey="rainfallAmount" name="Lượng mưa" unit="mm" fill="#0284C7" radius={[3, 3, 0, 0]} maxBarSize={16} />
                     </ComposedChart>
@@ -1253,12 +1256,12 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
                           <stop offset="95%" stopColor="#0D9488" stopOpacity={0.0} />
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.15} />
-                      <XAxis dataKey="hourLabel" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} interval={2} />
-                      <YAxis yAxisId="hum" domain={[30, 100]} unit="%" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                      <YAxis yAxisId="dew" orientation="right" domain={[15, 30]} unit="°C" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? '#334155' : '#E2E8F0'} />
+                      <XAxis dataKey="hourLabel" tick={{ fontSize: 10, fill: isDark ? '#94A3B8' : '#64748B' }} axisLine={false} tickLine={false} interval={2} />
+                      <YAxis yAxisId="hum" domain={[30, 100]} unit="%" tick={{ fontSize: 10, fill: isDark ? '#94A3B8' : '#64748B' }} axisLine={false} tickLine={false} />
+                      <YAxis yAxisId="dew" orientation="right" domain={[15, 30]} unit="°C" tick={{ fontSize: 10, fill: isDark ? '#94A3B8' : '#64748B' }} axisLine={false} tickLine={false} />
                       <Tooltip content={<CustomDetailedTooltip />} />
-                      <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '4px' }} iconType="circle" />
+                      <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '4px' }} iconType="circle" formatter={(value) => <span className="text-slate-600 dark:text-slate-300 font-medium">{value}</span>} />
                       <Area yAxisId="hum" type="monotone" dataKey="humidity" name="Độ ẩm không khí" unit="%" stroke="#0D9488" fill="url(#humFill)" strokeWidth={2} />
                       <Line yAxisId="dew" type="monotone" dataKey="dewPoint" name="Điểm đọng sương" unit="°C" stroke="#059669" strokeWidth={2} strokeDasharray="3 3" dot={false} />
                     </ComposedChart>
@@ -1281,12 +1284,12 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
                 <div className="w-full h-64 sm:h-72">
                   <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart data={selectedDay?.hours} margin={{ top: 10, right: 15, left: -20, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.15} />
-                      <XAxis dataKey="hourLabel" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} interval={2} />
-                      <YAxis yAxisId="uv" domain={[0, 13]} tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
-                      <YAxis yAxisId="rad" orientation="right" domain={[0, 1100]} unit="W/m²" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? '#334155' : '#E2E8F0'} />
+                      <XAxis dataKey="hourLabel" tick={{ fontSize: 10, fill: isDark ? '#94A3B8' : '#64748B' }} axisLine={false} tickLine={false} interval={2} />
+                      <YAxis yAxisId="uv" domain={[0, 13]} tick={{ fontSize: 10, fill: isDark ? '#94A3B8' : '#64748B' }} axisLine={false} tickLine={false} />
+                      <YAxis yAxisId="rad" orientation="right" domain={[0, 1100]} unit="W/m²" tick={{ fontSize: 10, fill: isDark ? '#94A3B8' : '#64748B' }} axisLine={false} tickLine={false} />
                       <Tooltip content={<CustomDetailedTooltip />} />
-                      <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '4px' }} iconType="circle" />
+                      <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '4px' }} iconType="circle" formatter={(value) => <span className="text-slate-600 dark:text-slate-300 font-medium">{value}</span>} />
                       <ReferenceLine yAxisId="uv" y={8} stroke="#E11D48" strokeDasharray="3 3" label={{ value: 'Ngưỡng rất cao (UV 8+)', fill: '#E11D48', fontSize: 10 }} />
                       <Bar yAxisId="uv" dataKey="uvIndex" name="Chỉ số tia UV" fill="#E11D48" radius={[3, 3, 0, 0]} maxBarSize={14} />
                       <Line yAxisId="rad" type="monotone" dataKey="solarRadiation" name="Bức xạ quang học" unit="W/m²" stroke="#F59E0B" strokeWidth={2} dot={false} />
@@ -1310,12 +1313,12 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
                 <div className="w-full h-64 sm:h-72">
                   <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart data={selectedDay?.hours} margin={{ top: 10, right: 15, left: -20, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.15} />
-                      <XAxis dataKey="hourLabel" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} interval={2} />
-                      <YAxis domain={[0, 50]} unit="km/h" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? '#334155' : '#E2E8F0'} />
+                      <XAxis dataKey="hourLabel" tick={{ fontSize: 10, fill: isDark ? '#94A3B8' : '#64748B' }} axisLine={false} tickLine={false} interval={2} />
+                      <YAxis domain={[0, 50]} unit="km/h" tick={{ fontSize: 10, fill: isDark ? '#94A3B8' : '#64748B' }} axisLine={false} tickLine={false} />
                       <Tooltip content={<CustomDetailedTooltip />} />
-                      <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '4px' }} iconType="circle" />
-                      <Area type="monotone" dataKey="windSpeed" name="Tốc độ gió TB" unit="km/h" stroke="#0284C7" fill="#BAE6FD" fillOpacity={0.4} strokeWidth={2} />
+                      <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '4px' }} iconType="circle" formatter={(value) => <span className="text-slate-600 dark:text-slate-300 font-medium">{value}</span>} />
+                      <Area type="monotone" dataKey="windSpeed" name="Tốc độ gió TB" unit="km/h" stroke="#0284C7" fill={isDark ? '#0369A1' : '#BAE6FD'} fillOpacity={0.4} strokeWidth={2} />
                       <Line type="monotone" dataKey="windGust" name="Gió giật tức thời" unit="km/h" stroke="#0369A1" strokeWidth={2} strokeDasharray="3 3" dot={false} />
                     </ComposedChart>
                   </ResponsiveContainer>
@@ -1377,17 +1380,17 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
                 <div className="w-full h-64 sm:h-72">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={comparisonData} margin={{ top: 10, right: 15, left: -20, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.15} />
-                      <XAxis dataKey="hourLabel" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} interval={2} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? '#334155' : '#E2E8F0'} />
+                      <XAxis dataKey="hourLabel" tick={{ fontSize: 10, fill: isDark ? '#94A3B8' : '#64748B' }} axisLine={false} tickLine={false} interval={2} />
                       <YAxis
                         domain={comparisonMetric === 'temp' ? [20, 40] : comparisonMetric === 'rain' ? [0, 100] : [0, 12]}
                         unit={comparisonMetric === 'temp' ? '°C' : comparisonMetric === 'rain' ? '%' : ''}
-                        tick={{ fontSize: 10 }}
+                        tick={{ fontSize: 10, fill: isDark ? '#94A3B8' : '#64748B' }}
                         axisLine={false}
                         tickLine={false}
                       />
                       <Tooltip content={<CustomDetailedTooltip />} />
-                      <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '4px' }} iconType="circle" />
+                      <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '4px' }} iconType="circle" formatter={(value) => <span className="text-slate-600 dark:text-slate-300 font-medium">{value}</span>} />
 
                       {comparisonMetric === 'temp' && (
                         <>
@@ -1430,9 +1433,9 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
               <div className="h-44">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={selectedDay?.hours} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.15} />
-                    <XAxis dataKey="hourLabel" tick={{ fontSize: 9 }} interval={4} />
-                    <YAxis domain={[20, 42]} tick={{ fontSize: 9 }} unit="°" />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? '#334155' : '#E2E8F0'} />
+                    <XAxis dataKey="hourLabel" tick={{ fontSize: 9, fill: isDark ? '#94A3B8' : '#64748B' }} interval={4} />
+                    <YAxis domain={[20, 42]} tick={{ fontSize: 9, fill: isDark ? '#94A3B8' : '#64748B' }} unit="°" />
                     <Tooltip content={<CustomDetailedTooltip />} />
                     <Line type="monotone" dataKey="temp" name="Nhiệt độ thực" unit="°C" stroke="#F59E0B" strokeWidth={2} dot={false} />
                     <Line type="monotone" dataKey="feelLikeTemp" name="RealFeel" unit="°C" stroke="#DC2626" strokeWidth={1.5} strokeDasharray="3 3" dot={false} />
@@ -1450,12 +1453,12 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
               <div className="h-44">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={selectedDay?.hours} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.15} />
-                    <XAxis dataKey="hourLabel" tick={{ fontSize: 9 }} interval={4} />
-                    <YAxis yAxisId="left" domain={[0, 100]} tick={{ fontSize: 9 }} unit="%" />
-                    <YAxis yAxisId="right" orientation="right" domain={[0, 25]} tick={{ fontSize: 9 }} unit="mm" />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? '#334155' : '#E2E8F0'} />
+                    <XAxis dataKey="hourLabel" tick={{ fontSize: 9, fill: isDark ? '#94A3B8' : '#64748B' }} interval={4} />
+                    <YAxis yAxisId="left" domain={[0, 100]} tick={{ fontSize: 9, fill: isDark ? '#94A3B8' : '#64748B' }} unit="%" />
+                    <YAxis yAxisId="right" orientation="right" domain={[0, 25]} tick={{ fontSize: 9, fill: isDark ? '#94A3B8' : '#64748B' }} unit="mm" />
                     <Tooltip content={<CustomDetailedTooltip />} />
-                    <Area yAxisId="left" type="monotone" dataKey="rainChance" name="Xác suất mưa" unit="%" stroke="#2563EB" fill="#93C5FD" fillOpacity={0.4} />
+                    <Area yAxisId="left" type="monotone" dataKey="rainChance" name="Xác suất mưa" unit="%" stroke="#2563EB" fill={isDark ? '#1D4ED8' : '#93C5FD'} fillOpacity={0.4} />
                     <Bar yAxisId="right" dataKey="rainfallAmount" name="Lượng mưa" unit="mm" fill="#0284C7" maxBarSize={12} />
                   </ComposedChart>
                 </ResponsiveContainer>
@@ -1471,9 +1474,9 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
               <div className="h-44">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={selectedDay?.hours} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.15} />
-                    <XAxis dataKey="hourLabel" tick={{ fontSize: 9 }} interval={4} />
-                    <YAxis domain={[35, 100]} tick={{ fontSize: 9 }} unit="%" />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? '#334155' : '#E2E8F0'} />
+                    <XAxis dataKey="hourLabel" tick={{ fontSize: 9, fill: isDark ? '#94A3B8' : '#64748B' }} interval={4} />
+                    <YAxis domain={[35, 100]} tick={{ fontSize: 9, fill: isDark ? '#94A3B8' : '#64748B' }} unit="%" />
                     <Tooltip content={<CustomDetailedTooltip />} />
                     <Line type="monotone" dataKey="humidity" name="Độ ẩm" unit="%" stroke="#0D9488" strokeWidth={2} dot={false} />
                     <Line type="monotone" dataKey="dewPoint" name="Điểm sương" unit="°C" stroke="#059669" strokeWidth={1.5} strokeDasharray="2 2" dot={false} />
@@ -1491,10 +1494,10 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
               <div className="h-44">
                 <ResponsiveContainer width="100%" height="100%">
                   <ComposedChart data={selectedDay?.hours} margin={{ top: 5, right: 10, left: -25, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.15} />
-                    <XAxis dataKey="hourLabel" tick={{ fontSize: 9 }} interval={4} />
-                    <YAxis yAxisId="uv" domain={[0, 12]} tick={{ fontSize: 9 }} />
-                    <YAxis yAxisId="wind" orientation="right" domain={[0, 45]} unit="k" tick={{ fontSize: 9 }} />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? '#334155' : '#E2E8F0'} />
+                    <XAxis dataKey="hourLabel" tick={{ fontSize: 9, fill: isDark ? '#94A3B8' : '#64748B' }} interval={4} />
+                    <YAxis yAxisId="uv" domain={[0, 12]} tick={{ fontSize: 9, fill: isDark ? '#94A3B8' : '#64748B' }} />
+                    <YAxis yAxisId="wind" orientation="right" domain={[0, 45]} unit="k" tick={{ fontSize: 9, fill: isDark ? '#94A3B8' : '#64748B' }} />
                     <Tooltip content={<CustomDetailedTooltip />} />
                     <Bar yAxisId="uv" dataKey="uvIndex" name="Tia UV" fill="#E11D48" maxBarSize={12} />
                     <Line yAxisId="wind" type="monotone" dataKey="windSpeed" name="Tốc độ gió" unit="km/h" stroke="#0284C7" strokeWidth={2} dot={false} />
@@ -1709,7 +1712,7 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
                       </span>
                     </div>
 
-                    <div className="flex items-center justify-between text-slate-500">
+                    <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
                       <span className="flex items-center gap-0.5">
                         <Wind className="w-3 h-3" /> Gió:
                       </span>
@@ -1884,7 +1887,7 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
                     </>
                   ) : (
                     <>
-                      <Copy className="w-3.5 h-3.5 text-slate-500" />
+                      <Copy className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
                       <span>Sao chép</span>
                     </>
                   )}
@@ -1902,7 +1905,7 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
 
             {/* Modal API URL Bar */}
             <div className="px-4 py-2 bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2 text-xs">
-              <span className="text-slate-500 font-mono truncate text-[11px]">
+              <span className="text-slate-500 dark:text-slate-400 font-mono truncate text-[11px]">
                 {liveSourceInfo.apiUrl}
               </span>
               <a
@@ -1930,7 +1933,7 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
 
             {/* Modal Footer */}
             <div className="p-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 flex items-center justify-between">
-              <span className="text-[11px] text-slate-500">
+              <span className="text-[11px] text-slate-500 dark:text-slate-400">
                 Chuẩn WMO IFS / ICON & QCVN 46:2012/BTNMT • Đo đạc 24/7
               </span>
               <button
@@ -2040,7 +2043,7 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
                         </div>
                       </div>
 
-                      <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-[10.5px] text-slate-500">
+                      <div className="pt-2 border-t border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-[10.5px] text-slate-500 dark:text-slate-400">
                         <span>{st.standard}</span>
                         <span className="text-blue-600 dark:text-blue-400 font-bold hover:underline">
                           {isCurrent ? 'Trạm hiện hành' : 'Kết nối trạm này →'}
@@ -2054,7 +2057,7 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
 
             {/* Footer */}
             <div className="p-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 flex items-center justify-between">
-              <span className="text-xs text-slate-500">
+              <span className="text-xs text-slate-500 dark:text-slate-400">
                 Dữ liệu mô hình số trị vi khí hậu ECMWF IFS & GFS (Open-Meteo)
               </span>
               <button

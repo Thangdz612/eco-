@@ -288,23 +288,32 @@ export const HcmCityBiodiversitySection: React.FC<HcmCityBiodiversitySectionProp
     let totalTerrestrial = 0;
     let totalAerial = 0;
     let totalAmphibian = 0;
+    let wardsWithData = 0;
 
     allDistricts.forEach((d) => {
-      totalUnderwater += d.biodiversity.underwater.count || 0;
-      totalTerrestrial += d.biodiversity.terrestrial.count || 0;
-      totalAerial += d.biodiversity.aerial.count || 0;
-      totalAmphibian += d.biodiversity.amphibian.count || 0;
+      if (d.biodiversity) {
+        totalUnderwater += d.biodiversity.underwater?.count || 0;
+        totalTerrestrial += d.biodiversity.terrestrial?.count || 0;
+        totalAerial += d.biodiversity.aerial?.count || 0;
+        totalAmphibian += d.biodiversity.amphibian?.count || 0;
+        wardsWithData++;
+      }
     });
 
+    const hasAnyLocalData = wardsWithData > 0;
+
     return {
+      hasAnyLocalData,
       totalUnderwater,
       totalTerrestrial,
       totalAerial,
       totalAmphibian,
       totalWardsCount: allDistricts.length,
-      averageSpeciesPerWard: Math.round(
-        (totalUnderwater + totalTerrestrial + totalAerial + totalAmphibian) / allDistricts.length
-      ),
+      averageSpeciesPerWard: hasAnyLocalData
+        ? Math.round(
+            (totalUnderwater + totalTerrestrial + totalAerial + totalAmphibian) / wardsWithData
+          )
+        : 0,
     };
   }, [allDistricts]);
 
@@ -590,13 +599,13 @@ export const HcmCityBiodiversitySection: React.FC<HcmCityBiodiversitySectionProp
             {/* Thông số mảng xanh & diện tích */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
               <div className="p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700">
-                <span className="text-[11px] text-slate-500 block">Quy mô diện tích</span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 block">Quy mô diện tích</span>
                 <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
                   {activeZone.areaDesc}
                 </span>
               </div>
               <div className="p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700">
-                <span className="text-[11px] text-slate-500 block">Độ che phủ mảng xanh</span>
+                <span className="text-[11px] text-slate-500 dark:text-slate-400 block">Độ che phủ mảng xanh</span>
                 <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300">
                   {activeZone.canopyCoverage}
                 </span>
@@ -1394,11 +1403,13 @@ export const HcmCityBiodiversitySection: React.FC<HcmCityBiodiversitySectionProp
           <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 border border-slate-200/80 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900 custom-scrollbar">
             {filteredDistricts.map((d) => {
               const isCurrent = d.id === currentDistrictId;
-              const totalSpecies =
-                d.biodiversity.underwater.count +
-                d.biodiversity.terrestrial.count +
-                d.biodiversity.aerial.count +
-                d.biodiversity.amphibian.count;
+              const hasBio = !!d.biodiversity;
+              const totalSpecies = hasBio
+                ? (d.biodiversity?.underwater?.count || 0) +
+                  (d.biodiversity?.terrestrial?.count || 0) +
+                  (d.biodiversity?.aerial?.count || 0) +
+                  (d.biodiversity?.amphibian?.count || 0)
+                : 0;
 
               return (
                 <div
@@ -1435,33 +1446,39 @@ export const HcmCityBiodiversitySection: React.FC<HcmCityBiodiversitySectionProp
                       {d.subTitle}
                     </p>
 
-                    {/* Huy hiệu 4 nhóm sinh vật */}
-                    <div className="flex items-center gap-3 mt-1.5 text-[11px] font-mono flex-wrap">
-                      <span className="text-sky-700 dark:text-sky-300 flex items-center gap-1" title="Loài dưới nước">
-                        <Waves className="w-3 h-3 text-sky-500" />
-                        {d.biodiversity.underwater.count}
-                      </span>
-                      <span className="text-emerald-700 dark:text-emerald-300 flex items-center gap-1" title="Loài trên cạn">
-                        <Footprints className="w-3 h-3 text-emerald-500" />
-                        {d.biodiversity.terrestrial.count}
-                      </span>
-                      <span className="text-amber-700 dark:text-amber-300 flex items-center gap-1" title="Loài trên trời">
-                        <Feather className="w-3 h-3 text-amber-500" />
-                        {d.biodiversity.aerial.count}
-                      </span>
-                      <span className="text-teal-700 dark:text-teal-300 flex items-center gap-1" title="Loài lưỡng cư">
-                        <Droplet className="w-3 h-3 text-teal-500" />
-                        {d.biodiversity.amphibian.count}
-                      </span>
-                      <span className="text-slate-400 font-sans">•</span>
-                      <span className="text-slate-600 dark:text-slate-300 font-sans text-[10.5px]">
-                        Tổng: <strong>{totalSpecies} loài</strong>
-                      </span>
-                      <span className="text-slate-400 font-sans">•</span>
-                      <span className="text-blue-600 dark:text-blue-400 font-sans text-[10.5px] italic">
-                        {d.biodiversity.terrestrial.status}
-                      </span>
-                    </div>
+                    {/* Huy hiệu 4 nhóm sinh vật hoặc nhãn tham chiếu */}
+                    {hasBio ? (
+                      <div className="flex items-center gap-3 mt-1.5 text-[11px] font-mono flex-wrap">
+                        <span className="text-sky-700 dark:text-sky-300 flex items-center gap-1" title="Loài dưới nước">
+                          <Waves className="w-3 h-3 text-sky-500" />
+                          {d.biodiversity?.underwater?.count ?? 0}
+                        </span>
+                        <span className="text-emerald-700 dark:text-emerald-300 flex items-center gap-1" title="Loài trên cạn">
+                          <Footprints className="w-3 h-3 text-emerald-500" />
+                          {d.biodiversity?.terrestrial?.count ?? 0}
+                        </span>
+                        <span className="text-amber-700 dark:text-amber-300 flex items-center gap-1" title="Loài trên trời">
+                          <Feather className="w-3 h-3 text-amber-500" />
+                          {d.biodiversity?.aerial?.count ?? 0}
+                        </span>
+                        <span className="text-teal-700 dark:text-teal-300 flex items-center gap-1" title="Loài lưỡng cư">
+                          <Droplet className="w-3 h-3 text-teal-500" />
+                          {d.biodiversity?.amphibian?.count ?? 0}
+                        </span>
+                        <span className="text-slate-400 font-sans">•</span>
+                        <span className="text-slate-600 dark:text-slate-300 font-sans text-[10.5px]">
+                          Tổng: <strong>{totalSpecies} loài</strong>
+                        </span>
+                        <span className="text-slate-400 font-sans">•</span>
+                        <span className="text-blue-600 dark:text-blue-400 font-sans text-[10.5px] italic">
+                          {d.biodiversity?.terrestrial?.status}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                        <span className="italic">Chưa có số liệu kiểm kê riêng cấp {d.adminType || 'xã'} • Tham chiếu danh mục sinh thái toàn thành phố (49 loài trọng điểm)</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Nút thao tác nhanh */}
@@ -1475,12 +1492,22 @@ export const HcmCityBiodiversitySection: React.FC<HcmCityBiodiversitySectionProp
                         onOpenDetail({
                           title: `Quần xã Sinh vật & Địa chất tại ${d.name}`,
                           category: 'Hồ sơ sinh thái & địa tầng địa bàn',
-                          description: `Tổng số ${totalSpecies} loài ghi nhận. Trạng thái sinh thái: ${d.biodiversity.terrestrial.status}.`,
+                          description: hasBio
+                            ? `Tổng số ${totalSpecies} loài ghi nhận. Trạng thái sinh thái: ${d.biodiversity?.terrestrial?.status || 'Tham chiếu'}.`
+                            : `Hồ sơ sinh thái & địa chất tham chiếu cho ${d.name}.`,
                           details: [
-                            `Dưới nước (${d.biodiversity.underwater.count} loài ghi nhận): ${d.biodiversity.underwater.status}. Điểm nhấn: ${d.biodiversity.underwater.highlights.join(', ')}.`,
-                            `Trên cạn (${d.biodiversity.terrestrial.count} loài ghi nhận): ${d.biodiversity.terrestrial.status}. Điểm nhấn: ${d.biodiversity.terrestrial.highlights.join(', ')}.`,
-                            `Trên trời (${d.biodiversity.aerial.count} loài ghi nhận): ${d.biodiversity.aerial.status}. Điểm nhấn: ${d.biodiversity.aerial.highlights.join(', ')}.`,
-                            `Lưỡng cư (${d.biodiversity.amphibian.count} loài ghi nhận): ${d.biodiversity.amphibian.status}. Điểm nhấn: ${d.biodiversity.amphibian.highlights.join(', ')}.`,
+                            hasBio
+                              ? `Dưới nước (${d.biodiversity?.underwater?.count} loài ghi nhận): ${d.biodiversity?.underwater?.status}. Điểm nhấn: ${d.biodiversity?.underwater?.highlights?.join(', ')}.`
+                              : `Dưới nước: Không có dữ liệu kiểm kê riêng lẻ tại xã/phường (Tham chiếu danh mục loài chung).`,
+                            hasBio
+                              ? `Trên cạn (${d.biodiversity?.terrestrial?.count} loài ghi nhận): ${d.biodiversity?.terrestrial?.status}. Điểm nhấn: ${d.biodiversity?.terrestrial?.highlights?.join(', ')}.`
+                              : `Trên cạn: Không có dữ liệu kiểm kê riêng lẻ tại xã/phường.`,
+                            hasBio
+                              ? `Trên trời (${d.biodiversity?.aerial?.count} loài ghi nhận): ${d.biodiversity?.aerial?.status}. Điểm nhấn: ${d.biodiversity?.aerial?.highlights?.join(', ')}.`
+                              : `Trên trời: Không có dữ liệu kiểm kê riêng lẻ tại xã/phường.`,
+                            hasBio
+                              ? `Lưỡng cư (${d.biodiversity?.amphibian?.count} loài ghi nhận): ${d.biodiversity?.amphibian?.status}. Điểm nhấn: ${d.biodiversity?.amphibian?.highlights?.join(', ')}.`
+                              : `Lưỡng cư: Không có dữ liệu kiểm kê riêng lẻ tại xã/phường.`,
                             `Cơ sở tham chiếu sinh thái (${bioMeta.isFieldSurveyDistrict ? 'Vùng có điểm khảo sát thực địa' : 'Tham chiếu vùng'}): ${bioMeta.dataSource} — ${bioMeta.dataNotice}.`,
                             `Phương pháp đối chiếu sinh thái: ${bioMeta.surveyMethod}.`,
                             `Đặc điểm địa chất: Hệ tầng ${geo.geology.formationName} (${geo.geology.lithology}) - Sức chịu tải: ${geo.geology.bearingCapacity}.`,

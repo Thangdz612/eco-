@@ -35,6 +35,7 @@ import {
   ECO_ZONES_TREND_DATA,
 } from '../data/biodiversityTrendData';
 import { ModalContent } from '../types';
+import { useActiveTheme } from '../utils/theme';
 
 interface BiodiversityTrendChartProps {
   onOpenDetail?: (content: ModalContent) => void;
@@ -46,6 +47,8 @@ type ChartViewType = 'lines' | 'bars' | 'species_protected';
 export const BiodiversityTrendChart: React.FC<BiodiversityTrendChartProps> = ({
   onOpenDetail,
 }) => {
+  const theme = useActiveTheme();
+  const isDark = theme === 'dark';
   const [chartView, setChartView] = useState<ChartViewType>('lines');
   const [selectedRealm, setSelectedRealm] = useState<'all' | 'underwater' | 'aerial' | 'terrestrial' | 'amphibian'>('all');
   const [selectedYear, setSelectedYear] = useState<number>(2026);
@@ -329,12 +332,12 @@ export const BiodiversityTrendChart: React.FC<BiodiversityTrendChartProps> = ({
                     <stop offset="95%" stopColor="#059669" stopOpacity={0.0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.15} />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis domain={[1200, 1800]} tick={{ fontSize: 10 }} unit=" loài" axisLine={false} tickLine={false} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? '#334155' : '#E2E8F0'} />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: isDark ? '#94A3B8' : '#64748B' }} axisLine={false} tickLine={false} />
+                <YAxis domain={[1200, 1800]} tick={{ fontSize: 10, fill: isDark ? '#94A3B8' : '#64748B' }} unit=" loài" axisLine={false} tickLine={false} />
                 <Tooltip content={<CustomChartTooltip />} />
-                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} iconType="circle" />
-                <ReferenceLine y={1500} stroke="#94A3B8" strokeDasharray="3 3" label={{ value: 'Mốc 1.500 loài kiểm kê (2025)', fill: '#64748B', fontSize: 10 }} />
+                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} iconType="circle" formatter={(value) => <span className="text-slate-600 dark:text-slate-300 font-medium">{value}</span>} />
+                <ReferenceLine y={1500} stroke="#94A3B8" strokeDasharray="3 3" label={{ value: 'Mốc 1.500 loài kiểm kê (2025)', fill: isDark ? '#94A3B8' : '#64748B', fontSize: 10 }} />
 
                 <Area type="monotone" dataKey="speciesRecorded" name="Tổng loài đã định danh (loài)" stroke="#059669" strokeWidth={3} fillOpacity={1} fill="url(#colorRecorded)" />
               </ComposedChart>
@@ -344,11 +347,11 @@ export const BiodiversityTrendChart: React.FC<BiodiversityTrendChartProps> = ({
           {chartView === 'bars' && (
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={BIODIVERSITY_ANNUAL_TRENDS} margin={{ top: 10, right: 15, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.15} />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis domain={[0, 900]} tick={{ fontSize: 10 }} unit=" loài" axisLine={false} tickLine={false} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? '#334155' : '#E2E8F0'} />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: isDark ? '#94A3B8' : '#64748B' }} axisLine={false} tickLine={false} />
+                <YAxis domain={[0, 900]} tick={{ fontSize: 10, fill: isDark ? '#94A3B8' : '#64748B' }} unit=" loài" axisLine={false} tickLine={false} />
                 <Tooltip content={<CustomChartTooltip />} />
-                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} iconType="rect" />
+                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} iconType="rect" formatter={(value) => <span className="text-slate-600 dark:text-slate-300 font-medium">{value}</span>} />
 
                 <Bar dataKey="underwaterSpecies" name="🌊 Thủy sinh & Biển" fill="#0284C7" radius={[4, 4, 0, 0]} />
                 <Bar dataKey="aerialSpecies" name="🦅 Trên không (Chim)" fill="#F59E0B" radius={[4, 4, 0, 0]} />
@@ -361,12 +364,12 @@ export const BiodiversityTrendChart: React.FC<BiodiversityTrendChartProps> = ({
           {chartView === 'species_protected' && (
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={BIODIVERSITY_ANNUAL_TRENDS} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.15} />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis yAxisId="left" domain={[1300, 1700]} tick={{ fontSize: 10 }} unit=" loài" axisLine={false} tickLine={false} />
-                <YAxis yAxisId="right" orientation="right" domain={[2500, 6000]} tick={{ fontSize: 10 }} unit=" cá thể" axisLine={false} tickLine={false} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? '#334155' : '#E2E8F0'} />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: isDark ? '#94A3B8' : '#64748B' }} axisLine={false} tickLine={false} />
+                <YAxis yAxisId="left" domain={[1300, 1700]} tick={{ fontSize: 10, fill: isDark ? '#94A3B8' : '#64748B' }} unit=" loài" axisLine={false} tickLine={false} />
+                <YAxis yAxisId="right" orientation="right" domain={[2500, 6000]} tick={{ fontSize: 10, fill: isDark ? '#94A3B8' : '#64748B' }} unit=" cá thể" axisLine={false} tickLine={false} />
                 <Tooltip content={<CustomChartTooltip />} />
-                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
+                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} formatter={(value) => <span className="text-slate-600 dark:text-slate-300 font-medium">{value}</span>} />
 
                 <Bar yAxisId="left" dataKey="speciesRecorded" name="Số loài định danh chính thức (loài)" fill="#3B82F6" radius={[4, 4, 0, 0]} barSize={36} />
                 <Line yAxisId="right" type="monotone" dataKey="endangeredProtected" name="Cá thể Sách Đỏ cứu hộ & theo dõi" stroke="#EF4444" strokeWidth={3} dot={{ r: 4 }} />
@@ -481,7 +484,7 @@ export const BiodiversityTrendChart: React.FC<BiodiversityTrendChartProps> = ({
                 </span>
 
                 <div className="flex items-center gap-2 mt-2 text-xs">
-                  <span className="text-[11px] text-slate-500">2023: <strong>{z.speciesRecorded2023} loài</strong></span>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400">2023: <strong>{z.speciesRecorded2023} loài</strong></span>
                   <span className="text-slate-300 dark:text-slate-600">&rarr;</span>
                   <span className="text-xs font-black text-emerald-600 dark:text-emerald-400">2026: <strong>{z.speciesRecorded2026} loài</strong></span>
                 </div>

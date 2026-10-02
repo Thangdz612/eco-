@@ -282,6 +282,12 @@ export async function syncCollectedWeatherOnline(
       dataType: 'forecast_model',
     });
 
+    cacheManager.set(`current_weather_${districtId}`, liveResult.current, {
+      ttlMs: CACHE_TTL.WEATHER_RANGE,
+      source: liveResult.source,
+      dataType: 'forecast_model',
+    });
+
     if (airResult) {
       cacheManager.set(`air_quality_${districtId}`, airResult, {
         ttlMs: CACHE_TTL.AIR_QUALITY,
@@ -304,10 +310,26 @@ export async function syncCollectedWeatherOnline(
 
     // 4. Cập nhật dữ liệu vào DISTRICTS_DATA trong bộ nhớ
     if (targetDistrict) {
+      if (!targetDistrict.weather) {
+        targetDistrict.weather = {
+          temp: `${Math.round(liveResult.current.temperature)}°C`,
+          condition: liveResult.current.condition,
+          description: `${districtName}: Nhiệt độ ${liveResult.current.temperature}°C`,
+          humidity: `${liveResult.current.humidity}%`,
+          altitude: '10 m',
+          uvIndex: `UV ${liveResult.current.uvIndex.toFixed(1)}`,
+          uvLevel: getUvLevel(liveResult.current.uvIndex),
+          lightIntensity: `${Math.round(liveResult.current.solarRadiation)} W/m²`,
+          statusAssessment: 'Mô hình vi khí hậu ECMWF',
+          statusDetail: `Thời tiết hiện tại ${liveResult.current.condition}`,
+        };
+      }
       targetDistrict.weather.temp = `${Math.round(liveResult.current.temperature)}°C`;
       targetDistrict.weather.humidity = `${liveResult.current.humidity}%`;
       targetDistrict.weather.condition = liveResult.current.condition;
       targetDistrict.weather.uvIndex = `UV ${liveResult.current.uvIndex.toFixed(1)}`;
+      targetDistrict.weather.uvLevel = getUvLevel(liveResult.current.uvIndex);
+      targetDistrict.weather.lightIntensity = `${Math.round(liveResult.current.solarRadiation)} W/m²`;
       targetDistrict.weather.description = `${districtName}: Nhiệt độ ${liveResult.current.temperature}°C, Áp suất ${liveResult.current.surfacePressure}hPa, Mưa ${liveResult.current.rainProbability}%, Độ ẩm ${liveResult.current.humidity}%, Gió ${liveResult.current.windSpeed}km/h (Mô hình Open-Meteo)`;
       targetDistrict.weather.timestamp = liveResult.current?.time || nowStr;
       targetDistrict.weather.source = liveResult.source;
@@ -450,3 +472,169 @@ export function generateMultiLevelComparison(offset: number = 0): UnitComparison
 
   return hours;
 }
+
+export interface CurrentLiveWeather {
+  hasData: boolean;
+  temp: string;
+  condition: string;
+  description: string;
+  humidity: string;
+  altitude?: string;
+  uvIndex: string;
+  uvLevel: string;
+  lightIntensity?: string;
+  statusAssessment: string;
+  statusDetail: string;
+  timestamp: string;
+  source: string;
+  dataType: 'observation' | 'forecast_model' | 'simulation';
+  isLive: boolean;
+  dewPoint?: string;
+  surfacePressure?: string;
+  windSpeed?: string;
+  windGust?: string;
+  rainProbability?: number;
+  rainfallMm?: number;
+}
+
+export function getCachedCurrentLiveWeather(
+  districtId: string = 'quan-1',
+  districtName?: string
+): CurrentLiveWeather {
+  const d = DISTRICTS_DATA[districtId];
+  const name = districtName || d?.name || 'Khu vực';
+
+  // 1. Kiểm tra nếu in-memory targetDistrict.weather đã có dữ liệu hợp lệ
+  if (d?.weather && d.weather.temp && d.weather.isLive) {
+    return {
+      hasData: true,
+      temp: d.weather.temp,
+      condition: d.weather.condition || 'Thời tiết ổn định',
+      description: d.weather.description || `${name}: ${d.weather.temp}`,
+      humidity: d.weather.humidity || 'Không có dữ liệu',
+      altitude: d.weather.altitude || 'Không có dữ liệu',
+      uvIndex: d.weather.uvIndex || 'Không có dữ liệu',
+      uvLevel: d.weather.uvLevel || 'Không có dữ liệu',
+      lightIntensity: d.weather.lightIntensity || 'Không có dữ liệu',
+      statusAssessment: d.weather.statusAssessment || 'Mô hình vi khí hậu',
+      statusDetail: d.weather.statusDetail || 'Dữ liệu đồng bộ Open-Meteo',
+      timestamp: d.weather.timestamp || 'Vừa cập nhật',
+      source: d.weather.source || 'Open-Meteo Weather API (ECMWF & GFS)',
+      dataType: d.weather.dataType || 'forecast_model',
+      isLive: true,
+      dewPoint: d.weather.dewPoint,
+      surfacePressure: d.weather.surfacePressure,
+      windSpeed: d.weather.windSpeed,
+      windGust: d.weather.windGust,
+      rainProbability: d.weather.rainProbability,
+      rainfallMm: d.weather.rainfallMm,
+    };
+  }
+
+  // 2. Kiểm tra CacheManager hoặc localStorage live_current
+  let liveCurrent: any = null;
+  const cachedCurrent = cacheManager.get<any>(`current_weather_${districtId}`);
+  if (cachedCurrent && cachedCurrent.data) {
+    liveCurrent = cachedCurrent.data;
+  } else if (typeof window !== 'undefined') {
+    try {
+      const raw = localStorage.getItem(`${STORAGE_PREFIX}${districtId}_live_current`);
+      if (raw) liveCurrent = JSON.parse(raw);
+    } catch {
+      // ignore
+    }
+  }
+
+  if (liveCurrent && typeof liveCurrent.temperature === 'number') {
+    const tempStr = `${Math.round(liveCurrent.temperature)}°C`;
+    const humStr = `${liveCurrent.humidity}%`;
+    const uvStr = `UV ${Number(liveCurrent.uvIndex ?? 0).toFixed(1)}`;
+    const uvLevel = getUvLevel(liveCurrent.uvIndex ?? 0);
+    const cond = liveCurrent.condition || 'Thời tiết ổn định';
+    const windStr = `${Number(liveCurrent.windSpeed ?? 0).toFixed(1)} km/h`;
+    const gustStr = `${Number(liveCurrent.windGust ?? 0).toFixed(1)} km/h`;
+    const dewStr = `${Number(liveCurrent.dewPoint ?? 0).toFixed(1)}°C`;
+    const pressStr = `${Number(liveCurrent.surfacePressure ?? 1012).toFixed(1)} hPa`;
+
+    return {
+      hasData: true,
+      temp: tempStr,
+      condition: cond,
+      description: `${name}: Nhiệt độ ${tempStr}, Độ ẩm ${humStr}, Gió ${windStr}`,
+      humidity: humStr,
+      altitude: '10 m',
+      uvIndex: uvStr,
+      uvLevel,
+      lightIntensity: `${Math.round(liveCurrent.solarRadiation ?? 0)} W/m²`,
+      statusAssessment: 'Mô hình vi khí hậu ECMWF',
+      statusDetail: `Thời tiết hiện tại ${cond}, nhiệt độ ${tempStr}`,
+      timestamp: liveCurrent.time ? `Cập nhật ${liveCurrent.time}` : 'Vừa cập nhật',
+      source: 'Mô hình dự báo vi khí hậu ECMWF IFS & GFS (Open-Meteo)',
+      dataType: 'forecast_model',
+      isLive: true,
+      dewPoint: dewStr,
+      surfacePressure: pressStr,
+      windSpeed: windStr,
+      windGust: gustStr,
+      rainProbability: liveCurrent.rainProbability,
+      rainfallMm: liveCurrent.rainMm,
+    };
+  }
+
+  // 3. Kiểm tra xem 7-day collected range có chứa ngày hôm nay (offset 0) không
+  const range = getCachedCollectedWeatherRange(districtId, name);
+  if (range.hasData && range.data.length > 0) {
+    const today = range.data.find((d) => d.dateOffset === 0) || range.data[3] || range.data[0];
+    if (today && today.hours && today.hours.length > 0) {
+      const currentHour = new Date().getHours();
+      const hData = today.hours[currentHour] || today.hours[12] || today.hours[0];
+      const tempStr = `${Math.round(hData.temp)}°C`;
+      const humStr = `${hData.humidity}%`;
+      const uvStr = `UV ${Number(hData.uvIndex ?? 0).toFixed(1)}`;
+
+      return {
+        hasData: true,
+        temp: tempStr,
+        condition: hData.condition || 'Ổn định',
+        description: `${name}: Nhiệt độ ${tempStr}, Độ ẩm ${humStr}`,
+        humidity: humStr,
+        altitude: '10 m',
+        uvIndex: uvStr,
+        uvLevel: hData.uvLevel || getUvLevel(hData.uvIndex ?? 0),
+        lightIntensity: `${Math.round(hData.solarRadiation ?? 0)} W/m²`,
+        statusAssessment: 'Mô hình vi khí hậu ERA5 / ECMWF',
+        statusDetail: today.summary || `Thời tiết ổn định, nhiệt độ ${tempStr}`,
+        timestamp: today.collectedAt || 'Từ bộ nhớ đệm',
+        source: today.source || 'Open-Meteo Weather API',
+        dataType: today.dataType || 'forecast_model',
+        isLive: true,
+        dewPoint: `${Number(hData.dewPoint ?? 0).toFixed(1)}°C`,
+        surfacePressure: hData.pressure ? `${hData.pressure} hPa` : undefined,
+        windSpeed: `${Number(hData.windSpeed ?? 0).toFixed(1)} km/h`,
+        windGust: `${Number(hData.windGust ?? 0).toFixed(1)} km/h`,
+        rainProbability: hData.rainChance,
+        rainfallMm: hData.rainfallAmount,
+      };
+    }
+  }
+
+  // 4. Khi chưa có dữ liệu mạng/cache: TUYỆT ĐỐI KHÔNG BỊA SỐ GIẢ
+  return {
+    hasData: false,
+    temp: 'Chưa có dữ liệu',
+    condition: 'Đang chờ đồng bộ...',
+    description: `Chưa có dữ liệu thời tiết ngoại tuyến cho ${name}. Vui lòng kết nối mạng để đồng bộ.`,
+    humidity: 'Không có dữ liệu',
+    altitude: 'Không có dữ liệu',
+    uvIndex: 'Không có dữ liệu',
+    uvLevel: 'Chưa có dữ liệu',
+    lightIntensity: 'Không có dữ liệu',
+    statusAssessment: 'Chưa có dữ liệu',
+    statusDetail: 'Vui lòng kết nối mạng để đồng bộ dữ liệu thời tiết thực tế từ Open-Meteo',
+    timestamp: 'Chưa đồng bộ',
+    source: 'Open-Meteo Weather API (ECMWF & GFS)',
+    dataType: 'forecast_model',
+    isLive: false,
+  };
+}
+

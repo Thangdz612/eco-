@@ -12,9 +12,19 @@ export const EnterpriseTab: React.FC<EnterpriseTabProps> = ({ data, onOpenDetail
   const geoRecord = getGeologySubsidenceRecord(
     data.id,
     data.name,
-    data.location?.lat,
-    data.location?.lng
+    data.lat || data.location?.lat,
+    data.lng || data.location?.lng
   );
+
+  const enterprise = data.enterprise || {
+    assessmentTitle: 'Định hướng phát triển xanh',
+    assessmentSubtitle: 'Chuyển đổi số & Kinh tế tuần hoàn',
+    geologyImpact: { levelText: 'Thấp', percent: 25, status: 'low' as const },
+    waterImpact: { levelText: 'Kiểm soát tốt', percent: 50, status: 'medium' as const },
+    airImpact: { levelText: 'Tiêu chuẩn', percent: 45, status: 'medium' as const },
+    ecoProductionGuideline: 'Định hướng sản xuất kinh doanh giảm phát thải carbon và bảo vệ sinh thái địa phương',
+  };
+
   return (
     <div className="flex flex-col gap-5 px-5 pb-6">
       {/* Đánh giá tổng quát (Màu tím oải hương mềm mại) */}
@@ -24,7 +34,7 @@ export const EnterpriseTab: React.FC<EnterpriseTabProps> = ({ data, onOpenDetail
           onOpenDetail({
             title: 'Đánh giá Cơ hội Phát triển Bền vững',
             category: 'Kinh tế & Doanh nghiệp',
-            description: `${data.enterprise.assessmentSubtitle} tại ${data.name}.`,
+            description: `${enterprise.assessmentSubtitle} tại ${data.name}.`,
             details: [
               'Chỉ số thuận lợi kinh doanh xanh (Green Index): 78/100.',
               'Cơ sở hạ tầng cấp điện, cấp nước sạch và xử lý nước thải tập trung hoàn thiện 99%.',
@@ -39,10 +49,10 @@ export const EnterpriseTab: React.FC<EnterpriseTabProps> = ({ data, onOpenDetail
         className="bg-[#F0EDFD] dark:bg-[#4338CA]/25 hover:bg-[#e9e5fc] dark:hover:bg-[#4338CA]/35 rounded-[24px] p-6 shadow-xs transition-all active:scale-[0.99] cursor-pointer border border-transparent dark:border-indigo-800/40"
       >
         <span className="text-[15px] font-semibold text-[#4C1D95] dark:text-indigo-300 tracking-tight block">
-          {data.enterprise.assessmentTitle}
+          {enterprise.assessmentTitle}
         </span>
         <span className="text-[25px] font-extrabold text-[#2E1065] dark:text-indigo-100 mt-1 tracking-tight leading-tight block">
-          {data.enterprise.assessmentSubtitle}
+          {enterprise.assessmentSubtitle}
         </span>
       </div>
 
@@ -153,7 +163,7 @@ export const EnterpriseTab: React.FC<EnterpriseTabProps> = ({ data, onOpenDetail
                 </span>
               </div>
               <span className="text-[12px] font-medium text-amber-700 dark:text-amber-400 bg-amber-100/80 dark:bg-amber-950/80 px-2 py-0.5 rounded-full">
-                {data.enterprise.waterImpact.levelText}
+                {enterprise.waterImpact.levelText}
               </span>
             </div>
             <div className="text-[11.5px] text-slate-600 dark:text-slate-300 mt-1">
@@ -190,7 +200,7 @@ export const EnterpriseTab: React.FC<EnterpriseTabProps> = ({ data, onOpenDetail
                 </span>
               </div>
               <span className="text-[12px] font-medium text-amber-700 dark:text-amber-400 bg-amber-100/80 dark:bg-amber-950/80 px-2 py-0.5 rounded-full">
-                {data.enterprise.airImpact.levelText}
+                {enterprise.airImpact.levelText}
               </span>
             </div>
             <div className="text-[11.5px] text-slate-600 dark:text-slate-300 mt-1">
@@ -211,7 +221,7 @@ export const EnterpriseTab: React.FC<EnterpriseTabProps> = ({ data, onOpenDetail
           id="enterprise-direction-btn"
           onClick={() =>
             onOpenDetail({
-              title: data.enterprise.ecoProductionGuideline,
+              title: enterprise.ecoProductionGuideline,
               category: 'Chính sách phát triển xanh',
               description: 'Bộ khung tiêu chuẩn chuyển đổi số và chuyển đổi xanh dành cho doanh nghiệp nội đô.',
               details: [
@@ -230,7 +240,7 @@ export const EnterpriseTab: React.FC<EnterpriseTabProps> = ({ data, onOpenDetail
           <div className="flex items-center gap-3.5">
             <Leaf className="w-6 h-6 text-[#334155] dark:text-emerald-400 stroke-[2]" />
             <span className="text-[15px] font-semibold text-[#1E293B] dark:text-slate-200">
-              {data.enterprise.ecoProductionGuideline}
+              {enterprise.ecoProductionGuideline}
             </span>
           </div>
           <ChevronRight className="w-5 h-5 text-[#94A3B8] dark:text-slate-400" />

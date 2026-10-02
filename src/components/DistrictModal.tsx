@@ -288,13 +288,20 @@ export const DistrictModal: React.FC<DistrictModalProps> = ({
                     <div className="text-[11.5px] text-slate-500 dark:text-slate-400 mt-0.5 font-normal line-clamp-1">
                       {district.subTitle}
                     </div>
-                    <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5 flex items-center gap-2">
-                      <span className="font-semibold text-slate-600 dark:text-slate-300">{district.weather.temp}</span>
-                      <span>•</span>
-                      <span>Độ ẩm: {district.weather.humidity}</span>
-                      <span>•</span>
-                      <span>{district.weather.uvIndex}</span>
-                    </div>
+                    {district.weather?.temp ? (
+                      <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5 flex items-center gap-2">
+                        <span className="font-semibold text-slate-600 dark:text-slate-300">{district.weather.temp}</span>
+                        <span>•</span>
+                        <span>Độ ẩm: {district.weather.humidity}</span>
+                        <span>•</span>
+                        <span>{district.weather.uvIndex}</span>
+                      </div>
+                    ) : (
+                      <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5 flex items-center gap-1.5">
+                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500/70" />
+                        <span>Khu vực {district.districtGroup}</span>
+                      </div>
+                    )}
                   </div>
                   {isSelected && <Check className="w-5 h-5 text-[#0D47A1] dark:text-blue-400 shrink-0" />}
                 </button>

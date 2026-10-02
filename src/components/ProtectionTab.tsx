@@ -8,6 +8,21 @@ interface ProtectionTabProps {
 }
 
 export const ProtectionTab: React.FC<ProtectionTabProps> = ({ data, onOpenDetail }) => {
+  const protection = data.protection || {
+    assessmentTitle: 'Đánh giá Công tác Bảo vệ Môi trường',
+    assessmentSubtitle: 'Đô thị đạt chuẩn bảo vệ môi trường',
+    wasteStatus: {
+      pollution: 'Kiểm soát tốt',
+      sorting: 'Đã triển khai phân loại tại nguồn',
+      collection: 'Tần suất 2 lượt/ngày',
+      wasteToFuel: 'Tái chế & thu hồi năng lượng',
+    },
+    communityEvents: {
+      volunteering: `Chương trình Ngày Chủ Nhật Xanh tại ${data.name}`,
+      campaign: 'Chiến dịch giảm thiểu túi nilon & bảo vệ vi khí hậu',
+    },
+  };
+
   return (
     <div className="flex flex-col gap-5 px-5 pb-6">
       {/* Đánh giá tổng quát (Màu xanh lá nhạt tươi mới) */}
@@ -17,12 +32,12 @@ export const ProtectionTab: React.FC<ProtectionTabProps> = ({ data, onOpenDetail
           onOpenDetail({
             title: 'Đánh giá Công tác Bảo vệ Môi trường',
             category: 'Tổng quan môi trường',
-            description: `${data.protection.assessmentSubtitle} tại ${data.name}.`,
+            description: `${protection.assessmentSubtitle} tại ${data.name}.`,
             details: [
               'Điểm đánh giá chỉ số môi trường đô thị (EPI cấp quận): 82/100.',
               'Tỷ lệ thu gom và xử lý chất thải rắn sinh hoạt đạt 100%.',
               'Mạng lưới giám sát vệ sinh môi trường bằng 45 camera AI thông minh.',
-              'Khen thưởng 12 phường có thành tích xuất sắc trong phong trào Vì Thành Phố Văn Minh Sạch Đẹp.',
+              'Khen thưởng các tổ dân phố có thành tích xuất sắc trong phong trào Vì Thành Phố Văn Minh Sạch Đẹp.',
             ],
             tips: [
               'Chung tay cùng khu phố giữ gìn vệ sinh chung, bỏ rác đúng giờ và đúng nơi quy định.',
@@ -32,10 +47,10 @@ export const ProtectionTab: React.FC<ProtectionTabProps> = ({ data, onOpenDetail
         className="bg-[#EDF7ED] dark:bg-[#15803D]/20 hover:bg-[#e4f3e4] dark:hover:bg-[#15803D]/30 rounded-[24px] p-6 shadow-xs transition-all active:scale-[0.99] cursor-pointer border border-transparent dark:border-emerald-800/40"
       >
         <span className="text-[15px] font-semibold text-[#166534] dark:text-emerald-300 tracking-tight block">
-          {data.protection.assessmentTitle}
+          {protection.assessmentTitle}
         </span>
         <span className="text-[26px] font-extrabold text-[#14532D] dark:text-emerald-100 mt-1 tracking-tight leading-tight block">
-          {data.protection.assessmentSubtitle}
+          {protection.assessmentSubtitle}
         </span>
       </div>
 
@@ -59,9 +74,9 @@ export const ProtectionTab: React.FC<ProtectionTabProps> = ({ data, onOpenDetail
               onOpenDetail({
                 title: 'Kiểm soát & Xử lý Ô nhiễm Môi trường',
                 category: 'Quản lý rác thải',
-                description: `Tình trạng: ${data.protection.wasteStatus.pollution}.`,
+                description: `Tình trạng: ${protection.wasteStatus.pollution}.`,
                 details: [
-                  'Đã xóa bỏ hoàn toàn 8/8 điểm đen rác thải tự phát trên địa bàn.',
+                  'Đã xóa bỏ hoàn toàn các điểm đen rác thải tự phát trên địa bàn.',
                   'Hệ thống thu gom nước rỉ rác khép kín chống mùi hôi triệt để.',
                   'Đội phản ứng nhanh xử lý vi phạm xả rác trong vòng 15 phút từ lúc nhận tin báo.',
                 ],
@@ -88,7 +103,7 @@ export const ProtectionTab: React.FC<ProtectionTabProps> = ({ data, onOpenDetail
               onOpenDetail({
                 title: 'Cẩm nang Phân loại Rác thải tại Nguồn',
                 category: 'Quản lý rác thải',
-                description: `Tiến độ: ${data.protection.wasteStatus.sorting}.`,
+                description: `Tiến độ: ${protection.wasteStatus.sorting}.`,
                 details: [
                   '🟢 Rác hữu cơ dễ phân hủy: Thức ăn thừa, rau củ quả, bã trà, lá cây -> Cho vào túi/thùng xanh.',
                   '⚪ Rác có khả năng tái chế: Chai lọ nhựa, giấy báo, vỏ hộp sữa, lon kim loại -> Cho vào túi trắng/trong suốt.',
@@ -118,7 +133,7 @@ export const ProtectionTab: React.FC<ProtectionTabProps> = ({ data, onOpenDetail
               onOpenDetail({
                 title: 'Lịch trình & Phương tiện Thu gom Rác',
                 category: 'Quản lý rác thải',
-                description: `Tần suất: ${data.protection.wasteStatus.collection}.`,
+                description: `Tần suất: ${protection.wasteStatus.collection}.`,
                 details: [
                   '100% phương tiện gom rác chuyển sang xe ép rác chuyên dùng đạt chuẩn Euro 5.',
                   'Thời gian xe gom đường chính: 21:00 - 04:30 sáng hàng ngày.',
@@ -147,7 +162,7 @@ export const ProtectionTab: React.FC<ProtectionTabProps> = ({ data, onOpenDetail
               onOpenDetail({
                 title: 'Công nghệ Chuyển hóa Nhiên liệu từ Rác (Waste to Energy)',
                 category: 'Quản lý rác thải',
-                description: `Hiệu quả: ${data.protection.wasteStatus.wasteToFuel}.`,
+                description: `Hiệu quả: ${protection.wasteStatus.wasteToFuel}.`,
                 details: [
                   'Nhà máy đốt rác phát điện công nghệ Đức tại khu liên hợp xử lý rác Tây Bắc.',
                   'Sản lượng điện hòa lưới ước tính: 40 MW/ngày đêm (đủ cấp điện sinh hoạt cho 100.000 hộ dân).',
@@ -185,7 +200,7 @@ export const ProtectionTab: React.FC<ProtectionTabProps> = ({ data, onOpenDetail
               onOpenDetail({
                 title: 'Hoạt động Tình nguyện Vì Môi trường',
                 category: 'Cộng đồng xanh',
-                description: data.protection.communityEvents.volunteering,
+                description: protection.communityEvents.volunteering,
                 details: [
                   'Chiến dịch Chủ Nhật Xanh: Diễn ra định kỳ vào sáng Chủ Nhật tuần thứ 2 và thứ 4 hàng tháng.',
                   'Địa điểm tập trung tuần này: Bến Bạch Đằng & Cầu Mống, Quận 1.',
@@ -216,7 +231,7 @@ export const ProtectionTab: React.FC<ProtectionTabProps> = ({ data, onOpenDetail
               onOpenDetail({
                 title: 'Tuyên truyền & Giáo dục Môi trường Cộng đồng',
                 category: 'Cộng đồng xanh',
-                description: data.protection.communityEvents.campaign,
+                description: protection.communityEvents.campaign,
                 details: [
                   'Cuộc thi "Gia Đình Không Rác Thải Nhựa" cấp thành phố.',
                   'Chuỗi hội thảo tương tác trực tiếp tại các trường THCS và THPT trên địa bàn.',

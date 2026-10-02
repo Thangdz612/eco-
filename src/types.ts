@@ -65,7 +65,8 @@ export interface DistrictData {
   adminType?: 'phường' | 'xã' | 'đặc khu';
   lat: number;
   lng: number;
-  weather: {
+  location?: { lat: number; lng: number };
+  weather?: {
     temp: string;
     condition: string;
     description: string;
@@ -89,16 +90,16 @@ export interface DistrictData {
     rainfallMm?: number;
   };
   airQuality?: AirQualityData;
-  biodiversity: {
+  biodiversity?: {
     dataOrigin?: 'field_inventory' | 'reference_sample' | 'no_local_data';
     dataSource?: string;
     lastSurveyYear?: string;
-    underwater: { count: number; status: string; highlights: string[]; recordType?: 'recorded' | 'estimated' | 'actual_total' };
-    terrestrial: { count: number; status: string; highlights: string[]; recordType?: 'recorded' | 'estimated' | 'actual_total' };
-    aerial: { count: number; status: string; highlights: string[]; recordType?: 'recorded' | 'estimated' | 'actual_total' };
-    amphibian: { count: number; status: string; highlights: string[]; recordType?: 'recorded' | 'estimated' | 'actual_total' };
+    underwater?: { count: number; status: string; highlights: string[]; recordType?: 'recorded' | 'estimated' | 'actual_total' };
+    terrestrial?: { count: number; status: string; highlights: string[]; recordType?: 'recorded' | 'estimated' | 'actual_total' };
+    aerial?: { count: number; status: string; highlights: string[]; recordType?: 'recorded' | 'estimated' | 'actual_total' };
+    amphibian?: { count: number; status: string; highlights: string[]; recordType?: 'recorded' | 'estimated' | 'actual_total' };
   };
-  environmentIndexes: {
+  environmentIndexes?: {
     air?: {
       value: string;
       quality: string;
@@ -107,9 +108,9 @@ export interface DistrictData {
       aqi?: number;
       pm25?: string;
     };
-    water: { value: string; quality: string; progress: number; note: string };
-    light: { value: string; quality: string; progress: number; note: string };
-    geology: {
+    water?: { value: string; quality: string; progress: number; note: string };
+    light?: { value: string; quality: string; progress: number; note: string };
+    geology?: {
       value: string;
       quality: string;
       progress?: number;
@@ -122,21 +123,21 @@ export interface DistrictData {
       isSatelliteModel?: boolean;
     };
   };
-  alerts: {
-    weatherAlert: {
+  alerts?: {
+    weatherAlert?: {
       title: string;
       desc: string;
       level: 'warning' | 'info' | 'danger';
       actionAdvice: string;
     };
-    environmentAlert: {
+    environmentAlert?: {
       title: string;
       desc: string;
       level: 'warning' | 'info' | 'danger';
       actionAdvice: string;
     };
   };
-  enterprise: {
+  enterprise?: {
     assessmentTitle: string;
     assessmentSubtitle: string;
     geologyImpact: { levelText: string; percent: number; status: 'low' | 'medium' | 'high' };
@@ -144,7 +145,7 @@ export interface DistrictData {
     airImpact: { levelText: string; percent: number; status: 'low' | 'medium' | 'high' };
     ecoProductionGuideline: string;
   };
-  protection: {
+  protection?: {
     assessmentTitle: string;
     assessmentSubtitle: string;
     wasteStatus: {

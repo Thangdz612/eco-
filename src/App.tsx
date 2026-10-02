@@ -19,7 +19,8 @@ import {
   getStoredThemeMode, 
   setStoredThemeMode, 
   resolveActiveTheme, 
-  applyThemeClass 
+  applyThemeClass,
+  applyNativeStatusBar 
 } from './utils/theme';
 import { syncWeatherNotificationsOnline, getStorageConfig } from './utils/weatherNotificationStorage';
 import { syncCollectedWeatherOnline } from './utils/collectedWeatherStorage';
@@ -85,9 +86,22 @@ export default function App() {
     };
   }, [currentDistrict.id, currentDistrict.name, currentDistrict.adminType]);
 
-  // Sync theme changes to document
+  // Sync theme changes to document, meta theme-color, and native status bar
   useEffect(() => {
     applyThemeClass(activeTheme);
+
+    const themeColor = activeTheme === 'dark' ? '#0F172A' : '#0D47A1';
+    const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+    if (metaThemeColor) {
+      metaThemeColor.setAttribute('content', themeColor);
+    } else {
+      const meta = document.createElement('meta');
+      meta.name = 'theme-color';
+      meta.content = themeColor;
+      document.head.appendChild(meta);
+    }
+
+    applyNativeStatusBar(activeTheme);
   }, [activeTheme]);
 
   // Listen to OS / device theme preference changes
