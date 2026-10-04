@@ -134,14 +134,14 @@ export const BiodiversityTrendChart: React.FC<BiodiversityTrendChartProps> = ({
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="text-base font-extrabold text-slate-900 dark:text-slate-100 tracking-tight">
-                Biểu Đồ Kiểm Kê & Xu Hướng Sinh Vật (2023 – 2026)
+                Biểu Đồ Xu Hướng Sinh Vật (2023 – 2026)
               </h3>
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-600 text-white shadow-2xs">
-                Dữ liệu kiểm kê thực địa
+                Ước tính tham khảo vùng
               </span>
             </div>
             <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed max-w-3xl">
-              Thống kê số lượng loài đã được định danh chính thức, cá thể quý hiếm được cứu hộ và diện tích thảm xanh bảo tồn. Nguồn: Chi cục Kiểm lâm TP.HCM, BQL Khu DTSQ Cần Giờ & Vườn Quốc gia Côn Đảo.
+              Ước tính tham khảo về số lượng loài, cá thể bảo tồn và diện tích thảm xanh sinh thái vùng TP.HCM & Côn Đảo. Nguồn: Ước tính tham khảo — chưa có tài liệu đối chiếu.
             </p>
           </div>
         </div>
@@ -194,12 +194,12 @@ export const BiodiversityTrendChart: React.FC<BiodiversityTrendChartProps> = ({
 
       {/* 2. Các thẻ chỉ số KPI Tổng kết số lượng loài định danh thực tế (Không dùng % giả) */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
-        {/* Tổng loài ghi nhận */}
+        {/* Tổng loài tham khảo */}
         <div className="p-3 rounded-xl bg-white dark:bg-slate-850 border border-slate-200/80 dark:border-slate-800 shadow-2xs flex flex-col justify-between">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">Loài đã ghi nhận</span>
+            <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">Loài theo danh lục</span>
             <span className="text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-              Định danh
+              Ước tính
             </span>
           </div>
           <div className="mt-1">
@@ -215,7 +215,7 @@ export const BiodiversityTrendChart: React.FC<BiodiversityTrendChartProps> = ({
               <Waves className="w-3 h-3" /> Thủy sinh
             </span>
             <span className="text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300">
-              Ghi nhận
+              Tham khảo
             </span>
           </div>
           <div className="mt-1">
@@ -231,7 +231,7 @@ export const BiodiversityTrendChart: React.FC<BiodiversityTrendChartProps> = ({
               <Feather className="w-3 h-3" /> Trên không
             </span>
             <span className="text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
-              Ghi nhận
+              Tham khảo
             </span>
           </div>
           <div className="mt-1">
@@ -247,7 +247,7 @@ export const BiodiversityTrendChart: React.FC<BiodiversityTrendChartProps> = ({
               <Footprints className="w-3 h-3" /> Trên cạn
             </span>
             <span className="text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-              Ghi nhận
+              Tham khảo
             </span>
           </div>
           <div className="mt-1">
@@ -263,7 +263,7 @@ export const BiodiversityTrendChart: React.FC<BiodiversityTrendChartProps> = ({
               <Droplet className="w-3 h-3" /> Lưỡng cư
             </span>
             <span className="text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-teal-100 text-teal-800 dark:bg-teal-950 dark:text-teal-300">
-              Ghi nhận
+              Tham khảo
             </span>
           </div>
           <div className="mt-1">
@@ -579,8 +579,8 @@ export const BiodiversityTrendChart: React.FC<BiodiversityTrendChartProps> = ({
                       `Thời gian tham chiếu quan trắc: ${sp.recordedYear}`,
                       `Cơ sở tham chiếu theo vùng sinh thái: ${sp.source}`,
                       `Phương thức đối chiếu thông tin: ${sp.verificationMethod}`,
-                      `Ghi nhận 2023: ${sp.val2023}`,
-                      `Ghi nhận 2026: ${sp.val2026}`,
+                      `Ước tính 2023: ${sp.val2023}`,
+                      `Ước tính 2026: ${sp.val2026}`,
                       `Đánh giá tổng quan: ${sp.statusText}`,
                       `Nguyên nhân biến động: ${sp.cause}`,
                       `Giải pháp can thiệp: ${sp.protectiveSolution}`,
@@ -643,11 +643,11 @@ export const BiodiversityTrendChart: React.FC<BiodiversityTrendChartProps> = ({
                 {/* So sánh 2023 vs 2026 */}
                 <div className="grid grid-cols-2 gap-2 text-[11px] pt-1 border-t border-slate-100 dark:border-slate-800">
                   <div>
-                    <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider block">Ghi nhận 2023</span>
+                    <span className="text-[9.5px] font-bold text-slate-400 uppercase tracking-wider block">Ước tính 2023</span>
                     <span className="text-slate-700 dark:text-slate-300 font-medium line-clamp-1">{sp.val2023}</span>
                   </div>
                   <div className="border-l border-slate-200 dark:border-slate-700 pl-2">
-                    <span className="text-[9.5px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider block">Ghi nhận 2026</span>
+                    <span className="text-[9.5px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider block">Ước tính 2026</span>
                     <span className="text-slate-900 dark:text-slate-100 font-bold line-clamp-1">{sp.val2026}</span>
                   </div>
                 </div>

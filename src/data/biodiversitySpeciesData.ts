@@ -1175,12 +1175,6 @@ export function getSpeciesByRealm(realm: 'underwater' | 'aerial' | 'terrestrial'
   return HCM_BIODIVERSITY_SPECIES.filter((item) => item.realm === realm).map(enrichSpeciesItem);
 }
 
-// Hàm lấy danh sách theo tình trạng thương mại
-export function getCommercialSpecies(statusFilter?: CommercialStatusType): SpeciesItem[] {
-  const list = !statusFilter ? HCM_BIODIVERSITY_SPECIES : HCM_BIODIVERSITY_SPECIES.filter((item) => item.commercialStatus === statusFilter);
-  return list.map(enrichSpeciesItem);
-}
-
 // Thống kê tổng hợp tình trạng kinh doanh các loài sinh vật
 export const COMMERCIAL_SPECIES_STATS = {
   totalSpecies: HCM_BIODIVERSITY_SPECIES.length,
@@ -1198,76 +1192,99 @@ export const COMMERCIAL_SPECIES_STATS = {
 };
 
 // Hàm chuẩn hóa bổ sung thông tin khoa học, nguồn dữ liệu và vị trí ghi nhận
-// Chú ý: Dữ liệu nguồn được gán theo phân vùng sinh thái tổng quát, không ngụ ý hồ sơ kiểm chứng thực địa riêng lẻ cho từng cá thể loài.
 export function enrichSpeciesItem(item: SpeciesItem): SpeciesItem {
-  const isConDao = item.habitat.toLowerCase().includes('côn đảo') || item.id.includes('condao');
-  const isCanGio = item.habitat.toLowerCase().includes('cần giờ') || item.habitat.toLowerCase().includes('ngập mặn');
-  const isCuChi = item.habitat.toLowerCase().includes('củ chi') || item.habitat.toLowerCase().includes('hóc môn');
-
   return {
     ...item,
-    recordType: item.recordType || 'recorded',
-    recordTypeLabel: item.recordTypeLabel || 'Tham chiếu theo phân vùng sinh thái (chưa lập hồ sơ riêng lẻ)',
+    recordType: item.recordType || 'estimated',
+    recordTypeLabel: item.recordTypeLabel || 'Tham khảo sinh cảnh vùng — không phải kiểm kê tại phường',
     recordedLocation: item.recordedLocation || item.habitat,
-    recordedYear: item.recordedYear || 'Tài liệu tổng hợp (tham chiếu theo vùng)',
-    source:
-      item.source ||
-      (isConDao
-        ? 'Cơ sở tham chiếu theo vùng sinh thái VQG Côn Đảo (Sách Đỏ VN / IUCN)'
-        : isCanGio
-        ? 'Cơ sở tham chiếu theo vùng sinh thái Khu DTSQ Rừng ngập mặn Cần Giờ (Sở TN&MT)'
-        : isCuChi
-        ? 'Cơ sở tham chiếu theo vùng nông nghiệp sinh thái Tây Bắc (Củ Chi - Hóc Môn)'
-        : 'Cơ sở tham chiếu sinh thái đô thị tổng quát (chưa kiểm chứng riêng từng loài)'),
+    recordedYear: item.recordedYear || 'Tài liệu tham khảo theo vùng',
+    source: item.source || 'Ước tính tham khảo — chưa có tài liệu đối chiếu',
     verificationMethod:
       item.verificationMethod ||
-      'Tham chiếu theo sinh cảnh phân bố chung của nhóm vùng (chưa có phiếu khảo sát riêng từng loài)',
+      'Tham chiếu theo sinh cảnh phân bố chung của nhóm vùng',
   };
 }
 
 // Thông tin định danh nguồn dữ liệu kiểm kê cấp quận/phường
-export function getDistrictBiodiversityMetadata(districtId: string, districtName: string): {
+export function getDistrictBiodiversityMetadata(_districtId: string, _districtName: string): {
   isFieldSurveyDistrict: boolean;
   dataSource: string;
   dataNotice: string;
   surveyMethod: string;
 } {
-  const isConDao = districtId.includes('condao') || districtId.includes('con-dao') || districtName.includes('Côn Đảo');
-  const isCanGio = districtId.includes('cg') || districtId.includes('can-gio') || districtName.includes('Cần Giờ');
-  const isCuChi = districtId.includes('cc') || districtId.includes('cu-chi') || districtName.includes('Củ Chi');
+  return {
+    isFieldSurveyDistrict: false,
+    dataSource: 'Ước tính tham khảo — chưa có tài liệu đối chiếu',
+    dataNotice: 'Tham khảo sinh cảnh vùng — không phải kiểm kê tại phường',
+    surveyMethod: 'Tham chiếu theo sinh cảnh vùng sinh thái tổng quát',
+  };
+}
 
-  if (isConDao) {
-    return {
-      isFieldSurveyDistrict: true,
-      dataSource: 'VQG Côn Đảo & Sách Đỏ Việt Nam',
-      dataNotice: 'Dữ liệu điều tra thực địa tại các trạm kiểm lâm & rạn san hô bảo tồn',
-      surveyMethod: 'Quan trắc lặn biển rạn san hô & theo dõi bãi đẻ rùa biển định kỳ',
-    };
-  }
+// Mô tả định tính theo 5 sinh cảnh vùng (thay thế số loài theo khuôn cấp phường)
+export interface WardHabitatSummary {
+  habitatZone: string;
+  habitatDescription: string;
+  disclaimer: string;
+}
+
+export function getWardHabitatSummary(
+  districtId: string,
+  districtName: string = '',
+  districtGroup: string = ''
+): WardHabitatSummary {
+  const id = districtId.toLowerCase();
+  const name = districtName.toLowerCase();
+  const group = districtGroup.toLowerCase();
+
+  const isCanGio =
+    id.includes('can-gio') ||
+    id.includes('cg-') ||
+    name.includes('cần giờ') ||
+    group.includes('cần giờ');
+  const isConDao =
+    id.includes('con-dao') ||
+    id.includes('condao') ||
+    name.includes('côn đảo') ||
+    group.includes('côn đảo');
+  const isBenCat =
+    id.includes('ben-cat') ||
+    id.includes('bc-') ||
+    name.includes('bến cát');
+  const isAgro =
+    id.includes('cu-chi') ||
+    id.includes('hoc-mon') ||
+    id.includes('binh-chanh') ||
+    name.includes('củ chi') ||
+    name.includes('hóc môn') ||
+    name.includes('bình chánh');
+
+  let habitatZone = 'Sinh cảnh đô thị';
+  let habitatDescription =
+    'Công viên cây xanh bóng mát, dải cây cổ thụ lịch sử và hành lang kênh rạch đô thị nội thành.';
 
   if (isCanGio) {
-    return {
-      isFieldSurveyDistrict: true,
-      dataSource: 'BQL Khu DTSQ Rừng ngập mặn Cần Giờ & Chi cục Kiểm lâm TP.HCM',
-      dataNotice: 'Dữ liệu kiểm kê đa dạng sinh học hệ sinh thái rừng ngập mặn Cần Giờ',
-      surveyMethod: 'Thiết lập tuyến khảo sát sinh thái định kỳ & bẫy ảnh chim di cư',
-    };
-  }
-
-  if (isCuChi) {
-    return {
-      isFieldSurveyDistrict: true,
-      dataSource: 'Chi cục Thủy sản & Kiểm lâm TP.HCM (Khu vực nông nghiệp Tây Bắc)',
-      dataNotice: 'Dữ liệu khảo sát cơ sở động thực vật nông nghiệp sinh thái và bò sát',
-      surveyMethod: 'Thống kê vùng nuôi bảo tồn & điều tra hệ sinh thái ven sông Sài Gòn',
-    };
+    habitatZone = 'Sinh cảnh ven biển / ngập mặn Cần Giờ';
+    habitatDescription =
+      'Thảm rừng ngập mặn đước - bần - mắm, bãi bồi triều dâng cửa sông Soài Rạp và hệ động thực vật nước lợ ven biển.';
+  } else if (isConDao) {
+    habitatZone = 'Sinh cảnh hải đảo Côn Đảo';
+    habitatDescription =
+      'Rừng nhiệt đới hải đảo nguyên sinh, rạn san hô biển sâu, thảm cỏ biển và bãi ấp nở rùa biển tự nhiên.';
+  } else if (isBenCat) {
+    habitatZone = 'Sinh cảnh gò đồi Bến Cát';
+    habitatDescription =
+      'Thềm phù sa cổ lượn sóng, gò đồi cây gỗ lớn, mảng xanh cao su và thảm thực vật thoát nước tự nhiên.';
+  } else if (isAgro) {
+    habitatZone = 'Sinh cảnh nông nghiệp ngoại thành';
+    habitatDescription =
+      'Đồng ruộng, kênh mương thủy lợi nội đồng, vườn cây ăn trái sinh thái và vùng đệm thấm hút nước tự nhiên.';
   }
 
   return {
-    isFieldSurveyDistrict: false,
-    dataSource: 'Danh lục sinh thái đô thị (Viện Sinh học Nhiệt đới & GBIF)',
-    dataNotice: 'Dữ liệu tham khảo sinh thái vùng — Chưa có kiểm kê toàn diện tại cấp phường',
-    surveyMethod: 'Tham chiếu phân bố sinh vật công viên đô thị & lưu vực sông lân cận',
+    habitatZone,
+    habitatDescription,
+    disclaimer: 'Tham khảo sinh cảnh vùng — không phải kiểm kê tại phường',
   };
 }
 

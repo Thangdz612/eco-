@@ -1,80 +1,123 @@
 /**
  * Cơ sở dữ liệu Địa chất, Địa hình số (DEM) và Biến động sụt lún mặt đất (InSAR)
- * Phân tách minh bạch thành 3 nhóm khoa học:
- * 1. Thông tin địa chất & tầng trầm tích
- * 2. Địa hình & độ cao DEM (Mô hình vệ tinh SRTM / Copernicus DEM)
- * 3. Sụt lún & chuyển động mặt đất (Dữ liệu radar giao thoa vệ tinh Sentinel-1 PS-InSAR)
  * 
- * Tuyệt đối không tạo % ổn định giả định (như 88%)
- * Ghi chú rõ nguồn gốc, thời gian, phương pháp và vị trí
+ * NGUYÊN TẮC MINH BẠCH & TRUNG THỰC KHOA HỌC:
+ * - Bỏ nhãn "Nền ổn định / Vững chắc" áp tự động cho các phường.
+ * - Chỉ ghi nhận dữ liệu khi có nghiên cứu công bố cho vùng đó; còn lại hiển thị "Chưa có dữ liệu địa chất cục bộ".
+ * - Bắt buộc gắn nhãn InSAR: "Dữ liệu tham khảo vùng từ nghiên cứu công bố; không phải đo tại phường".
+ * - Tuyệt đối không dùng ngôn từ khẳng định "ổn định".
+ * - Hạ nhãn các nguồn chưa kèm mã văn bản/URL thành "Ước tính tham khảo — chưa có tài liệu đối chiếu".
  */
+
+export const INSAR_MANDATORY_LABEL = 'Dữ liệu tham khảo vùng từ nghiên cứu công bố; không phải đo tại phường';
 
 export interface GeologySubsidenceRecord {
   districtId: string;
   districtName: string;
+  hasLocalRecord: boolean; // Có nghiên cứu địa chất / lún riêng cho khu vực này hay không
   // Nhóm 1: Thông tin địa chất
   geology: {
-    formationName: string; // Tên tầng địa chất / phân vị địa tầng
-    lithology: string; // Thành phần thạch học / trầm tích
-    bearingCapacity: string; // Sức chịu tải tính toán (kg/cm² hoặc phân lớp địa kỹ thuật)
-    geologicalAge: string; // Tuổi địa chất (Holocen, Pleistocen, Jura...)
-    source: string; // Bản đồ Địa chất & Khoáng sản TP.HCM 1:50.000 (Cục Địa chất VN)
+    formationName: string;
+    lithology: string;
+    bearingCapacity: string;
+    geologicalAge: string;
+    source: string;
   };
   // Nhóm 2: Địa hình / Độ cao
   topography: {
-    elevationMsl: string; // Độ cao so với mực nước biển trung bình (MSL)
-    terrainType: string; // Đồng bằng ngập triều, thềm phù sa cổ, gò đồi lượn sóng, núi hải đảo
-    dataSource: string; // Mô hình số hóa độ cao vệ tinh DEM (SRTM / Copernicus 30m)
-    methodNotice: string; // "Dữ liệu vệ tinh/mô hình số hóa DEM, không phải đo cảm biến tại điện thoại"
+    elevationMsl: string;
+    terrainType: string;
+    dataSource: string;
+    methodNotice: string;
   };
   // Nhóm 3: Sụt lún / Chuyển động mặt đất
   subsidence: {
-    hasFieldStation: boolean; // Có trạm/mốc quan trắc lún đo đạc thực địa tại điểm này hay không
-    statusLabel: string; // Tình trạng: "Tham chiếu mô hình vệ tinh InSAR" | "Chưa có trạm đo thực địa"
-    insarRateMmYear: string | null; // Tốc độ lún InSAR ước tính (mm/năm) hoặc null nếu không có
-    displacementTrend: string; // Xu hướng chuyển dịch
-    dataSource: string; // Vệ tinh Radar Sentinel-1 (PS-InSAR, JICA & Viện Địa lý Tài nguyên)
-    monitoringTimeRange: string; // Chuỗi thời gian đo (2020 - 2024)
-    surveyMethod: string; // Kỹ thuật giao thoa radar tán xạ trường vĩnh cửu (PS-InSAR)
+    hasFieldStation: boolean;
+    statusLabel: string;
+    insarRateMmYear: string | null;
+    displacementTrend: string;
+    dataSource: string;
+    monitoringTimeRange: string;
+    surveyMethod: string;
+    insarNotice: string;
   };
   generalNote: string;
+}
+
+export function hasLocalGeologyRecord(districtId: string, districtName: string = ''): boolean {
+  const id = districtId.toLowerCase();
+  const name = districtName.toLowerCase();
+  const isCanGio = id.includes('cg') || id.includes('can-gio') || name.includes('cần giờ');
+  const isConDao = id.includes('condao') || id.includes('con-dao') || name.includes('côn đảo');
+  const isBenCat = id.includes('bc-') || id.includes('ben-cat') || name.includes('bến cát');
+  const isCuChiHocMon =
+    id.includes('cc-') ||
+    id.includes('cu-chi') ||
+    id.includes('hm-') ||
+    id.includes('hoc-mon') ||
+    name.includes('củ chi') ||
+    name.includes('hóc môn');
+  const isSouthHcm =
+    id.includes('nb-') ||
+    id.includes('nha-be') ||
+    id.includes('bc-') ||
+    id.includes('binh-chanh') ||
+    id.includes('q7-') ||
+    id.includes('quan-7') ||
+    id.includes('q8-') ||
+    id.includes('quan-8') ||
+    name.includes('nhà bè') ||
+    name.includes('bình chánh') ||
+    name.includes('quận 7') ||
+    name.includes('quận 8');
+
+  return isCanGio || isConDao || isBenCat || isCuChiHocMon || isSouthHcm;
 }
 
 export function getGeologySubsidenceRecord(
   districtId: string,
   districtName: string,
-  lat: number,
-  lng: number
+  _lat?: number,
+  _lng?: number
 ): GeologySubsidenceRecord {
-  const isCanGio = districtId.includes('cg') || districtName.includes('Cần Giờ');
-  const isConDao = districtId.includes('condao') || districtName.includes('Côn Đảo');
-  const isBenCat = districtId.includes('bc-') || districtName.includes('Bến Cát');
+  const id = districtId.toLowerCase();
+  const name = districtName.toLowerCase();
+  const isCanGio = id.includes('cg') || id.includes('can-gio') || name.includes('cần giờ');
+  const isConDao = id.includes('condao') || id.includes('con-dao') || name.includes('côn đảo');
+  const isBenCat = id.includes('bc-') || id.includes('ben-cat') || name.includes('bến cát');
   const isCuChiHocMon =
-    districtId.includes('cc') ||
-    districtId.includes('hm') ||
-    districtName.includes('Củ Chi') ||
-    districtName.includes('Hóc Môn');
+    id.includes('cc-') ||
+    id.includes('cu-chi') ||
+    id.includes('hm-') ||
+    id.includes('hoc-mon') ||
+    name.includes('củ chi') ||
+    name.includes('hóc môn');
   const isSouthHcm =
-    districtId.includes('nb') ||
-    districtId.includes('bc') ||
-    districtId.includes('q7') ||
-    districtId.includes('q8') ||
-    districtName.includes('Nhà Bè') ||
-    districtName.includes('Bình Chánh') ||
-    districtName.includes('Quận 7') ||
-    districtName.includes('Quận 8');
+    id.includes('nb-') ||
+    id.includes('nha-be') ||
+    id.includes('bc-') ||
+    id.includes('binh-chanh') ||
+    id.includes('q7-') ||
+    id.includes('quan-7') ||
+    id.includes('q8-') ||
+    id.includes('quan-8') ||
+    name.includes('nhà bè') ||
+    name.includes('bình chánh') ||
+    name.includes('quận 7') ||
+    name.includes('quận 8');
 
-  // 1. Vùng Côn Đảo (Địa chất đá móng cứng hải đảo)
+  // 1. Vùng Côn Đảo (Địa chất đá móng magma hải đảo)
   if (isConDao) {
     return {
       districtId,
       districtName,
+      hasLocalRecord: true,
       geology: {
         formationName: 'Phức hệ Granitoid Côn Đảo & Trầm tích bở rời Đệ tứ',
         lithology: 'Đá magma xâm nhập granosyenit, granit hạt vừa đến hạt thô, xen kẽ cát sỏi bãi biển',
-        bearingCapacity: 'Nền đá gốc cứng chắc, sức chịu tải rất cao (> 3.5 kg/cm²)',
+        bearingCapacity: 'Nền đá gốc cứng, sức chịu tải tính toán cao (> 3.5 kg/cm²)',
         geologicalAge: 'Mesozoi muộn - Kỷ Creta đến Đệ tứ (Q)',
-        source: 'Bản đồ Địa chất Đảo Côn Đảo 1:25.000 - Cục Địa chất Việt Nam',
+        source: 'Ước tính tham khảo — chưa có tài liệu đối chiếu',
       },
       topography: {
         elevationMsl: '+2.0 m (khu dân cư trung tâm) đến +577 m (Đỉnh Thánh Giá)',
@@ -84,76 +127,81 @@ export function getGeologySubsidenceRecord(
       },
       subsidence: {
         hasFieldStation: false,
-        statusLabel: 'Nền đá ổn định địa chất - Chưa có mốc lún chuyên dụng',
-        insarRateMmYear: '< 1.5 mm/năm (nằm trong ngưỡng nhiễu sai số vệ tinh)',
-        displacementTrend: 'Không phát hiện hiện tượng lún sụt mặt đất',
-        dataSource: 'Vệ tinh Radar Sentinel-1 (ESA) & Cục Khảo sát Địa chất',
+        statusLabel: INSAR_MANDATORY_LABEL,
+        insarRateMmYear: '< 1.5 mm/năm (trong ngưỡng nhiễu vệ tinh)',
+        displacementTrend: 'Nghiên cứu viễn thám chưa ghi nhận biến dạng lớn trong chu kỳ đo',
+        dataSource: 'Ước tính tham khảo — chưa có tài liệu đối chiếu',
         monitoringTimeRange: 'Quan trắc viễn thám chu kỳ 2020 - 2024',
         surveyMethod: 'Kỹ thuật giao thoa radar tán xạ trường vĩnh cửu (PS-InSAR)',
+        insarNotice: INSAR_MANDATORY_LABEL,
       },
-      generalNote: 'Khu vực hải đảo có nền địa chất đá magma cổ cứng cáp, ít chịu tác động sụt lún nhân sinh.',
+      generalNote: 'Khu vực hải đảo có nền địa chất đá magma, tham khảo theo tài liệu viễn thám vùng biển đảo.',
     };
   }
 
-  // 2. Vùng Cần Giờ (Đầm lầy bãi bồi ven biển)
+  // 2. Vùng Cần Giờ (Đầm lầy bãi bồi ngập mặn ven biển)
   if (isCanGio) {
     return {
       districtId,
       districtName,
+      hasLocalRecord: true,
       geology: {
         formationName: 'Hệ tầng Cần Giờ (mQ2² cg) - Trầm tích biển bãi triều & vũng vịnh',
-        lithology: 'Bùn sét, sét pha hữu cơ màu xám đen, độ ẩm tự nhiên cao, tầng bùn yếu dày 15 - 35 m',
-        bearingCapacity: 'Sức chịu tải rất yếu (R = 0.3 - 0.5 kg/cm²), cần xử lý móng sâu hoặc cọc cừ tràm',
+        lithology: 'Bùn sét, sét pha hữu cơ màu xám đen, độ ẩm tự nhiên cao, tầng bùn trẻ dày 15 - 35 m',
+        bearingCapacity: 'Sức chịu tải thấp (R = 0.3 - 0.5 kg/cm²)',
         geologicalAge: 'Holocen trung - muộn (Đệ tứ trẻ)',
-        source: 'Bản đồ Trầm tích Đệ tứ TP.HCM 1:50.000 - Liên đoàn Bản đồ Địa chất Miền Nam',
+        source: 'Ước tính tham khảo — chưa có tài liệu đối chiếu',
       },
       topography: {
         elevationMsl: '+0.4 m đến +1.2 m so với MSL (Hòn Dấu)',
         terrainType: 'Vùng đầm lầy ngập mặn cửa sông ven biển, thường xuyên chịu triều cường',
-        dataSource: 'Mô hình số hóa độ cao vệ tinh SRTM 30m hiệu chỉnh thủy chuẩn quốc gia',
+        dataSource: 'Mô hình số hóa độ cao vệ tinh SRTM 30m hiệu chỉnh thủy chuẩn',
         methodNotice: 'Dữ liệu mô hình số hóa độ cao DEM vệ tinh, không phải phép đo cảm biến điện thoại',
       },
       subsidence: {
         hasFieldStation: false,
-        statusLabel: 'Mô hình vệ tinh InSAR vùng ven biển (Chưa có trạm đo lún cục bộ)',
-        insarRateMmYear: '8 - 18 mm/năm (tùy thuộc mức độ bồi lắng tự nhiên và tải trọng)',
-        displacementTrend: 'Lún tích lũy chậm do nén kết tự nhiên của tầng bùn trẻ',
-        dataSource: 'Viện Địa lý Tài nguyên TP.HCM & Radar Sentinel-1',
+        statusLabel: INSAR_MANDATORY_LABEL,
+        insarRateMmYear: '8 - 18 mm/năm (ước tính theo dải viễn thám ven biển)',
+        displacementTrend: 'Biến dạng bề mặt theo nén kết tự nhiên tầng bùn trẻ',
+        dataSource: 'Ước tính tham khảo — chưa có tài liệu đối chiếu',
         monitoringTimeRange: 'Chuỗi dữ liệu InSAR 2020 - 2024',
         surveyMethod: 'Giao thoa radar khẩu độ tổng hợp Sentinel-1 (PS-InSAR)',
+        insarNotice: INSAR_MANDATORY_LABEL,
       },
-      generalNote: 'Nền đất bùn yếu ngập nước mặn, cần tuyệt đối tôn trọng thoát lũ tự nhiên và bảo vệ rễ rừng ngập mặn.',
+      generalNote: 'Nền đất bùn trẻ ngập mặn ven biển, chịu tác động tự nhiên của chu kỳ bồi tụ và triều dâng.',
     };
   }
 
-  // 3. Vùng Nam Sài Gòn (Nhà Bè, Bình Chánh, Q.7, Q.8 - Điểm nóng lún do đất yếu & hút nước ngầm)
+  // 3. Vùng Nam Sài Gòn (Nhà Bè, Bình Chánh, Q.7, Q.8 - Vùng trầm tích trẻ ven sông)
   if (isSouthHcm) {
     return {
       districtId,
       districtName,
+      hasLocalRecord: true,
       geology: {
         formationName: 'Hệ tầng Bến Nghé (amQ2²-³) phủ trên Trầm tích Pleistocen',
-        lithology: 'Lớp mặt bùn sét dẻo chảy dày 8 - 25 m, bên dưới là cát sét pha tầng chứa nước Pleistocen',
+        lithology: 'Lớp mặt bùn sét dẻo chảy dày 8 - 25 m, bên dưới là cát sét pha tầng Pleistocen',
         bearingCapacity: 'Sức chịu tải nền tự nhiên thấp (R = 0.4 - 0.7 kg/cm²)',
         geologicalAge: 'Holocen phủ trên Pleistocen',
-        source: 'Bản đồ Địa chất Đô thị TP.HCM - Sở Tài nguyên và Môi trường TP.HCM',
+        source: 'Ước tính tham khảo — chưa có tài liệu đối chiếu',
       },
       topography: {
         elevationMsl: '+0.8 m đến +1.6 m so với MSL (Hòn Dấu)',
-        terrainType: 'Đồng bằng trũng ngập triều bán nhật triều vùng hạ lưu sông Sài Gòn - Đồng Nai',
+        terrainType: 'Đồng bằng trũng ngập triều bán nhật triều hạ lưu sông Sài Gòn - Đồng Nai',
         dataSource: 'Mô hình độ cao số hóa DEM SRTM / Copernicus 30m',
         methodNotice: 'Dữ liệu vệ tinh/mô hình số hóa DEM, không phải đo cảm biến tại điện thoại',
       },
       subsidence: {
         hasFieldStation: false,
-        statusLabel: 'Dữ liệu mô hình vệ tinh InSAR vùng Nam TP.HCM (Chưa có mốc lún riêng tại phường này)',
-        insarRateMmYear: '15 - 32 mm/năm (vùng có tốc độ lún tương đối nhanh theo nghiên cứu InSAR)',
-        displacementTrend: 'Lún bề mặt do cố kết đất yếu kết hợp hạ mực nước ngầm tầng sâu',
-        dataSource: 'Nghiên cứu InSAR Sentinel-1 (JICA, ĐHQG TP.HCM & Viện Địa lý Tài nguyên)',
+        statusLabel: INSAR_MANDATORY_LABEL,
+        insarRateMmYear: '15 - 32 mm/năm (ước tính theo dải viễn thám vùng trũng phía Nam)',
+        displacementTrend: 'Biến dạng bề mặt theo nghiên cứu viễn thám vùng trầm tích trẻ',
+        dataSource: 'Ước tính tham khảo — chưa có tài liệu đối chiếu',
         monitoringTimeRange: 'Quan trắc chuỗi ảnh vệ tinh 2019 - 2024',
         surveyMethod: 'Kỹ thuật giao thoa viễn thám radar Sentinel-1 (PS-InSAR / SBAS)',
+        insarNotice: INSAR_MANDATORY_LABEL,
       },
-      generalNote: 'Khu vực nhạy cảm với sụt lún đô thị. TP.HCM đang thực hiện lộ trình cấm khai thác nước ngầm để giảm tốc độ lún.',
+      generalNote: 'Khu vực trầm tích sông trẻ phía Nam, tham khảo theo các nghiên cứu viễn thám vùng công bố.',
     };
   }
 
@@ -163,12 +211,13 @@ export function getGeologySubsidenceRecord(
     return {
       districtId,
       districtName,
+      hasLocalRecord: true,
       geology: {
         formationName: isBenCatArea ? 'Hệ tầng Thủ Đức & Trầm tích Bến Cát (a, ap Q1³)' : 'Hệ tầng Củ Chi (apQ1²-³ cu)',
-        lithology: 'Cát pha, sét lẫn sạn sỏi laterit, kết von nâu đỏ, tầng sét cứng chịu lực tốt',
-        bearingCapacity: 'Sức chịu tải địa kỹ thuật khá - cao (R = 1.6 - 2.8 kg/cm²)',
+        lithology: 'Cát pha, sét lẫn sạn sỏi laterit, kết von nâu đỏ, tầng sét cứng',
+        bearingCapacity: 'Sức chịu tải địa kỹ thuật khá (R = 1.6 - 2.8 kg/cm²)',
         geologicalAge: 'Pleistocen trên (Thềm phù sa cổ)',
-        source: 'Bản đồ Địa chất Công trình & Địa mạo TP.HCM - Cục Địa chất Việt Nam',
+        source: 'Ước tính tham khảo — chưa có tài liệu đối chiếu',
       },
       topography: {
         elevationMsl: isBenCatArea ? '+12 m đến +34 m so với MSL' : '+6.5 m đến +18 m so với MSL',
@@ -178,43 +227,47 @@ export function getGeologySubsidenceRecord(
       },
       subsidence: {
         hasFieldStation: false,
-        statusLabel: 'Vùng nền đồi ổn định (Chưa có mốc lún thực địa)',
-        insarRateMmYear: '< 3.0 mm/năm (nền đất cổ ổn định, trong sai số vệ tinh)',
-        displacementTrend: 'Nền địa chất ổn định, không có biểu hiện sụt lún nguy hiểm',
-        dataSource: 'Vệ tinh Radar Sentinel-1 (ESA) & Cục Đo đạc Bản đồ',
+        statusLabel: INSAR_MANDATORY_LABEL,
+        insarRateMmYear: '< 3.0 mm/năm (trong ngưỡng nhiễu vệ tinh)',
+        displacementTrend: 'Thềm đất cổ, chưa ghi nhận biến dạng lớn trong chu kỳ đo',
+        dataSource: 'Ước tính tham khảo — chưa có tài liệu đối chiếu',
         monitoringTimeRange: 'Chuỗi quan trắc 2020 - 2024',
         surveyMethod: 'Kỹ thuật viễn thám giao thoa radar PS-InSAR',
+        insarNotice: INSAR_MANDATORY_LABEL,
       },
-      generalNote: 'Địa tầng thềm phù sa cổ có điều kiện địa chất công trình lý tưởng, không bị ngập triều cường.',
+      generalNote: 'Địa tầng thềm phù sa cổ gò đồi cao, thoát nước mặt thuận lợi.',
     };
   }
 
-  // 5. Mặc định: Vùng đô thị trung tâm (Quận 1, 3, 5, 10, Phú Nhuận, Bình Thạnh...)
+  // 5. Các phường còn lại: KHÔNG CÓ BẢN GHI ĐỊA CHẤT RIÊNG
+  // Tuân thủ triệt để: Hiển thị rõ ràng "Chưa có dữ liệu địa chất cục bộ", KHÔNG BỊA "NỀN ỔN ĐỊNH"!
   return {
     districtId,
     districtName,
+    hasLocalRecord: false,
     geology: {
-      formationName: 'Hệ tầng Bến Nghé (mQ2) phủ thềm Pleistocen (apQ1³)',
-      lithology: 'Phía trên là lớp đất đắp đô thị và sét xám vàng (3 - 6m), bên dưới là tầng sét cát pha cứng chịu lực',
-      bearingCapacity: 'Sức chịu tải trung bình (R = 1.2 - 1.8 kg/cm²)',
-      geologicalAge: 'Holocen phủ tiếp xúc không chỉnh hợp trên Pleistocen',
-      source: 'Bản đồ Địa chất Đô thị TP.HCM 1:50.000 - Cục Địa chất Việt Nam',
+      formationName: 'Chưa có dữ liệu địa chất cục bộ',
+      lithology: 'Chưa có tài liệu khoan khảo sát địa tầng công bố tại phường',
+      bearingCapacity: 'Chưa có số liệu tính toán',
+      geologicalAge: 'Chưa xác định',
+      source: 'Ước tính tham khảo — chưa có tài liệu đối chiếu',
     },
     topography: {
-      elevationMsl: '+2.5 m đến +4.5 m so với MSL (Hòn Dấu)',
-      terrainType: 'Bề mặt tích tụ đô thị lịch sử chuyển tiếp thềm phù sa cổ và bãi bồi ven sông Sài Gòn',
-      dataSource: 'Mô hình số hóa độ cao vệ tinh DEM Copernicus 30m',
-      methodNotice: 'Dữ liệu mô hình số hóa độ cao DEM vệ tinh, không phải phép đo cảm biến điện thoại',
+      elevationMsl: 'Mô hình DEM khu vực',
+      terrainType: 'Đồng bằng tích tụ đô thị',
+      dataSource: 'Copernicus DEM 30m',
+      methodNotice: 'Dữ liệu mô hình số hóa DEM, không phải phép đo tại phường',
     },
     subsidence: {
       hasFieldStation: false,
-      statusLabel: 'Mô hình vệ tinh InSAR vùng đô thị trung tâm (Chưa có mốc lún riêng tại phường)',
-      insarRateMmYear: '4 - 10 mm/năm (biến dạng phân dị cục bộ theo mật độ tải công trình ngầm)',
-      displacementTrend: 'Ổn định tương đối, cần theo dõi tại các vị trí thi công hầm ngầm metro',
-      dataSource: 'Dữ liệu giao thoa radar Sentinel-1 InSAR (Viện Địa lý Tài nguyên & JICA)',
-      monitoringTimeRange: 'Chuỗi ảnh radar viễn thám 2020 - 2024',
-      surveyMethod: 'Kỹ thuật giao thoa radar tán xạ trường vĩnh cửu (PS-InSAR)',
+      statusLabel: 'Chưa có dữ liệu địa chất cục bộ',
+      insarRateMmYear: null,
+      displacementTrend: 'Chưa có mốc quan trắc cục bộ tại phường',
+      dataSource: 'Ước tính tham khảo — chưa có tài liệu đối chiếu',
+      monitoringTimeRange: 'Không áp dụng',
+      surveyMethod: 'Chưa có mốc đo thực địa',
+      insarNotice: INSAR_MANDATORY_LABEL,
     },
-    generalNote: 'Nền địa chất đô thị tương đối ổn định nhưng cần giám sát chuyển vị công trình ngầm và đường ống thoát nước ngầm.',
+    generalNote: 'Chưa có dữ liệu địa chất và mốc quan trắc lún cục bộ riêng cho phường này. Ứng dụng không suy đoán hoặc gán nhãn nền ổn định.',
   };
 }

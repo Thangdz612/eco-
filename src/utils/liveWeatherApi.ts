@@ -3,8 +3,8 @@
  * 
  * NGUYÊN TẮC MINH BẠCH & TRUNG THỰC KHOA HỌC:
  * - Nguồn dữ liệu thời tiết: Mô hình dự báo số trị toàn cầu ECMWF IFS & GFS thông qua Open-Meteo Weather API
- * - Nguồn dữ liệu không khí: Mô hình viễn thám & khí quyển Copernicus CAMS & NOAA GFS-Aerosol thông qua Open-Meteo Air Quality API
- * - Dữ liệu quá khứ (past 3 days): Dữ liệu tái phân tích khí quyển ERA5
+ * - Nguồn dữ liệu không khí: Dữ liệu mô hình CAMS toàn cầu (~40 km), phản ánh nền khu vực, không phải đo tại phường
+ * - Dữ liệu 3 ngày quá khứ: Dự báo mô hình đã lưu (không phải đo đạc)
  * - TUYỆT ĐỐI KHÔNG: Bịa đặt trạm quan trắc thực địa, bịa mã trạm hay thiết bị cảm biến không có thật
  * - TUYỆT ĐỐI KHÔNG: Bịa chỉ số AQI hay tạo số liệu giả khi ngoại tuyến
  * - Kiến trúc mạng: Hỗ trợ cả Proxy Backend (`/api/...`) và gọi trực tiếp Open-Meteo HTTPS API từ APK Capacitor
@@ -13,6 +13,7 @@
 import type { DayCollectedWeather, HourlyWeatherRecord } from './collectedWeatherStorage';
 import type { AirQualityData, AirQualityPollutant, DataVerificationType } from '../types';
 import { DISTRICTS_DATA } from '../data/mockData';
+import { ADMIN_UNITS } from '../data/adminUnits';
 import { requestManager, getApiBaseUrl } from './requestManager';
 import { cacheManager, CACHE_TTL } from '../storage/cacheManager';
 import { validateCoordinates, validateOpenMeteoWeatherResponse, validateOpenMeteoAirQualityResponse } from './validator';
@@ -52,7 +53,7 @@ export const VIETNAM_ATMOSPHERIC_STATIONS: VietnamAtmosphericStation[] = [
     standard: 'Mô hình số trị thời tiết toàn cầu ECMWF IFS & GFS',
     instruments: [
       'Mô hình vi khí hậu độ phân giải cao Open-Meteo',
-      'Tái phân tích dữ liệu hoàn lưu khí quyển ERA5',
+      'Dữ liệu dự báo mô hình đã lưu (không phải đo đạc)',
       'Mô hình bức xạ tử ngoại mặt đất và điểm sương ECMWF',
     ],
   },
@@ -71,7 +72,7 @@ export const VIETNAM_ATMOSPHERIC_STATIONS: VietnamAtmosphericStation[] = [
     instruments: [
       'Mô hình dự báo thời tiết phân giải cao ECMWF',
       'Mô hình đảo nhiệt đô thị (UHI) vi khí hậu nội thành',
-      'Dữ liệu khí quyển tái phân tích ERA5',
+      'Dữ liệu mô hình dự báo đã lưu',
     ],
   },
   {
@@ -122,7 +123,7 @@ export const VIETNAM_ATMOSPHERIC_STATIONS: VietnamAtmosphericStation[] = [
     standard: 'Mô hình số trị thời tiết toàn cầu ECMWF IFS & GFS',
     instruments: [
       'Mô hình vi khí hậu vùng nông nghiệp ngoại thành',
-      'Mô hình bốc thoát hơi nước và điểm sương ERA5',
+      'Mô hình bốc thoát hơi nước và điểm sương dự báo vi khí hậu',
     ],
   },
   {
@@ -162,7 +163,7 @@ export interface LiveWeatherResponse {
     feelsLike: number;
     humidity: number;
     dewPoint: number;
-    surfacePressure: number;
+    surfacePressure?: number;
     solarRadiation: number;
     rainProbability: number;
     rainMm: number;
@@ -170,18 +171,22 @@ export interface LiveWeatherResponse {
     windSpeed: number;
     windGust: number;
     condition: string;
+    isDay?: boolean;
+    cloudCover?: number;
   };
 }
 
 // Chuyển mã thời tiết WMO thành mô tả tiếng Việt
 export function interpretWmoCode(
   code: number,
-  hour?: number
+  isDayOrHour: boolean | number = true
 ): {
   condition: string;
   iconType: 'sun' | 'sun-cloud' | 'cloud' | 'rain' | 'thunder' | 'moon';
 } {
-  const isNight = hour !== undefined ? hour < 5 || hour >= 19 : false;
+  const isNight = typeof isDayOrHour === 'boolean'
+    ? !isDayOrHour
+    : (isDayOrHour < 5 || isDayOrHour >= 19);
 
   if (code === 0) {
     return {
@@ -197,7 +202,7 @@ export function interpretWmoCode(
   }
   if (code === 2) {
     return {
-      condition: 'Có mây rải rác',
+      condition: isNight ? 'Có mây rải rác về đêm' : 'Có mây rải rác',
       iconType: isNight ? 'cloud' : 'sun-cloud',
     };
   }
@@ -210,11 +215,26 @@ export function interpretWmoCode(
   if (code >= 51 && code <= 55) {
     return { condition: 'Mưa phùn nhẹ', iconType: 'rain' };
   }
-  if (code >= 61 && code <= 65) {
-    return { condition: 'Mưa rào', iconType: 'rain' };
+  if (code === 61) {
+    return { condition: 'Mưa nhẹ', iconType: 'rain' };
   }
-  if (code >= 80 && code <= 82) {
-    return { condition: 'Mưa rào từng đợt', iconType: 'rain' };
+  if (code === 63) {
+    return { condition: 'Mưa vừa', iconType: 'rain' };
+  }
+  if (code === 65) {
+    return { condition: 'Mưa to', iconType: 'rain' };
+  }
+  if (code >= 66 && code <= 67) {
+    return { condition: 'Mưa rào lạnh', iconType: 'rain' };
+  }
+  if (code === 80) {
+    return { condition: 'Mưa rào nhẹ từng đợt', iconType: 'rain' };
+  }
+  if (code === 81) {
+    return { condition: 'Mưa rào vừa từng đợt', iconType: 'rain' };
+  }
+  if (code === 82) {
+    return { condition: 'Mưa rào to từng đợt', iconType: 'rain' };
   }
   if (code >= 95 && code <= 99) {
     return { condition: 'Mưa dông, có sét', iconType: 'thunder' };
@@ -242,7 +262,11 @@ export function getBeaufortScale(windKmh: number): string {
   if (windKmh <= 38) return 'Cấp 5 - Gió mát';
   if (windKmh <= 49) return 'Cấp 6 - Gió khá mạnh';
   if (windKmh <= 61) return 'Cấp 7 - Gió to';
-  return 'Cấp 8 - Gió rất to';
+  if (windKmh <= 74) return 'Cấp 8 - Gió rất to';
+  if (windKmh <= 88) return 'Cấp 9 - Gió dữ dội';
+  if (windKmh <= 102) return 'Cấp 10 - Bão rất mạnh';
+  if (windKmh <= 117) return 'Cấp 11 - Bão dữ dội';
+  return 'Cấp 12 - Bão cuồng phong';
 }
 
 /**
@@ -279,12 +303,45 @@ export function getNearestAtmosphericStation(lat: number, lng: number): VietnamA
   return nearest;
 }
 
+/**
+ * Tạo khóa cache lưới mô hình thời tiết làm tròn 2 chữ số thập phân (≈ 1,1 km)
+ * Nhiều phường gần nhau dùng chung một lần gọi, tránh tăng số request.
+ */
+export function getCoordGridKey(lat: number, lng: number): string {
+  return `${lat.toFixed(2)}_${lng.toFixed(2)}`;
+}
+
+/**
+ * Lấy tọa độ chuẩn xác cho phường/xã (ADMIN_UNITS) hoặc theo GPS hợp lệ
+ */
 export function getCoordinatesForDistrict(
   districtId: string,
-  districtName: string
-): { lat: number; lng: number } {
-  const station = getAtmosphericStationForDistrict(districtId, districtName);
-  return { lat: station.lat, lng: station.lng };
+  userLocation?: { status?: string; accuracy?: number | null; lat?: number; lng?: number } | null
+): { lat: number; lng: number; isGps: boolean } {
+  // 1. Tọa độ GPS khi GPS hợp lệ (status 'success' và accuracy <= 1000 m)
+  if (
+    userLocation &&
+    userLocation.status === 'success' &&
+    typeof userLocation.lat === 'number' &&
+    typeof userLocation.lng === 'number' &&
+    (userLocation.accuracy ?? 0) <= 1000
+  ) {
+    return { lat: userLocation.lat, lng: userLocation.lng, isGps: true };
+  }
+
+  // 2. Tọa độ của phường/xã đang chọn trong ADMIN_UNITS
+  const unit = ADMIN_UNITS.find((u) => u.id === districtId);
+  if (unit && typeof unit.lat === 'number' && typeof unit.lng === 'number') {
+    return { lat: unit.lat, lng: unit.lng, isGps: false };
+  }
+
+  // 3. Fallback DISTRICTS_DATA
+  const district = DISTRICTS_DATA[districtId] || Object.values(DISTRICTS_DATA).find((d) => d.id === districtId);
+  if (district && typeof district.lat === 'number' && typeof district.lng === 'number') {
+    return { lat: district.lat, lng: district.lng, isGps: false };
+  }
+
+  return { lat: DEFAULT_LOCATION.lat, lng: DEFAULT_LOCATION.lng, isGps: false };
 }
 
 /**
@@ -296,7 +353,7 @@ export function buildOpenMeteoAirQualityUrl(lat: number, lng: number): string {
     longitude: lng.toFixed(4),
     current: 'european_aqi,us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone',
     hourly: 'pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone,us_aqi,european_aqi',
-    timezone: 'Asia/Bangkok',
+    timezone: 'Asia/Ho_Chi_Minh',
   });
   return `https://air-quality-api.open-meteo.com/v1/air-quality?${params.toString()}`;
 }
@@ -309,14 +366,14 @@ export function buildOpenMeteoUrl(lat: number, lng: number): string {
     latitude: lat.toFixed(4),
     longitude: lng.toFixed(4),
     current:
-      'temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,rain,weather_code,surface_pressure,wind_speed_10m,wind_direction_10m,uv_index',
+      'temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,rain,weather_code,surface_pressure,wind_speed_10m,wind_direction_10m,uv_index,is_day,cloud_cover',
     hourly:
-      'temperature_2m,relative_humidity_2m,dew_point_2m,apparent_temperature,precipitation_probability,precipitation,weather_code,surface_pressure,uv_index,direct_normal_irradiance,wind_speed_10m,wind_gusts_10m',
+      'temperature_2m,relative_humidity_2m,dew_point_2m,apparent_temperature,precipitation_probability,precipitation,weather_code,surface_pressure,uv_index,direct_normal_irradiance,wind_speed_10m,wind_gusts_10m,is_day,cloud_cover',
     daily:
       'temperature_2m_max,temperature_2m_min,precipitation_probability_max,precipitation_sum,uv_index_max,wind_speed_10m_max',
     past_days: '3',
     forecast_days: '4',
-    timezone: 'Asia/Bangkok',
+    timezone: 'Asia/Ho_Chi_Minh',
   });
 
   return `https://api.open-meteo.com/v1/forecast?${params.toString()}`;
@@ -501,7 +558,7 @@ export async function fetchDirectAirQualityData(
         { code: 'so2', name: 'Lưu huỳnh dioxit SO2', formula: 'SO2', value: null, unit: 'µg/m³', status: 'Không có dữ liệu', benchmark: 'QCVN 05:2023: 50 µg/m³ (24h)', evaluation: 'Chưa có số liệu' },
         { code: 'co', name: 'Cacbon monoxit CO', formula: 'CO', value: null, unit: 'µg/m³', status: 'Không có dữ liệu', benchmark: 'QCVN 05:2023: 10.000 µg/m³ (8h)', evaluation: 'Chưa có số liệu' },
       ],
-      source: 'Mô hình chất lượng không khí Copernicus CAMS & NOAA GFS-Aerosol (Open-Meteo)',
+      source: 'Dữ liệu mô hình CAMS toàn cầu (~40 km), phản ánh nền khu vực, không phải đo tại phường',
       dataType: 'forecast_model',
       timestamp: 'Không có kết nối',
       apiUrl: directUrl,
@@ -512,12 +569,98 @@ export async function fetchDirectAirQualityData(
 
   const rawAqi = json.current?.us_aqi !== undefined && json.current?.us_aqi !== null ? Math.round(json.current.us_aqi) : null;
   const rawEuropeanAqi = json.current?.european_aqi !== undefined && json.current?.european_aqi !== null ? Math.round(json.current.european_aqi) : null;
-  const pm25Val = json.current?.pm2_5 !== undefined && json.current?.pm2_5 !== null ? Number(json.current.pm2_5.toFixed(1)) : null;
-  const pm10Val = json.current?.pm10 !== undefined && json.current?.pm10 !== null ? Number(json.current.pm10.toFixed(1)) : null;
-  const o3Val = json.current?.ozone !== undefined && json.current?.ozone !== null ? Number(json.current.ozone.toFixed(1)) : null;
-  const no2Val = json.current?.nitrogen_dioxide !== undefined && json.current?.nitrogen_dioxide !== null ? Number(json.current.nitrogen_dioxide.toFixed(1)) : null;
-  const so2Val = json.current?.sulphur_dioxide !== undefined && json.current?.sulphur_dioxide !== null ? Number(json.current.sulphur_dioxide.toFixed(1)) : null;
-  const coVal = json.current?.carbon_monoxide !== undefined && json.current?.carbon_monoxide !== null ? Math.round(json.current.carbon_monoxide) : null;
+  const pm25Instant = json.current?.pm2_5 !== undefined && json.current?.pm2_5 !== null ? Number(json.current.pm2_5.toFixed(1)) : null;
+  const pm10Instant = json.current?.pm10 !== undefined && json.current?.pm10 !== null ? Number(json.current.pm10.toFixed(1)) : null;
+  const o3Instant = json.current?.ozone !== undefined && json.current?.ozone !== null ? Number(json.current.ozone.toFixed(1)) : null;
+  const no2Instant = json.current?.nitrogen_dioxide !== undefined && json.current?.nitrogen_dioxide !== null ? Number(json.current.nitrogen_dioxide.toFixed(1)) : null;
+  const so2Instant = json.current?.sulphur_dioxide !== undefined && json.current?.sulphur_dioxide !== null ? Number(json.current.sulphur_dioxide.toFixed(1)) : null;
+  const coInstant = json.current?.carbon_monoxide !== undefined && json.current?.carbon_monoxide !== null ? Math.round(json.current.carbon_monoxide) : null;
+
+  // Tính toán trung bình theo tiêu chuẩn QCVN 05:2023/BTNMT từ chuỗi hourly
+  const hourlyTimes: string[] = json.hourly?.time || [];
+  let currentHourIdx = -1;
+  if (json.current?.time && hourlyTimes.length > 0) {
+    currentHourIdx = hourlyTimes.indexOf(json.current.time);
+    if (currentHourIdx === -1) {
+      const curTimeMs = new Date(json.current.time).getTime();
+      let minDiff = Infinity;
+      for (let i = 0; i < hourlyTimes.length; i++) {
+        const diff = Math.abs(new Date(hourlyTimes[i]).getTime() - curTimeMs);
+        if (diff < minDiff) {
+          minDiff = diff;
+          currentHourIdx = i;
+        }
+      }
+    }
+  }
+  if (currentHourIdx === -1 && hourlyTimes.length > 0) {
+    currentHourIdx = hourlyTimes.length - 1;
+  }
+
+  // 1. Tính trung bình 24h gần nhất cho PM2.5, PM10, NO2, SO2
+  const compute24hAverage = (arr?: (number | null)[]): { value: number | null; isAveraged: boolean; label: string } => {
+    if (!arr || currentHourIdx < 0) {
+      return { value: null, isAveraged: false, label: 'tức thời, chưa so chuẩn' };
+    }
+    const startIdx = Math.max(0, currentHourIdx - 23);
+    const slice = arr.slice(startIdx, currentHourIdx + 1).filter((v): v is number => typeof v === 'number' && !isNaN(v));
+    if (slice.length >= 24) {
+      const avg = slice.reduce((a, b) => a + b, 0) / slice.length;
+      return { value: Number(avg.toFixed(1)), isAveraged: true, label: 'TB 24h' };
+    }
+    return { value: null, isAveraged: false, label: 'tức thời, chưa so chuẩn' };
+  };
+
+  // 2. Tính trung bình 8h cho CO
+  const compute8hAverage = (arr?: (number | null)[]): { value: number | null; isAveraged: boolean; label: string } => {
+    if (!arr || currentHourIdx < 0) {
+      return { value: null, isAveraged: false, label: 'tức thời, chưa so chuẩn' };
+    }
+    const startIdx = Math.max(0, currentHourIdx - 7);
+    const slice = arr.slice(startIdx, currentHourIdx + 1).filter((v): v is number => typeof v === 'number' && !isNaN(v));
+    if (slice.length >= 8) {
+      const avg = slice.reduce((a, b) => a + b, 0) / slice.length;
+      return { value: Math.round(avg), isAveraged: true, label: 'TB 8h' };
+    }
+    return { value: null, isAveraged: false, label: 'tức thời, chưa so chuẩn' };
+  };
+
+  // 3. Tính trung bình trượt 8h lớn nhất cho O3 (trong 24h gần nhất)
+  const computeMax8hRollingAverage = (arr?: (number | null)[]): { value: number | null; isAveraged: boolean; label: string } => {
+    if (!arr || currentHourIdx < 0) {
+      return { value: null, isAveraged: false, label: 'tức thời, chưa so chuẩn' };
+    }
+    const windowStart = Math.max(0, currentHourIdx - 23);
+    const rollingAvgs: number[] = [];
+    for (let end = windowStart + 7; end <= currentHourIdx; end++) {
+      const start = end - 7;
+      if (start >= 0 && end < arr.length) {
+        const slice = arr.slice(start, end + 1).filter((v): v is number => typeof v === 'number' && !isNaN(v));
+        if (slice.length === 8) {
+          rollingAvgs.push(slice.reduce((a, b) => a + b, 0) / 8);
+        }
+      }
+    }
+    if (rollingAvgs.length > 0) {
+      const maxVal = Math.max(...rollingAvgs);
+      return { value: Number(maxVal.toFixed(1)), isAveraged: true, label: 'TB trượt 8h lớn nhất' };
+    }
+    return { value: null, isAveraged: false, label: 'tức thời, chưa so chuẩn' };
+  };
+
+  const pm25Stat = compute24hAverage(json.hourly?.pm2_5);
+  const pm10Stat = compute24hAverage(json.hourly?.pm10);
+  const no2Stat = compute24hAverage(json.hourly?.nitrogen_dioxide);
+  const so2Stat = compute24hAverage(json.hourly?.sulphur_dioxide);
+  const o3Stat = computeMax8hRollingAverage(json.hourly?.ozone);
+  const coStat = compute8hAverage(json.hourly?.carbon_monoxide);
+
+  const pm25Val = pm25Stat.isAveraged ? pm25Stat.value : pm25Instant;
+  const pm10Val = pm10Stat.isAveraged ? pm10Stat.value : pm10Instant;
+  const no2Val = no2Stat.isAveraged ? no2Stat.value : no2Instant;
+  const so2Val = so2Stat.isAveraged ? so2Stat.value : so2Instant;
+  const o3Val = o3Stat.isAveraged ? o3Stat.value : o3Instant;
+  const coVal = coStat.isAveraged ? coStat.value : coInstant;
 
   const aqiEvaluation = evaluateAqi(rawAqi);
 
@@ -530,55 +673,47 @@ export async function fetchDirectAirQualityData(
     co: coVal,
   };
 
+  // Helper sinh đánh giá chi tiết
+  const createPollutantDetail = (
+    code: AirQualityPollutant['code'],
+    name: string,
+    formula: string,
+    val: number | null,
+    stat: { isAveraged: boolean; label: string },
+    unit: string = 'µg/m³'
+  ): AirQualityPollutant => {
+    const evaluated = evaluatePollutant(code, val);
+    if (!stat.isAveraged) {
+      return {
+        code,
+        name,
+        formula,
+        value: val,
+        unit,
+        status: val !== null ? 'Tức thời, chưa so chuẩn' : 'Không có dữ liệu',
+        benchmark: evaluated.benchmark,
+        evaluation: val !== null ? `${evaluated.evaluation} • (Giá trị tức thời, chưa đủ số giờ so chuẩn QCVN)` : 'Chưa có số liệu mô hình',
+      };
+    }
+    return {
+      code,
+      name,
+      formula,
+      value: val,
+      unit,
+      status: evaluated.status,
+      benchmark: evaluated.benchmark,
+      evaluation: `${evaluated.evaluation} • (${stat.label})`,
+    };
+  };
+
   const details: AirQualityPollutant[] = [
-    {
-      code: 'pm2_5',
-      name: 'Bụi mịn PM2.5',
-      formula: 'PM2.5',
-      value: pm25Val,
-      unit: 'µg/m³',
-      ...evaluatePollutant('pm2_5', pm25Val),
-    },
-    {
-      code: 'pm10',
-      name: 'Bụi thô PM10',
-      formula: 'PM10',
-      value: pm10Val,
-      unit: 'µg/m³',
-      ...evaluatePollutant('pm10', pm10Val),
-    },
-    {
-      code: 'o3',
-      name: 'Ozone mặt đất O3',
-      formula: 'O3',
-      value: o3Val,
-      unit: 'µg/m³',
-      ...evaluatePollutant('o3', o3Val),
-    },
-    {
-      code: 'no2',
-      name: 'Nitơ dioxit NO2',
-      formula: 'NO2',
-      value: no2Val,
-      unit: 'µg/m³',
-      ...evaluatePollutant('no2', no2Val),
-    },
-    {
-      code: 'so2',
-      name: 'Lưu huỳnh dioxit SO2',
-      formula: 'SO2',
-      value: so2Val,
-      unit: 'µg/m³',
-      ...evaluatePollutant('so2', so2Val),
-    },
-    {
-      code: 'co',
-      name: 'Cacbon monoxit CO',
-      formula: 'CO',
-      value: coVal,
-      unit: 'µg/m³',
-      ...evaluatePollutant('co', coVal),
-    },
+    createPollutantDetail('pm2_5', 'Bụi mịn PM2.5', 'PM2.5', pm25Val, pm25Stat),
+    createPollutantDetail('pm10', 'Bụi thô PM10', 'PM10', pm10Val, pm10Stat),
+    createPollutantDetail('o3', 'Ozone mặt đất O3', 'O3', o3Val, o3Stat),
+    createPollutantDetail('no2', 'Nitơ dioxit NO2', 'NO2', no2Val, no2Stat),
+    createPollutantDetail('so2', 'Lưu huỳnh dioxit SO2', 'SO2', so2Val, so2Stat),
+    createPollutantDetail('co', 'Cacbon monoxit CO', 'CO', coVal, coStat),
   ];
 
   const rawTime = json.current?.time;
@@ -600,7 +735,7 @@ export async function fetchDirectAirQualityData(
     colorHex: aqiEvaluation.colorHex,
     pollutants,
     details,
-    source: 'Mô hình chất lượng không khí Copernicus CAMS & NOAA GFS-Aerosol (Open-Meteo Air Quality API)',
+    source: 'Dữ liệu mô hình CAMS toàn cầu (~40 km), phản ánh nền khu vực, không phải đo tại phường',
     dataType: 'forecast_model',
     timestamp: formattedTime,
     apiUrl: directUrl,
@@ -610,17 +745,21 @@ export async function fetchDirectAirQualityData(
 
 /**
  * Lấy khung chất lượng không khí an toàn:
- * Đọc từ cacheManager. Nếu chưa có cache, trả về trạng thái rõ ràng "Chưa có dữ liệu ngoại tuyến"
+ * Đọc từ cacheManager theo khóa lưới toFixed(2) hoặc districtId.
+ * Nếu chưa có cache, trả về trạng thái rõ ràng "Chưa có dữ liệu ngoại tuyến"
  * KHÔNG BỊA SỐ GIẢ!
  */
 export function getReliableAirQuality(
   districtId: string,
   lat?: number,
   lng?: number,
-  districtName?: string
+  _districtName?: string
 ): AirQualityData {
-  // 1. Kiểm tra cache trong cacheManager
-  const cached = cacheManager.get<AirQualityData>(`air_quality_${districtId}`);
+  // 1. Kiểm tra cache trong cacheManager theo grid trước, rồi districtId
+  const gridKey = typeof lat === 'number' && typeof lng === 'number' ? getCoordGridKey(lat, lng) : null;
+  const cached = (gridKey ? cacheManager.get<AirQualityData>(`air_quality_grid_${gridKey}`) : null)
+    || cacheManager.get<AirQualityData>(`air_quality_${districtId}`);
+
   if (cached && cached.data && cached.data.isAvailable && cached.data.aqi !== null) {
     return {
       ...cached.data,
@@ -653,7 +792,7 @@ export function getReliableAirQuality(
       { code: 'so2', name: 'Lưu huỳnh dioxit SO2', formula: 'SO2', value: null, unit: 'µg/m³', status: 'Chưa có dữ liệu', benchmark: 'QCVN 05:2023: 50 µg/m³ (24h)', evaluation: 'Chưa có dữ liệu ngoại tuyến' },
       { code: 'co', name: 'Cacbon monoxit CO', formula: 'CO', value: null, unit: 'µg/m³', status: 'Chưa có dữ liệu', benchmark: 'QCVN 05:2023: 10.000 µg/m³ (8h)', evaluation: 'Chưa có dữ liệu ngoại tuyến' },
     ],
-    source: 'Mô hình chất lượng không khí Copernicus CAMS & NOAA GFS-Aerosol',
+    source: 'Dữ liệu mô hình CAMS toàn cầu (~40 km), phản ánh nền khu vực, không phải đo tại phường',
     dataType: 'forecast_model',
     timestamp: 'Chưa tải dữ liệu',
     apiUrl: buildOpenMeteoAirQualityUrl(safeLat, safeLng),
@@ -672,14 +811,14 @@ export async function fetchDirectLiveWeatherData(
   preferredStationCode?: string,
   customCoords?: { lat: number; lng: number }
 ): Promise<LiveWeatherResponse> {
+  const coords = customCoords || getCoordinatesForDistrict(districtId);
+  const lat = coords.lat;
+  const lng = coords.lng;
+
   const station = preferredStationCode
     ? getAtmosphericStationByCode(preferredStationCode)
-    : customCoords
-    ? getNearestAtmosphericStation(customCoords.lat, customCoords.lng)
-    : getAtmosphericStationForDistrict(districtId, districtName);
+    : getNearestAtmosphericStation(lat, lng);
 
-  const lat = customCoords ? customCoords.lat : station.lat;
-  const lng = customCoords ? customCoords.lng : station.lng;
   const directUrl = buildOpenMeteoUrl(lat, lng);
   const baseUrl = getApiBaseUrl();
   const proxyUrl = baseUrl
@@ -750,7 +889,7 @@ export async function fetchDirectLiveWeatherData(
       const rawFeelsLike = json.hourly?.apparent_temperature?.[idx] ?? rawTemp;
       const rawHumidity = json.hourly?.relative_humidity_2m?.[idx] ?? 75;
       const rawDewPoint = json.hourly?.dew_point_2m?.[idx] ?? 23;
-      const rawPressure = json.hourly?.surface_pressure?.[idx] ?? 1008;
+      const rawPressure = json.hourly?.surface_pressure?.[idx];
       const rawRainChance = json.hourly?.precipitation_probability?.[idx] ?? 30;
       const rawRainMm = json.hourly?.precipitation?.[idx] ?? 0;
       const rawUv = json.hourly?.uv_index?.[idx] ?? 0;
@@ -758,8 +897,9 @@ export async function fetchDirectLiveWeatherData(
       const rawWindSpeed = json.hourly?.wind_speed_10m?.[idx] ?? 10;
       const rawWindGust = json.hourly?.wind_gusts_10m?.[idx] ?? rawWindSpeed * 1.3;
       const rawWmo = json.hourly?.weather_code?.[idx] ?? 0;
+      const isDayHour = Boolean(json.hourly?.is_day?.[idx] ?? (h >= 6 && h < 18));
 
-      const { condition, iconType } = interpretWmoCode(rawWmo, h);
+      const { condition, iconType } = interpretWmoCode(rawWmo, isDayHour);
 
       hours.push({
         hour: h,
@@ -771,7 +911,7 @@ export async function fetchDirectLiveWeatherData(
         rainfallAmount: Number(rawRainMm.toFixed(1)),
         humidity: Math.round(rawHumidity),
         dewPoint: Number(rawDewPoint.toFixed(1)),
-        pressure: Number(rawPressure.toFixed(1)),
+        pressure: rawPressure !== undefined && rawPressure !== null ? Number(rawPressure.toFixed(1)) : undefined,
         uvIndex: Number(rawUv.toFixed(1)),
         uvLevel: getUvLevelText(rawUv),
         solarRadiation: Math.round(rawIrradiance || (rawUv > 0 ? rawUv * 85 : 0)),
@@ -792,7 +932,9 @@ export async function fetchDirectLiveWeatherData(
     const maxWindSpeed = json.daily?.wind_speed_10m_max?.[dayIndex] ?? Math.max(...hours.map((h) => h.windSpeed));
     const avgTemp = Number(((minTemp + maxTemp) / 2).toFixed(1));
     const avgHumidity = Math.round(hours.reduce((acc, h) => acc + h.humidity, 0) / 24);
-    const avgPressure = Number((hours.reduce((acc, h) => acc + (h.pressure || 1008), 0) / 24).toFixed(1));
+    
+    const validPressures = hours.map((h) => h.pressure).filter((p): p is number => typeof p === 'number');
+    const avgPressure = validPressures.length > 0 ? Number((validPressures.reduce((a, b) => a + b, 0) / validPressures.length).toFixed(1)) : undefined;
 
     let summary = '';
     if (maxRainChance >= 60) {
@@ -830,7 +972,7 @@ export async function fetchDirectLiveWeatherData(
       collectedAt: collectedTimeStr,
       source:
         offset <= 0
-          ? 'Tái phân tích khí quyển ERA5 & Mô hình vi khí hậu ECMWF (Open-Meteo)'
+          ? 'Dự báo mô hình đã lưu (không phải đo đạc)'
           : 'Mô hình dự báo số trị vi khí hậu ECMWF IFS & GFS (Open-Meteo)',
       dataType: 'forecast_model' as const,
       hasData: true,
@@ -846,7 +988,13 @@ export async function fetchDirectLiveWeatherData(
   const currentUv = json.current?.uv_index ?? 0;
   const currentWmo = json.current?.weather_code ?? 0;
   const currentRainMm = json.current?.precipitation ?? 0;
-  const currentPressure = json.current?.surface_pressure ?? 1008;
+  const currentPressure = json.current?.surface_pressure !== undefined && json.current?.surface_pressure !== null
+    ? Number(json.current.surface_pressure.toFixed(1))
+    : undefined;
+
+  const currentIsDay = Boolean(json.current?.is_day ?? (now.getHours() >= 6 && now.getHours() < 18));
+  const currentCloudCover = json.current?.cloud_cover !== undefined ? Number(json.current.cloud_cover) : undefined;
+  const { condition: currentCondition } = interpretWmoCode(currentWmo, currentIsDay);
 
   const currentHourIdx = 3 * 24 + now.getHours();
   const currentRainProb = json.hourly?.precipitation_probability?.[currentHourIdx] ?? 40;
@@ -861,7 +1009,7 @@ export async function fetchDirectLiveWeatherData(
     longitude: json.longitude,
     elevation: json.elevation || 10,
     generationTimeMs: json.generationtime_ms || 0,
-    timezone: json.timezone || 'Asia/Bangkok',
+    timezone: json.timezone || 'Asia/Ho_Chi_Minh',
     atmosphericStation: station,
     data: daysResult,
     dataType: 'forecast_model' as const,
@@ -872,14 +1020,16 @@ export async function fetchDirectLiveWeatherData(
       feelsLike: Number(currentFeelsLike.toFixed(1)),
       humidity: Math.round(currentHumidity),
       dewPoint: Number(currentDewPoint.toFixed(1)),
-      surfacePressure: Number(currentPressure.toFixed(1)),
+      surfacePressure: currentPressure,
       solarRadiation: Math.round(currentIrradiance),
       rainProbability: Math.round(currentRainProb),
       rainMm: Number(currentRainMm.toFixed(1)),
       uvIndex: Number(currentUv.toFixed(1)),
       windSpeed: Number(currentWind.toFixed(1)),
       windGust: Number(currentWindGust.toFixed(1)),
-      condition: interpretWmoCode(currentWmo).condition,
+      condition: currentCondition,
+      isDay: currentIsDay,
+      cloudCover: currentCloudCover,
     },
   };
 }

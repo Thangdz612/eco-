@@ -1,8 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { X, Check, MapPin, Crosshair, Navigation, Search, Filter, Layers } from 'lucide-react';
 import { DISTRICTS_DATA, HCM_DISTRICT_GROUPS } from '../data/mockData';
 import { UserLocation } from '../types';
 import { calculateDistanceKm } from '../utils/geolocation';
+import { cacheManager } from '../storage/cacheManager';
+import { getCoordGridKey } from '../utils/liveWeatherApi';
 
 interface DistrictModalProps {
   isOpen: boolean;
@@ -14,6 +16,68 @@ interface DistrictModalProps {
 }
 
 type AdminTypeFilter = 'all' | 'phường' | 'xã' | 'đặc khu';
+
+interface CachedWeatherInfo {
+  temp: string;
+  time: string;
+  isFresh: boolean;
+}
+
+function formatCachedTime(timestamp: number): string {
+  const d = new Date(timestamp);
+  if (isNaN(d.getTime())) return '';
+  const hours = d.getHours().toString().padStart(2, '0');
+  const mins = d.getMinutes().toString().padStart(2, '0');
+  const now = new Date();
+  const isToday =
+    d.getDate() === now.getDate() &&
+    d.getMonth() === now.getMonth() &&
+    d.getFullYear() === now.getFullYear();
+
+  if (isToday) {
+    return `${hours}:${mins}`;
+  }
+  const day = d.getDate().toString().padStart(2, '0');
+  const month = (d.getMonth() + 1).toString().padStart(2, '0');
+  return `${hours}:${mins} (${day}/${month})`;
+}
+
+function getCachedDistrictWeather(districtId: string, lat?: number, lng?: number): CachedWeatherInfo | null {
+  const gridKey = typeof lat === 'number' && typeof lng === 'number' ? getCoordGridKey(lat, lng) : null;
+
+  // 1. Kiểm tra cacheManager: current_weather_${districtId} hoặc gridKey
+  const cachedCurrent = cacheManager.get<any>(`current_weather_${districtId}`)
+    || (gridKey ? cacheManager.get<any>(`current_weather_grid_${gridKey}`) : null);
+
+  if (cachedCurrent && cachedCurrent.data && typeof cachedCurrent.data.temperature === 'number') {
+    const temp = `${Math.round(cachedCurrent.data.temperature)}°C`;
+    return {
+      temp,
+      time: formatCachedTime(cachedCurrent.timestamp),
+      isFresh: cachedCurrent.isFresh,
+    };
+  }
+
+  // 2. Kiểm tra cacheManager: weather_range_${districtId} hoặc gridKey
+  const cachedRange = cacheManager.get<any[]>(`weather_range_${districtId}`)
+    || (gridKey ? cacheManager.get<any[]>(`weather_range_grid_${gridKey}`) : null);
+
+  if (cachedRange && Array.isArray(cachedRange.data) && cachedRange.data.length > 0) {
+    const todayData = cachedRange.data.find((d: any) => d.dateOffset === 0) || cachedRange.data[0];
+    const currentHour = new Date().getHours();
+    const hData = todayData?.hours?.[currentHour] || todayData?.hours?.[12] || todayData?.hours?.[0];
+    const rawTemp = hData ? hData.temp : todayData?.avgTemp;
+    if (typeof rawTemp === 'number' && !isNaN(rawTemp)) {
+      return {
+        temp: `${Math.round(rawTemp)}°C`,
+        time: formatCachedTime(cachedRange.timestamp),
+        isFresh: cachedRange.isFresh,
+      };
+    }
+  }
+
+  return null;
+}
 
 function removeVietnameseTones(str: string): string {
   return str
@@ -35,8 +99,35 @@ export const DistrictModal: React.FC<DistrictModalProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedGroup, setSelectedGroup] = useState<string>('Tất cả');
   const [adminTypeFilter, setAdminTypeFilter] = useState<AdminTypeFilter>('all');
+  const [cacheUpdateTrigger, setCacheUpdateTrigger] = useState(0);
+
+  useEffect(() => {
+    const handleSync = () => setCacheUpdateTrigger((c) => c + 1);
+    window.addEventListener('eco-collected-weather-synced', handleSync);
+    window.addEventListener('storage', handleSync);
+    return () => {
+      window.removeEventListener('eco-collected-weather-synced', handleSync);
+      window.removeEventListener('storage', handleSync);
+    };
+  }, []);
 
   const allDistricts = useMemo(() => Object.values(DISTRICTS_DATA), []);
+
+  const weatherCacheMap = useMemo(() => {
+    if (!isOpen) return {};
+    const map: Record<string, CachedWeatherInfo | null> = {};
+    for (const d of allDistricts) {
+      map[d.id] = getCachedDistrictWeather(d.id, d.lat, d.lng);
+    }
+    return map;
+  }, [isOpen, allDistricts, cacheUpdateTrigger]);
+
+  const isLocationValid = Boolean(
+    userLocation &&
+    userLocation.status === 'success' &&
+    typeof userLocation.lat === 'number' &&
+    typeof userLocation.lng === 'number'
+  );
 
   const counts = useMemo(() => {
     return {
@@ -130,7 +221,7 @@ export const DistrictModal: React.FC<DistrictModalProps> = ({
                 <div className="text-left">
                   <div className="text-[12.5px] font-bold">Định vị GPS vị trí của tôi</div>
                   <div className="text-[11px] text-blue-100 dark:text-blue-200 line-clamp-1">
-                    {userLocation?.isRealGps && userLocation?.nearestDistrictName
+                    {userLocation?.status === 'success' && userLocation?.nearestDistrictName
                       ? `Trạm gần nhất: ${userLocation.nearestDistrictName}`
                       : 'Tự động xác định xã/phường gần vị trí thực tế của bạn'}
                   </div>
@@ -242,9 +333,10 @@ export const DistrictModal: React.FC<DistrictModalProps> = ({
           ) : (
             filteredDistricts.map((district) => {
               const isSelected = district.id === selectedDistrictId;
-              const distance = userLocation
+              const distance = isLocationValid && userLocation
                 ? calculateDistanceKm(userLocation.lat, userLocation.lng, district.lat, district.lng)
                 : null;
+              const cachedWeather = weatherCacheMap[district.id];
 
               return (
                 <button
@@ -288,18 +380,18 @@ export const DistrictModal: React.FC<DistrictModalProps> = ({
                     <div className="text-[11.5px] text-slate-500 dark:text-slate-400 mt-0.5 font-normal line-clamp-1">
                       {district.subTitle}
                     </div>
-                    {district.weather?.temp ? (
-                      <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5 flex items-center gap-2">
-                        <span className="font-semibold text-slate-600 dark:text-slate-300">{district.weather.temp}</span>
-                        <span>•</span>
-                        <span>Độ ẩm: {district.weather.humidity}</span>
-                        <span>•</span>
-                        <span>{district.weather.uvIndex}</span>
-                      </div>
-                    ) : (
-                      <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5 flex items-center gap-1.5">
-                        <span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-500/70" />
-                        <span>Khu vực {district.districtGroup}</span>
+                    {cachedWeather && (
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 flex items-center gap-1.5 flex-wrap">
+                        <span className="font-semibold text-slate-700 dark:text-slate-200">
+                          {cachedWeather.temp}
+                        </span>
+                        <span className="text-slate-300 dark:text-slate-600">•</span>
+                        <span>Cập nhật {cachedWeather.time}</span>
+                        {!cachedWeather.isFresh && (
+                          <span className="text-[9.5px] font-bold px-1.5 py-0.2 rounded-md bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border border-amber-300/80 dark:border-amber-700/80">
+                            Cũ
+                          </span>
+                        )}
                       </div>
                     )}
                   </div>

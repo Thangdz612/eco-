@@ -17,6 +17,9 @@ import {
   buildOpenMeteoUrl,
   getAtmosphericStationForDistrict,
   getAtmosphericStationByCode,
+  getCoordinatesForDistrict,
+  getCoordGridKey,
+  getBeaufortScale,
   type VietnamAtmosphericStation,
 } from './liveWeatherApi';
 import { cacheManager, CACHE_TTL } from '../storage/cacheManager';
@@ -103,16 +106,6 @@ export function getUvLevel(uv: number): string {
   return 'Cực độ';
 }
 
-// Helper: Cấp gió Beaufort
-function getBeaufortScale(kmh: number): string {
-  if (kmh < 6) return 'Cấp 1 - Gió nhẹ';
-  if (kmh < 12) return 'Cấp 2 - Gió nhẹ';
-  if (kmh < 20) return 'Cấp 3 - Gió thoang thoảng';
-  if (kmh < 29) return 'Cấp 4 - Gió vừa';
-  if (kmh < 39) return 'Cấp 5 - Gió khá mạnh';
-  return 'Cấp 6 - Gió mạnh';
-}
-
 /**
  * Lấy dữ liệu thời tiết phạm vi 7 ngày đã lưu trữ từ CacheManager
  * Nếu không có cache, trả về danh sách rỗng và trạng thái rõ ràng, KHÔNG BỊA SỐ GIẢ
@@ -122,9 +115,12 @@ export function getCachedCollectedWeatherRange(
   districtName: string = 'Phường Sài Gòn, Quận 1',
   _adminType: 'phường' | 'xã' | 'đặc khu' = 'phường'
 ): { data: DayCollectedWeather[]; lastSynced: string | null; isFresh?: boolean; isCached?: boolean; hasData: boolean } {
-  // 1. Kiểm tra trong CacheManager trước
-  const cacheKey = `weather_range_${districtId}`;
-  const cached = cacheManager.get<DayCollectedWeather[]>(cacheKey);
+  const coords = getCoordinatesForDistrict(districtId);
+  const gridKey = getCoordGridKey(coords.lat, coords.lng);
+
+  // 1. Kiểm tra trong CacheManager trước theo districtId hoặc gridKey
+  const cached = cacheManager.get<DayCollectedWeather[]>(`weather_range_${districtId}`)
+    || cacheManager.get<DayCollectedWeather[]>(`weather_range_grid_${gridKey}`);
 
   if (cached && Array.isArray(cached.data) && cached.data.length > 0) {
     return {
@@ -144,7 +140,7 @@ export function getCachedCollectedWeatherRange(
       const parsed = JSON.parse(rawLegacy);
       if (Array.isArray(parsed) && parsed.length > 0) {
         // Lưu sang CacheManager để chuẩn hóa
-        cacheManager.set(cacheKey, parsed, {
+        cacheManager.set(`weather_range_${districtId}`, parsed, {
           ttlMs: CACHE_TTL.WEATHER_RANGE,
           source: 'Mô hình dự báo vi khí hậu ECMWF IFS & GFS (Open-Meteo)',
           dataType: 'forecast_model',
@@ -187,16 +183,17 @@ export function getLiveDataSourceInfo(
   isDirectLive: boolean;
   station: VietnamAtmosphericStation;
 } {
+  const coords = getCoordinatesForDistrict(districtId);
   const station = preferredStationCode
     ? getAtmosphericStationByCode(preferredStationCode)
     : getAtmosphericStationForDistrict(districtId, districtName);
 
-  const apiUrl = buildOpenMeteoUrl(station.lat, station.lng);
+  const apiUrl = buildOpenMeteoUrl(coords.lat, coords.lng);
   return {
-    sourceTitle: `${station.name} (${station.code})`,
+    sourceTitle: `Điểm lưới mô hình tại (${coords.lat.toFixed(4)}°N, ${coords.lng.toFixed(4)}°E)`,
     apiUrl,
-    lat: station.lat,
-    lng: station.lng,
+    lat: coords.lat,
+    lng: coords.lng,
     isDirectLive: true,
     station,
   };
@@ -210,7 +207,8 @@ export async function syncCollectedWeatherOnline(
   districtId: string = 'quan-1',
   districtName: string = 'Phường Sài Gòn, Quận 1',
   adminType: 'phường' | 'xã' | 'đặc khu' = 'phường',
-  preferredStationCode?: string
+  preferredStationCode?: string,
+  forceRefresh: boolean = false
 ): Promise<{
   success: boolean;
   data: DayCollectedWeather[];
@@ -222,6 +220,8 @@ export async function syncCollectedWeatherOnline(
   isOffline?: boolean;
 }> {
   const isOnline = networkManager.isOnline();
+  const coords = getCoordinatesForDistrict(districtId);
+  const gridKey = getCoordGridKey(coords.lat, coords.lng);
 
   // Khi thiết bị đang ngoại tuyến: Trả về dữ liệu từ CacheManager
   if (!isOnline) {
@@ -249,34 +249,52 @@ export async function syncCollectedWeatherOnline(
     };
   }
 
+  // Nếu không ép buộc làm mới, kiểm tra xem cache còn tươi không (CACHE_TTL hiện có)
+  if (!forceRefresh) {
+    const cachedRange = cacheManager.get<DayCollectedWeather[]>(`weather_range_${districtId}`)
+      || cacheManager.get<DayCollectedWeather[]>(`weather_range_grid_${gridKey}`);
+    const cachedAir = cacheManager.get<AirQualityData>(`air_quality_${districtId}`)
+      || cacheManager.get<AirQualityData>(`air_quality_grid_${gridKey}`);
+
+    if (cachedRange && cachedRange.isFresh && cachedRange.data && cachedRange.data.length > 0) {
+      return {
+        success: true,
+        data: cachedRange.data,
+        message: `Dữ liệu trong bộ nhớ đệm (lưu lúc ${cachedRange.formattedTime}).`,
+        lastSynced: cachedRange.formattedTime,
+        airQuality: cachedAir?.data || undefined,
+      };
+    }
+  }
+
   try {
     const targetDistrict = DISTRICTS_DATA[districtId];
-    const customCoords = targetDistrict ? { lat: targetDistrict.lat, lng: targetDistrict.lng } : undefined;
 
-    // 1. Nạp thời tiết qua Open-Meteo
-    const liveResult = await fetchDirectLiveWeatherData(
-      districtId,
-      districtName,
-      adminType,
-      preferredStationCode,
-      customCoords
-    );
-
-    // 2. Nạp chất lượng không khí qua Open-Meteo
-    let airResult: AirQualityData | null = null;
-    if (customCoords) {
-      try {
-        airResult = await fetchDirectAirQualityData(customCoords.lat, customCoords.lng);
-      } catch (aqErr) {
+    // Chạy song song weather và air-quality bằng Promise.all
+    const [liveResult, airResult] = await Promise.all([
+      fetchDirectLiveWeatherData(
+        districtId,
+        districtName,
+        adminType,
+        preferredStationCode,
+        coords
+      ),
+      fetchDirectAirQualityData(coords.lat, coords.lng).catch((aqErr) => {
         logger.warn('Lỗi lấy chất lượng không khí:', aqErr);
-      }
-    }
+        return null;
+      }),
+    ]);
 
     const now = new Date();
     const nowStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')} ngày ${formatDate(now)}`;
 
-    // 3. Lưu vào CacheManager có TTL
+    // Lưu vào CacheManager có TTL: cả theo districtId và theo gridKey
     cacheManager.set(`weather_range_${districtId}`, liveResult.data, {
+      ttlMs: CACHE_TTL.WEATHER_RANGE,
+      source: liveResult.source,
+      dataType: 'forecast_model',
+    });
+    cacheManager.set(`weather_range_grid_${gridKey}`, liveResult.data, {
       ttlMs: CACHE_TTL.WEATHER_RANGE,
       source: liveResult.source,
       dataType: 'forecast_model',
@@ -287,9 +305,19 @@ export async function syncCollectedWeatherOnline(
       source: liveResult.source,
       dataType: 'forecast_model',
     });
+    cacheManager.set(`current_weather_grid_${gridKey}`, liveResult.current, {
+      ttlMs: CACHE_TTL.WEATHER_RANGE,
+      source: liveResult.source,
+      dataType: 'forecast_model',
+    });
 
     if (airResult) {
       cacheManager.set(`air_quality_${districtId}`, airResult, {
+        ttlMs: CACHE_TTL.AIR_QUALITY,
+        source: airResult.source,
+        dataType: 'forecast_model',
+      });
+      cacheManager.set(`air_quality_grid_${gridKey}`, airResult, {
         ttlMs: CACHE_TTL.AIR_QUALITY,
         source: airResult.source,
         dataType: 'forecast_model',
@@ -308,7 +336,7 @@ export async function syncCollectedWeatherOnline(
       // Bỏ qua lỗi quota
     }
 
-    // 4. Cập nhật dữ liệu vào DISTRICTS_DATA trong bộ nhớ
+    // Cập nhật dữ liệu vào DISTRICTS_DATA trong bộ nhớ
     if (targetDistrict) {
       if (!targetDistrict.weather) {
         targetDistrict.weather = {
@@ -330,13 +358,13 @@ export async function syncCollectedWeatherOnline(
       targetDistrict.weather.uvIndex = `UV ${liveResult.current.uvIndex.toFixed(1)}`;
       targetDistrict.weather.uvLevel = getUvLevel(liveResult.current.uvIndex);
       targetDistrict.weather.lightIntensity = `${Math.round(liveResult.current.solarRadiation)} W/m²`;
-      targetDistrict.weather.description = `${districtName}: Nhiệt độ ${liveResult.current.temperature}°C, Áp suất ${liveResult.current.surfacePressure}hPa, Mưa ${liveResult.current.rainProbability}%, Độ ẩm ${liveResult.current.humidity}%, Gió ${liveResult.current.windSpeed}km/h (Mô hình Open-Meteo)`;
+      targetDistrict.weather.description = `${districtName}: Nhiệt độ ${liveResult.current.temperature}°C${liveResult.current.surfacePressure ? `, Áp suất ${liveResult.current.surfacePressure}hPa` : ''}, Mưa ${liveResult.current.rainProbability}%, Độ ẩm ${liveResult.current.humidity}%, Gió ${liveResult.current.windSpeed}km/h (Mô hình Open-Meteo)`;
       targetDistrict.weather.timestamp = liveResult.current?.time || nowStr;
       targetDistrict.weather.source = liveResult.source;
       targetDistrict.weather.dataType = 'forecast_model';
       targetDistrict.weather.isLive = true;
       targetDistrict.weather.dewPoint = `${liveResult.current.dewPoint}°C`;
-      targetDistrict.weather.surfacePressure = `${liveResult.current.surfacePressure} hPa`;
+      targetDistrict.weather.surfacePressure = liveResult.current.surfacePressure ? `${liveResult.current.surfacePressure} hPa` : undefined;
       targetDistrict.weather.windSpeed = `${liveResult.current.windSpeed} km/h`;
       targetDistrict.weather.windGust = `${liveResult.current.windGust} km/h`;
       targetDistrict.weather.rainProbability = liveResult.current.rainProbability;
@@ -347,7 +375,7 @@ export async function syncCollectedWeatherOnline(
       }
     }
 
-    // 5. Phát sự kiện toàn cục để UI cập nhật
+    // Phát sự kiện toàn cục để UI cập nhật
     if (typeof window !== 'undefined') {
       window.dispatchEvent(
         new CustomEvent('eco-collected-weather-synced', {
@@ -399,10 +427,14 @@ export async function syncCollectedWeatherOnline(
 }
 
 /**
- * Lấy dữ liệu chất lượng không khí từ CacheManager
+ * Lấy dữ liệu chất lượng không khí từ CacheManager (hỗ trợ cả gridKey)
  */
 export function getCachedAirQuality(districtId: string): AirQualityData | null {
-  const cached = cacheManager.get<AirQualityData>(`air_quality_${districtId}`);
+  const coords = getCoordinatesForDistrict(districtId);
+  const gridKey = getCoordGridKey(coords.lat, coords.lng);
+  const cached = cacheManager.get<AirQualityData>(`air_quality_${districtId}`)
+    || cacheManager.get<AirQualityData>(`air_quality_grid_${gridKey}`);
+
   if (cached && cached.data) {
     return cached.data;
   }
@@ -495,6 +527,9 @@ export interface CurrentLiveWeather {
   windGust?: string;
   rainProbability?: number;
   rainfallMm?: number;
+  isDay?: boolean;
+  iconType?: 'sun' | 'sun-cloud' | 'cloud' | 'rain' | 'thunder' | 'moon';
+  cloudCover?: number;
 }
 
 export function getCachedCurrentLiveWeather(
@@ -503,6 +538,8 @@ export function getCachedCurrentLiveWeather(
 ): CurrentLiveWeather {
   const d = DISTRICTS_DATA[districtId];
   const name = districtName || d?.name || 'Khu vực';
+  const coords = getCoordinatesForDistrict(districtId);
+  const gridKey = getCoordGridKey(coords.lat, coords.lng);
 
   // 1. Kiểm tra nếu in-memory targetDistrict.weather đã có dữ liệu hợp lệ
   if (d?.weather && d.weather.temp && d.weather.isLive) {
@@ -531,9 +568,11 @@ export function getCachedCurrentLiveWeather(
     };
   }
 
-  // 2. Kiểm tra CacheManager hoặc localStorage live_current
+  // 2. Kiểm tra CacheManager (theo districtId hoặc theo gridKey) hoặc localStorage live_current
   let liveCurrent: any = null;
-  const cachedCurrent = cacheManager.get<any>(`current_weather_${districtId}`);
+  const cachedCurrent = cacheManager.get<any>(`current_weather_${districtId}`)
+    || cacheManager.get<any>(`current_weather_grid_${gridKey}`);
+
   if (cachedCurrent && cachedCurrent.data) {
     liveCurrent = cachedCurrent.data;
   } else if (typeof window !== 'undefined') {
@@ -554,7 +593,9 @@ export function getCachedCurrentLiveWeather(
     const windStr = `${Number(liveCurrent.windSpeed ?? 0).toFixed(1)} km/h`;
     const gustStr = `${Number(liveCurrent.windGust ?? 0).toFixed(1)} km/h`;
     const dewStr = `${Number(liveCurrent.dewPoint ?? 0).toFixed(1)}°C`;
-    const pressStr = `${Number(liveCurrent.surfacePressure ?? 1012).toFixed(1)} hPa`;
+    const pressStr = liveCurrent.surfacePressure !== undefined && liveCurrent.surfacePressure !== null
+      ? `${Number(liveCurrent.surfacePressure).toFixed(1)} hPa`
+      : undefined;
 
     return {
       hasData: true,
@@ -578,6 +619,8 @@ export function getCachedCurrentLiveWeather(
       windGust: gustStr,
       rainProbability: liveCurrent.rainProbability,
       rainfallMm: liveCurrent.rainMm,
+      isDay: liveCurrent.isDay,
+      cloudCover: liveCurrent.cloudCover,
     };
   }
 
@@ -602,7 +645,7 @@ export function getCachedCurrentLiveWeather(
         uvIndex: uvStr,
         uvLevel: hData.uvLevel || getUvLevel(hData.uvIndex ?? 0),
         lightIntensity: `${Math.round(hData.solarRadiation ?? 0)} W/m²`,
-        statusAssessment: 'Mô hình vi khí hậu ERA5 / ECMWF',
+        statusAssessment: 'Mô hình vi khí hậu ECMWF',
         statusDetail: today.summary || `Thời tiết ổn định, nhiệt độ ${tempStr}`,
         timestamp: today.collectedAt || 'Từ bộ nhớ đệm',
         source: today.source || 'Open-Meteo Weather API',
@@ -614,6 +657,7 @@ export function getCachedCurrentLiveWeather(
         windGust: `${Number(hData.windGust ?? 0).toFixed(1)} km/h`,
         rainProbability: hData.rainChance,
         rainfallMm: hData.rainfallAmount,
+        iconType: hData.iconType,
       };
     }
   }

@@ -553,7 +553,7 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
                 {isOnline ? (
                   <>
                     <Wifi className="w-3.5 h-3.5 text-emerald-600" />
-                    Đã đồng bộ trạm thực tế (WMO)
+                    Đã đồng bộ mô hình vi khí hậu
                   </>
                 ) : (
                   <>
@@ -1868,7 +1868,7 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
                     Dữ liệu thô JSON: {liveSourceInfo.station.name}
                   </h3>
                   <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
-                    Mã trạm: {liveSourceInfo.station.code} • WMO {liveSourceInfo.station.wmoId} • {liveSourceInfo.station.lat}°N, {liveSourceInfo.station.lng}°E
+                    Điểm lưới mô hình tại ({liveSourceInfo.station.lat}°N, {liveSourceInfo.station.lng}°E)
                   </span>
                 </div>
               </div>
@@ -1934,7 +1934,7 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
             {/* Modal Footer */}
             <div className="p-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-850 flex items-center justify-between">
               <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                Chuẩn WMO IFS / ICON & QCVN 46:2012/BTNMT • Đo đạc 24/7
+                Mô hình vi khí hậu ECMWF IFS & GFS • Cập nhật liên tục
               </span>
               <button
                 type="button"
@@ -1960,10 +1960,10 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
                 </div>
                 <div>
                   <h3 className="text-base font-extrabold text-slate-900 dark:text-slate-100">
-                    Mạng lưới Trạm Khí quyển & Khí tượng Việt Nam
+                    Điểm tham chiếu lưới vi khí hậu khu vực
                   </h3>
                   <p className="text-xs text-slate-600 dark:text-slate-300">
-                    Chọn trạm khí tượng quốc gia (VNMHA / WMO) để tiếp nhận trực tiếp số liệu viễn thám
+                    Các điểm lưới tham chiếu mô hình vi khí hậu ECMWF IFS & GFS (Open-Meteo)
                   </p>
                 </div>
               </div>
@@ -2002,7 +2002,7 @@ export const WeatherCollectedRangeSection: React.FC<WeatherCollectedRangeSection
                         <div className="flex items-start justify-between gap-2">
                           <div>
                             <span className="inline-flex items-center gap-1 font-mono text-[10.5px] px-2 py-0.5 rounded-md font-bold bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                              Mã trạm: {st.code} • WMO {st.wmoId}
+                              Điểm lưới mô hình tại ({st.lat}°N, {st.lng}°E)
                             </span>
                             <h4 className="text-sm font-extrabold text-slate-900 dark:text-slate-100 mt-1">
                               {st.name}

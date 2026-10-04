@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import {
   Sun,
+  Moon,
+  CloudRain,
+  Cloud,
+  CloudSun,
   Droplets,
   SunMedium,
   Mountain,
@@ -126,20 +130,20 @@ export const WeatherTab: React.FC<WeatherTabProps> = ({
               `Nhiệt độ hiện tại: ${currentWeather.temp}`,
               `Tình trạng mây & khí hậu: ${currentWeather.condition}`,
               `Độ ẩm tương đối: ${currentWeather.humidity}`,
-              `Áp suất bề mặt: ${currentWeather.surfacePressure || '1012 hPa'}`,
-              `Điểm sương (Dew point): ${currentWeather.dewPoint || '24.5°C'}`,
+              `Áp suất bề mặt: ${currentWeather.surfacePressure || 'Không có dữ liệu'}`,
+              `Điểm sương (Dew point): ${currentWeather.dewPoint || 'Không có dữ liệu'}`,
               `Tốc độ gió bề mặt: ${currentWeather.windSpeed || 'Chưa có dữ liệu'}`,
               `Gió giật: ${currentWeather.windGust || 'Chưa có dữ liệu'}`,
               `Xác suất mưa: ${currentWeather.rainProbability !== undefined ? `${currentWeather.rainProbability}%` : 'Chưa có mưa'}`,
-              `Độ cao quan trắc: ${displayAltitude} (so với mực nước biển MSL)`,
+              `Độ cao mô hình ước tính: ${displayAltitude} (so với mực nước biển MSL)`,
               `Chỉ số bức xạ tia UV: ${currentWeather.uvIndex} (${currentWeather.uvLevel})`,
               `Phân loại dữ liệu: ${weatherTypeLabel}`,
               `Nguồn kiểm chứng: ${weatherSourceLabel}`,
-              `Thời điểm quan trắc / mô hình: ${weatherTimestamp}`,
+              `Thời điểm mô hình dự báo: ${weatherTimestamp}`,
             ],
             tips: [
               isSimulation
-                ? 'Dữ liệu hiện tại là ước tính mô phỏng offline. Vui lòng kết nối mạng và làm mới để đồng bộ số đo thực tế.'
+                ? 'Dữ liệu hiện tại là ước tính mô phỏng offline. Vui lòng kết nối mạng và làm mới để đồng bộ số liệu mô hình thực tế.'
                 : 'Dữ liệu được cập nhật tự động từ mô hình số trị Open-Meteo vi khí hậu.',
               'Trang bị mũ nón và kem chống nắng khi hoạt động ngoài trời vào khung giờ trưa từ 11:00 đến 14:00.',
             ],
@@ -171,7 +175,17 @@ export const WeatherTab: React.FC<WeatherTabProps> = ({
           </div>
 
           <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-[#1D4ED8] dark:text-blue-300 bg-white/70 dark:bg-white/10 shadow-xs shrink-0">
-            <Sun className="w-9 h-9 stroke-[2]" />
+            {currentWeather.isDay === false || currentWeather.iconType === 'moon' ? (
+              <Moon className="w-9 h-9 stroke-[2] text-indigo-500 dark:text-indigo-300" />
+            ) : currentWeather.iconType === 'rain' ? (
+              <CloudRain className="w-9 h-9 stroke-[2] text-blue-500 dark:text-blue-400" />
+            ) : currentWeather.iconType === 'cloud' ? (
+              <Cloud className="w-9 h-9 stroke-[2] text-slate-500 dark:text-slate-300" />
+            ) : currentWeather.iconType === 'sun-cloud' ? (
+              <CloudSun className="w-9 h-9 stroke-[2] text-amber-500 dark:text-amber-300" />
+            ) : (
+              <Sun className="w-9 h-9 stroke-[2] text-amber-500 dark:text-amber-300" />
+            )}
           </div>
         </div>
 
@@ -181,12 +195,10 @@ export const WeatherTab: React.FC<WeatherTabProps> = ({
             <Wind className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
             <span>Gió: {currentWeather.windSpeed || 'Chưa có dữ liệu'}</span>
           </div>
-          {currentWeather.surfacePressure && (
-            <div className="flex items-center gap-1 font-medium">
-              <Gauge className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-              <span>Khí áp: {currentWeather.surfacePressure}</span>
-            </div>
-          )}
+          <div className="flex items-center gap-1 font-medium">
+            <Gauge className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+            <span>Khí áp: {currentWeather.surfacePressure || 'Không có dữ liệu'}</span>
+          </div>
           <div className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
             <Clock className="w-3 h-3" />
             <span>Cập nhật: {weatherTimestamp}</span>
@@ -207,11 +219,11 @@ export const WeatherTab: React.FC<WeatherTabProps> = ({
           <div className="flex items-center gap-2 flex-wrap">
             <h2 className="text-[19px] font-extrabold text-[#0F172A] dark:text-slate-100 tracking-tight flex items-center gap-1.5">
               <Activity className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-              Khung chỉ số không khí (AQI & Bụi mịn)
+              Khung chỉ số không khí (US AQI & Bụi mịn)
             </h2>
             <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 px-2.5 py-0.5 rounded-full flex items-center gap-1">
               <Sparkles className="w-3 h-3 text-emerald-600" />
-              Trạm viễn thám Open-Meteo
+              Mô hình CAMS toàn cầu (~40 km)
             </span>
           </div>
 
@@ -227,6 +239,14 @@ export const WeatherTab: React.FC<WeatherTabProps> = ({
           </button>
         </div>
 
+        {/* Thông báo trung thực nguồn gốc mô hình CAMS toàn cầu */}
+        <div className="p-3 rounded-2xl bg-slate-100/80 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 text-xs text-slate-600 dark:text-slate-300 leading-relaxed flex items-start gap-2">
+          <Info className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+          <span>
+            <strong>Dữ liệu mô hình CAMS toàn cầu (~40 km)</strong>, phản ánh nền khu vực, không phải đo tại phường.
+          </span>
+        </div>
+
         {/* Nếu có dữ liệu chất lượng không khí hợp lệ */}
         {airQuality && airQuality.isAvailable ? (
           <div className="flex flex-col gap-3">
@@ -235,24 +255,24 @@ export const WeatherTab: React.FC<WeatherTabProps> = ({
               id="aqi-overview-card"
               onClick={() =>
                 onOpenDetail({
-                  title: 'Đánh giá Chất lượng Không khí (AQI)',
+                  title: 'Đánh giá Chất lượng Không khí (US AQI)',
                   category: 'Môi trường & Không khí',
-                  description: `Chỉ số AQI hiện tại: ${airQuality.aqi ?? 'Chưa xác định'} (${airQuality.status}) tại ${data.name}.`,
+                  description: `Chỉ số US AQI hiện tại: ${airQuality.aqi ?? 'Chưa xác định'} (${airQuality.status}) tại khu vực ${data.name}.`,
                   details: [
-                    `Chỉ số US-AQI: ${airQuality.aqi !== null ? airQuality.aqi : 'Không có dữ liệu'}`,
+                    `Chỉ số US AQI: ${airQuality.aqi !== null ? airQuality.aqi : 'Không có dữ liệu'}`,
                     airQuality.europeanAqi !== undefined && airQuality.europeanAqi !== null
                       ? `Chỉ số European AQI: ${airQuality.europeanAqi}`
                       : 'Chỉ số European AQI: Chưa khả dụng',
                     `Tình trạng: ${airQuality.status}`,
                     `Đánh giá y tế: ${airQuality.categoryText}`,
-                    `Phân loại dữ liệu: Dữ liệu mô hình viễn thám khí quyển (Mô hình CAMS & GFS)`,
+                    `Phân loại dữ liệu: Dữ liệu mô hình CAMS toàn cầu (~40 km), phản ánh nền khu vực, không phải đo tại phường`,
                     `Nguồn gốc: ${airQuality.source}`,
-                    `Tọa độ trắc địa: ${data.lat.toFixed(4)}°N, ${data.lng.toFixed(4)}°E`,
-                    `Thời gian quan trắc / mô hình: ${airQuality.timestamp}`,
+                    `Tọa độ lưới: ${data.lat.toFixed(4)}°N, ${data.lng.toFixed(4)}°E`,
+                    `Thời gian mô hình: ${airQuality.timestamp}`,
                   ],
                   tips: [
-                    'Khi AQI dưới 50: Chất lượng không khí đạt chuẩn an toàn, thích hợp mọi hoạt động thể thao ngoài trời.',
-                    'Khi AQI trên 100: Người nhạy cảm đường hô hấp nên hạn chế chạy bộ ngoài trời giờ cao điểm giao thông.',
+                    'Khi US AQI dưới 50: Chất lượng không khí đạt chuẩn an toàn, thích hợp mọi hoạt động thể thao ngoài trời.',
+                    'Khi US AQI trên 100: Người nhạy cảm đường hô hấp nên hạn chế chạy bộ ngoài trời giờ cao điểm giao thông.',
                     'Quy chuẩn so sánh: QCVN 05:2023/BTNMT - Quy chuẩn kỹ thuật quốc gia về chất lượng không khí.',
                   ],
                 })
@@ -267,7 +287,7 @@ export const WeatherTab: React.FC<WeatherTabProps> = ({
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs uppercase tracking-wider font-extrabold text-slate-600 dark:text-slate-300">
-                      Chỉ số AQI Hoa Kỳ (US-AQI)
+                      Chỉ số US AQI
                     </span>
                     <span
                       className="px-2 py-0.5 rounded-full text-xs font-black text-white"
@@ -301,15 +321,20 @@ export const WeatherTab: React.FC<WeatherTabProps> = ({
               </div>
 
               {/* Siêu dữ liệu kiểm chứng */}
-              <div className="mt-3 pt-2.5 border-t border-slate-200/60 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 flex-wrap gap-2">
-                <span className="flex items-center gap-1 font-medium">
-                  <Database className="w-3 h-3 text-emerald-600" />
-                  Mô hình dự báo viễn thám CAMS / NOAA
-                </span>
-                <span className="flex items-center gap-1">
-                  <Clock className="w-3 h-3" />
-                  Cập nhật: {airQuality.timestamp}
-                </span>
+              <div className="mt-3 pt-2.5 border-t border-slate-200/60 dark:border-slate-800 flex flex-col gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <span className="flex items-center gap-1 font-medium">
+                    <Database className="w-3 h-3 text-emerald-600" />
+                    Mô hình ước tính/dự báo CAMS toàn cầu
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    Cập nhật: {airQuality.timestamp}
+                  </span>
+                </div>
+                <p className="text-[10.5px] text-slate-500 dark:text-slate-400 italic">
+                  Dữ liệu mô hình CAMS toàn cầu (~40 km), phản ánh nền khu vực, không phải đo tại phường
+                </p>
               </div>
             </div>
 
@@ -324,16 +349,16 @@ export const WeatherTab: React.FC<WeatherTabProps> = ({
                     onOpenDetail({
                       title: `Chỉ số ${item.formula} (${item.name})`,
                       category: 'Chất lượng không khí',
-                      description: `Nồng độ đo được: ${item.value !== null ? `${item.value} ${item.unit}` : 'Không có dữ liệu'} - Đánh giá: ${item.status}.`,
+                      description: `Nồng độ mô hình ước tính: ${item.value !== null ? `${item.value} ${item.unit}` : 'Không có dữ liệu'} - Đánh giá: ${item.status}.`,
                       details: [
                         `Ký hiệu khoa học: ${item.formula}`,
                         `Tên gọi: ${item.name}`,
-                        `Giá trị đo đạc: ${item.value !== null ? `${item.value} ${item.unit}` : 'Không có dữ liệu'}`,
+                        `Giá trị mô hình ước tính: ${item.value !== null ? `${item.value} ${item.unit}` : 'Không có dữ liệu'}`,
                         `Ngưỡng đối chiếu QCVN 05:2023/BTNMT: ${item.benchmark}`,
                         `Đánh giá sức khỏe: ${item.evaluation}`,
                         `Nguồn dữ liệu: ${airQuality.source}`,
-                        `Phân loại: Dữ liệu mô hình viễn thám khí quyển Open-Meteo`,
-                        `Thời gian ghi nhận: ${airQuality.timestamp}`,
+                        `Phân loại: Dữ liệu mô hình CAMS toàn cầu (~40 km), phản ánh nền khu vực, không phải đo tại phường`,
+                        `Thời gian mô hình: ${airQuality.timestamp}`,
                       ],
                       tips: [
                         'QCVN 05:2023/BTNMT là Quy chuẩn kỹ thuật quốc gia bắt buộc áp dụng của Bộ Tài nguyên và Môi trường.',
@@ -387,7 +412,7 @@ export const WeatherTab: React.FC<WeatherTabProps> = ({
             </div>
             <div>
               <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">
-                Chưa có dữ liệu quan trắc cho khu vực này
+                Chưa có dữ liệu mô hình cho khu vực này
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mt-1 leading-relaxed">
                 Ứng dụng truy vấn trực tiếp theo tọa độ từ Open-Meteo Air Quality API. Khi API mất kết nối hoặc ngoài vùng lưới mô hình, hệ thống tuân thủ nguyên tắc không bịa đặt số liệu giả.
@@ -414,7 +439,7 @@ export const WeatherTab: React.FC<WeatherTabProps> = ({
           </h2>
           <span className="text-xs font-semibold text-[#1E40AF] dark:text-blue-300 bg-[#DBEAFE] dark:bg-blue-900/40 px-2.5 py-0.5 rounded-full flex items-center gap-1 border border-transparent dark:border-blue-800">
             <Sparkles className="w-3 h-3 text-[#2563EB] dark:text-blue-400" />
-            Cảm biến thực tế
+            Mô hình ước tính/dự báo
           </span>
         </div>
 
@@ -429,8 +454,8 @@ export const WeatherTab: React.FC<WeatherTabProps> = ({
                 category: 'Thời tiết',
                 description: `Độ ẩm tương đối hiện tại: ${currentWeather.humidity} tại ${data.name}.`,
                 details: [
-                  `Độ ẩm đo được: ${currentWeather.humidity}`,
-                  `Điểm sương (Dew Point): ${currentWeather.dewPoint || '24.2°C'}`,
+                  `Độ ẩm mô hình ước tính: ${currentWeather.humidity}`,
+                  `Điểm sương (Dew Point): ${currentWeather.dewPoint || 'Không có dữ liệu'}`,
                   'Đánh giá cảm giác thoải mái: Độ ẩm lý tưởng, cơ thể bài tiết mồ hôi tự nhiên tốt.',
                   'Khả năng ngưng tụ hơi ẩm: Thấp, tầm nhìn xa quang đãng trên 10 km.',
                   `Nguồn dữ liệu: ${weatherSourceLabel}`,
@@ -469,10 +494,10 @@ export const WeatherTab: React.FC<WeatherTabProps> = ({
                 category: 'Định vị & Địa hình',
                 description: `Độ cao hiện tại: ${displayAltitude} so với mực nước biển chuẩn (MSL).`,
                 details: [
-                  `Độ cao đo được: ${displayAltitude}`,
+                  `Độ cao vị trí: ${displayAltitude}`,
                   `Nguồn dữ liệu: ${userLocation?.altitude ? 'Cảm biến GPS / Khí áp kế người dùng' : 'Mô hình số hóa độ cao địa hình khu vực (DEM)'}`,
                   'Mức chênh lệch thủy triều sông: +1.2 m vào giờ đỉnh triều',
-                  `Áp suất khí quyển tương ứng: ${currentWeather.surfacePressure || '1011.8 hPa'} (Bình thường)`,
+                  `Áp suất khí quyển tương ứng: ${currentWeather.surfacePressure || 'Không có dữ liệu'}`,
                   'Đặc điểm địa hình: Đồng bằng phù sa trũng ven sông, địa thế bằng phẳng.',
                 ],
                 tips: [
@@ -507,7 +532,7 @@ export const WeatherTab: React.FC<WeatherTabProps> = ({
                 category: 'Bức xạ mặt trời',
                 description: `Chỉ số bức xạ: ${currentWeather.uvIndex} (${currentWeather.uvLevel}) - Cường độ: ${currentWeather.lightIntensity || 'Không có dữ liệu'}.`,
                 details: [
-                  `Chỉ số UV đo được: ${currentWeather.uvIndex}`,
+                  `Chỉ số UV mô hình ước tính: ${currentWeather.uvIndex}`,
                   `Mức độ cảnh báo: ${currentWeather.uvLevel}`,
                   `Cường độ bức xạ nhiệt mặt trời: ${currentWeather.lightIntensity || 'Không có dữ liệu'}`,
                   'Khung giờ UV đạt đỉnh trong ngày: 11:30 - 13:30',

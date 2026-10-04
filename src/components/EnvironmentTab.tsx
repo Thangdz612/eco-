@@ -34,9 +34,11 @@ import {
   getSpeciesForDistrict,
   HCM_BIODIVERSITY_SPECIES,
   getDistrictBiodiversityMetadata,
+  getWardHabitatSummary,
 } from '../data/biodiversitySpeciesData';
 import { getCachedAirQuality, getCachedCurrentLiveWeather, CurrentLiveWeather } from '../utils/collectedWeatherStorage';
 import { getReliableAirQuality } from '../utils/liveWeatherApi';
+import { getGeologySubsidenceRecord, INSAR_MANDATORY_LABEL } from '../utils/geologySubsidenceData';
 
 interface EnvironmentTabProps {
   data: DistrictData;
@@ -82,24 +84,39 @@ export const EnvironmentTab: React.FC<EnvironmentTabProps> = ({
     highlights: [],
   };
 
+  const geoRecord = useMemo(() => {
+    return getGeologySubsidenceRecord(data.id, data.name, data.location?.lat, data.location?.lng);
+  }, [data.id, data.name, data.location?.lat, data.location?.lng]);
+
+  const wardHabitat = useMemo(() => {
+    return getWardHabitatSummary(data.id, data.name, data.districtGroup);
+  }, [data.id, data.name, data.districtGroup]);
+
   const envIndexes = {
     light: data.environmentIndexes?.light || {
       value: 'Bức xạ ánh sáng',
       quality: 'Tốt',
       progress: 80,
-      note: 'Bức xạ ánh sáng tự nhiên đo đạc từ trạm cảm biến môi trường',
+      note: 'Bức xạ ánh sáng tự nhiên từ mô hình ước tính vi khí hậu',
     },
-    geology: data.environmentIndexes?.geology || {
-      value: 'Nền ổn định',
-      quality: 'Vững chắc',
-      progress: 85,
-      note: 'Địa tầng đô thị kiên cố, độ lún an toàn',
-    },
+    geology: geoRecord.hasLocalRecord
+      ? {
+          value: geoRecord.geology.formationName,
+          quality: 'Tham khảo vùng',
+          progress: 75,
+          note: `Hệ tầng ${geoRecord.geology.formationName}. ${geoRecord.geology.lithology}`,
+        }
+      : {
+          value: 'Chưa có dữ liệu địa chất cục bộ',
+          quality: 'Chưa có dữ liệu',
+          progress: 0,
+          note: 'Chưa có tài liệu khoan khảo sát địa tầng và mốc quan trắc lún cục bộ tại phường',
+        },
   };
 
   const environmentAlert = data.alerts?.environmentAlert || {
     title: 'Môi trường đạt chuẩn an toàn',
-    desc: `Chất lượng môi trường tại ${data.name.split(',')[0]} duy trì ổn định`,
+    desc: `Chất lượng môi trường tại ${data.name.split(',')[0]} duy trì trạng thái bình thường`,
     level: 'info' as const,
     actionAdvice: 'Chất lượng không khí và môi trường nước nằm trong ngưỡng an toàn cho phép.',
   };
@@ -173,236 +190,251 @@ export const EnvironmentTab: React.FC<EnvironmentTabProps> = ({
     const isNhaBeDistrict = data.id.includes('nb') || data.name.includes('Nhà Bè');
 
     const buildDetails = (): { title: string; description: string; details: string[]; tips: string[]; category?: string } => {
+      const HABITAT_DISCLAIMER_NOTE = 'Ghi chú phương pháp: Tham khảo sinh cảnh vùng — không phải kiểm kê tại phường.';
       if (category === 'underwater') {
-      if (isCanGio) {
+        if (isCanGio) {
+          return {
+            title: `Quần xã Sinh vật Thủy sinh - Rừng ngập mặn ${data.name}`,
+            description: `Đặc trưng hệ sinh thái nước lợ và ngập mặn ven biển. [Tham khảo sinh cảnh vùng — không phải kiểm kê tại phường]`,
+            details: [
+              HABITAT_DISCLAIMER_NOTE,
+              'Khu vực phân bố: Cửa sông Soài Rạp, sông Lòng Tàu, các kênh rạch đước và vịnh Gành Rái.',
+              ...bioUnderwater.highlights,
+              'Quần thể thủy sinh: Cá thòi lòi, cá bống sao, cá đối mục, tôm sú tự nhiên, nghêu lụa và hàu đá.',
+              'Chỉ số sinh học đáy benthos: Rất giàu dinh dưỡng phù sa tự nhiên, là bãi ấp nở của ốc và cá non vùng biển Nam Bộ.',
+              'Hệ thống rễ đước, mắm giúp lọc sạch bùn hữu cơ và giữ cân bằng nồng độ oxy hòa tan cho nguồn nước.',
+            ],
+            tips: [
+              'Bảo vệ bãi bồi ven rừng ngập mặn, không khai thác thủy sản non bằng xung điện hoặc cào đáy.',
+              'Tuân thủ thời gian cấm bắt nghêu và cua sinh sản vào mùa mưa.',
+            ],
+          };
+        }
+        if (isConDao) {
+          return {
+            title: `Quần xã Thủy sinh & San hô Biển - Đặc khu ${data.name}`,
+            description: `Quần thể rạn san hô và sinh vật biển phong phú. [Tham khảo sinh cảnh vùng — không phải kiểm kê tại phường]`,
+            details: [
+              HABITAT_DISCLAIMER_NOTE,
+              'Khu vực sinh sống: Vườn quốc gia Côn Đảo, Bãi Cát Lớn, Hòn Bảy Cạnh, Hòn Cau, Hòn Tre Lớn.',
+              ...bioUnderwater.highlights,
+              'Rạn san hô nguyên sinh: Hơn 360 loài san hô cứng tạo môi trường sống cho cá bướm, cá hề, trai tai tượng.',
+              'Vùng đẻ trứng rùa biển Vích (Chelonia mydas) và đồi mồi lớn nhất Việt Nam.',
+              'Quần thể Bò biển Dugong (Dugong dugon) ăn thảm cỏ biển tự nhiên.',
+            ],
+            tips: [
+              'Tuyệt đối không bẻ hoặc dẫm đạp lên các rạn san hô khi lặn biển.',
+              'Giữ sạch tuyệt đối bãi biển, không vứt túi nilon hay rác nhựa làm rùa biển nuốt phải.',
+            ],
+          };
+        }
+        if (isCuChiHocMonBenCat) {
+          return {
+            title: `Quần xã Thủy sinh Nước ngọt - Vùng đệm ${data.name}`,
+            description: `Đặc trưng cá đồng và thủy sinh nội địa vùng đệm nông nghiệp. [Tham khảo sinh cảnh vùng — không phải kiểm kê tại phường]`,
+            details: [
+              HABITAT_DISCLAIMER_NOTE,
+              'Khu vực phân bố: Lưu vực sông Sài Gòn thượng nguồn, kênh Đông Củ Chi, rạch Thầy Cai.',
+              ...bioUnderwater.highlights,
+              'Các loài cá đồng bản địa: Cá lóc, cá trê vàng, cá rô đồng, lươn đồng, ốc bươu đen tự nhiên.',
+              'Thảm thực vật thủy sinh: Bèo tấm, rau muống nước, lục bình giúp lọc sạch nitơ và photpho trong nước thải nông nghiệp.',
+            ],
+            tips: [
+              'Hạn chế xả nước thải chăn nuôi trực tiếp ra kênh tưới tiêu nội đồng.',
+              'Không thả cá dọn bể ngoại lai (Plecostomus) vì chúng tiêu diệt trứng cá đồng bản địa.',
+            ],
+          };
+        }
+        if (isNhaBeDistrict) {
+          return {
+            title: `Quần xã Thủy sinh Vùng nước lợ - ${data.name}`,
+            description: `Hệ sinh thái thủy sinh vùng triều dâng ven sông và rạch dừa nước. [Tham khảo sinh cảnh vùng — không phải kiểm kê tại phường]`,
+            details: [
+              HABITAT_DISCLAIMER_NOTE,
+              'Khu vực phân bố: Rạch Mương Chuối, sông Đồng Điền, sông Nhà Bè.',
+              ...bioUnderwater.highlights,
+              'Đặc trưng sinh thái: Rừng dừa nước tự nhiên nuôi dưỡng đàn cá kèo, cua bùn, tôm đất.',
+              'Hệ rễ dừa nước dày đặc giữ phù sa, ngăn chặn sạt lở bờ sông tự nhiên.',
+            ],
+            tips: [
+              'Bảo vệ các thảm dừa nước phòng hộ trước nguy cơ san lấp xây dựng tự phát.',
+            ],
+          };
+        }
+        // Đô thị trung tâm Sài Gòn
         return {
-          title: `Quần xã Sinh vật Thủy sinh - Rừng ngập mặn ${data.name}`,
-          description: `Tình trạng: ${bioUnderwater.status}. ${bioUnderwater.count > 0 ? `Ghi nhận ${bioUnderwater.count} loài thủy hải sản nước lợ và mặn.` : 'Đặc trưng hệ sinh thái nước lợ và ngập mặn.'}`,
+          title: `Quần xã Sinh vật Dưới nước - Đô thị ${data.name}`,
+          category: 'Hệ sinh thái thủy sinh',
+          description: `Hệ sinh thái thủy sinh kênh rạch đô thị đang trong tiến trình phục hồi. [Tham khảo sinh cảnh vùng — không phải kiểm kê tại phường]`,
           details: [
-            'Khu vực phân bố: Cửa sông Soài Rạp, sông Lòng Tàu, các kênh rạch đước và vịnh Gành Rái.',
+            HABITAT_DISCLAIMER_NOTE,
+            'Khu vực phân bố: Sông Sài Gòn, Kênh Tàu Hủ - Bến Nghé, Kênh Nhiêu Lộc - Thị Nghè, Hồ Con Rùa.',
             ...bioUnderwater.highlights,
-            'Quần thể thủy sinh: Cá thòi lòi, cá bống sao, cá đối mục, tôm sú tự nhiên, nghêu lụa và hàu đá.',
-            'Chỉ số sinh học đáy benthos: Rất giàu dinh dưỡng phù sa tự nhiên, là bãi ấp nở của ốc và cá non vùng biển Nam Bộ.',
-            'Hệ thống rễ đước, mắm giúp lọc sạch bùn hữu cơ và giữ cân bằng nồng độ oxy hòa tan cho nguồn nước.',
+            'Chỉ số sinh học đáy benthos: Phục hồi 65% so với giai đoạn trước năm 2022.',
+            'Hệ thống 14 trạm sục khí oxy kênh Nhiêu Lộc giúp duy trì nồng độ DO phù hợp cho đàn cá chép và cá rô phi sinh sản.',
+            'Các hồ nhân tạo công viên nuôi dưỡng cá cảnh quan và hệ thủy sinh lọc nước tự nhiên.',
           ],
           tips: [
-            'Bảo vệ bãi bồi ven rừng ngập mặn, không khai thác thủy sản non bằng xung điện hoặc cào đáy.',
-            'Tuân thủ thời gian cấm bắt nghêu và cua sinh sản vào mùa mưa.',
+            'Nghiêm cấm chích điện, đánh bắt cá bằng lưới mắt nhỏ trên kênh rạch nội đô.',
+            'Không xả rác thải nhựa hoặc đổ thức ăn thừa dầu mỡ xuống miệng cống thoát nước.',
           ],
         };
       }
-      if (isConDao) {
-        return {
-          title: `Quần xã Thủy sinh & San hô Biển - Đặc khu ${data.name}`,
-          description: `Tình trạng: ${bioUnderwater.status}. ${bioUnderwater.count > 0 ? `Đã xác định ${bioUnderwater.count} loài san hô và sinh vật biển quý hiếm.` : 'Quần thể rạn san hô và sinh vật biển phong phú.'}`,
-          details: [
-            'Khu vực sinh sống: Vườn quốc gia Côn Đảo, Bãi Cát Lớn, Hòn Bảy Cạnh, Hòn Cau, Hòn Tre Lớn.',
-            ...bioUnderwater.highlights,
-            'Rạn san hô nguyên sinh: Hơn 360 loài san hô cứng tạo môi trường sống cho cá bướm, cá hề, trai tai tượng.',
-            'Vùng đẻ trứng rùa biển Vích (Chelonia mydas) và đồi mồi lớn nhất Việt Nam.',
-            'Quần thể Bò biển Dugong (Dugong dugon) ăn thảm cỏ biển tự nhiên.',
-          ],
-          tips: [
-            'Tuyệt đối không bẻ hoặc dẫm đạp lên các rạn san hô khi lặn biển.',
-            'Giữ sạch tuyệt đối bãi biển, không vứt túi nilon hay rác nhựa làm rùa biển nuốt phải.',
-          ],
-        };
-      }
-      if (isCuChiHocMonBenCat) {
-        return {
-          title: `Quần xã Thủy sinh Nước ngọt - Vùng đệm ${data.name}`,
-          description: `Tình trạng: ${bioUnderwater.status}. ${bioUnderwater.count > 0 ? `Thống kê ${bioUnderwater.count} loài cá đồng và thủy sinh nội địa.` : 'Đặc trưng cá đồng và thủy sinh nội địa.'}`,
-          details: [
-            'Khu vực phân bố: Lưu vực sông Sài Gòn thượng nguồn, kênh Đông Củ Chi, rạch Thầy Cai.',
-            ...bioUnderwater.highlights,
-            'Các loài cá đồng bản địa: Cá lóc, cá trê vàng, cá rô đồng, lươn đồng, ốc bươu đen tự nhiên.',
-            'Thảm thực vật thủy sinh: Bèo tấm, rau muống nước, lục bình giúp lọc sạch nitơ và photpho trong nước thải nông nghiệp.',
-          ],
-          tips: [
-            'Hạn chế xả nước thải chăn nuôi trực tiếp ra kênh tưới tiêu nội đồng.',
-            'Không thả cá dọn bể ngoại lai (Plecostomus) vì chúng tiêu diệt trứng cá đồng bản địa.',
-          ],
-        };
-      }
-      if (isNhaBeDistrict) {
-        return {
-          title: `Quần xã Thủy sinh Vùng nước lợ - ${data.name}`,
-          description: `Tình trạng: ${bioUnderwater.status}. ${bioUnderwater.count > 0 ? `Ghi nhận ${bioUnderwater.count} loài đặc trưng vùng triều dâng.` : 'Hệ sinh thái thủy sinh vùng triều dâng ven sông.'}`,
-          details: [
-            'Khu vực phân bố: Rạch Mương Chuối, sông Đồng Điền, sông Nhà Bè.',
-            ...bioUnderwater.highlights,
-            'Đặc trưng sinh thái: Rừng dừa nước tự nhiên nuôi dưỡng đàn cá kèo, cua bùn, tôm đất.',
-            'Hệ rễ dừa nước dày đặc giữ phù sa, ngăn chặn sạt lở bờ sông tự nhiên.',
-          ],
-          tips: [
-            'Bảo vệ các thảm dừa nước phòng hộ trước nguy cơ san lấp xây dựng tự phát.',
-          ],
-        };
-      }
-      // Đô thị trung tâm Sài Gòn
-      return {
-        title: `Quần xã Sinh vật Dưới nước - Đô thị ${data.name}`,
-        category: 'Hệ sinh thái thủy sinh',
-        description: `Tình trạng: ${bioUnderwater.status}. ${bioUnderwater.count > 0 ? `Ghi nhận ${bioUnderwater.count} loài cá và vi sinh vật thủy sinh phục hồi.` : 'Hệ sinh thái thủy sinh kênh rạch đô thị đang phục hồi.'}`,
-        details: [
-          'Khu vực phân bố: Sông Sài Gòn, Kênh Tàu Hủ - Bến Nghé, Kênh Nhiêu Lộc - Thị Nghè, Hồ Con Rùa.',
-          ...bioUnderwater.highlights,
-          'Chỉ số sinh học đáy benthos: Phục hồi 65% so với giai đoạn trước năm 2022.',
-          'Hệ thống 14 trạm sục khí oxy kênh Nhiêu Lộc giúp duy trì nồng độ DO ổn định cho đàn cá chép và cá rô phi sinh sản.',
-          'Các hồ nhân tạo công viên nuôi dưỡng cá cảnh quan và hệ thủy sinh lọc nước tự nhiên.',
-        ],
-        tips: [
-          'Nghiêm cấm chích điện, đánh bắt cá bằng lưới mắt nhỏ trên kênh rạch nội đô.',
-          'Không xả rác thải nhựa hoặc đổ thức ăn thừa dầu mỡ xuống miệng cống thoát nước.',
-        ],
-      };
-    }
 
-    if (category === 'terrestrial') {
-      if (isCanGio) {
+      if (category === 'terrestrial') {
+        if (isCanGio) {
+          return {
+            title: `Quần xã Thực & Động vật Rừng ngập mặn Cần Giờ - ${data.name}`,
+            description: `Quần xã thực vật ngập mặn và động vật có vú thích nghi bùn lầy ven biển. [Tham khảo sinh cảnh vùng — không phải kiểm kê tại phường]`,
+            details: [
+              HABITAT_DISCLAIMER_NOTE,
+              'Vùng đệm và vùng lõi Khu dự trữ sinh quyển thế giới UNESCO Cần Giờ.',
+              ...bioTerrestrial.highlights,
+              'Thực vật rừng ngập mặn: Đước đôi (Rhizophora), bần trắng, vẹt đen, mắm trắng, cóc đỏ, su ổi.',
+              'Động vật có vú & bò sát: Đàn khỉ đuôi dài (Macaca fascicularis) hơn 2.000 cá thể, rái cá lông mượt, trăn gấm, kỳ đà hoa.',
+              'Độ che phủ mảng xanh đạt trên 95% diện tích tự nhiên.',
+            ],
+            tips: [
+              'Không cho động vật hoang dã ăn thức ăn công nghiệp có đường hoặc bao bì nilon.',
+              'Tuân thủ nội quy bảo vệ rừng ngập mặn khi đi dã ngoại sinh thái.',
+            ],
+          };
+        }
+        if (isConDao) {
+          return {
+            title: `Quần xã Thực & Động vật Vườn quốc gia Côn Đảo - ${data.name}`,
+            description: `Hệ sinh thái rừng nhiệt đới nguyên sinh hải đảo và động vật đặc hữu. [Tham khảo sinh cảnh vùng — không phải kiểm kê tại phường]`,
+            details: [
+              HABITAT_DISCLAIMER_NOTE,
+              'Rừng nhiệt đới hải đảo nguyên sinh: Độ che phủ tán cây đạt 88.2%.',
+              ...bioTerrestrial.highlights,
+              'Loài đặc hữu Côn Đảo: Sóc đen Côn Đảo (Ratufa bicolor condorensis), chuột hươu, bồ câu Nicobar.',
+              'Thực vật hải đảo: Cây phong ba, bàng vuông, nho rừng, cây găng néo.',
+            ],
+            tips: [
+              'Giữ nguyên vẹn thảm thực vật rừng, không hái phong lan hay lấy hạt cây rừng.',
+            ],
+          };
+        }
         return {
-          title: `Quần xã Thực & Động vật Rừng ngập mặn Cần Giờ - ${data.name}`,
-          description: `Tình trạng: ${bioTerrestrial.status}. ${bioTerrestrial.count > 0 ? `Đã bảo tồn ${bioTerrestrial.count} loài thực vật ngập mặn và động vật có vú.` : 'Quần xã thực vật ngập mặn và động vật có vú phong phú.'}`,
+          title: `Quần xã Sinh vật Trên cạn - ${data.name}`,
+          category: 'Hệ sinh thái cạn',
+          description: `Thảm thực vật bóng mát và động vật cảnh quan đô thị. [Tham khảo sinh cảnh vùng — không phải kiểm kê tại phường]`,
           details: [
-            'Vùng đệm và vùng lõi Khu dự trữ sinh quyển thế giới UNESCO Cần Giờ.',
+            HABITAT_DISCLAIMER_NOTE,
+            'Khu bảo tồn mảng xanh trọng điểm: Thảo Cầm Viên Sài Gòn, Công viên Tao Đàn, Gia Định, 23 Tháng 9.',
             ...bioTerrestrial.highlights,
-            'Thực vật rừng ngập mặn: Đước đôi (Rhizophora), bần trắng, vẹt đen, mắm trắng, cóc đỏ, su ổi.',
-            'Động vật có vú & bò sát: Đàn khỉ đuôi dài (Macaca fascicularis) hơn 2.000 cá thể, rái cá lông mượt, trăn gấm, kỳ đà hoa.',
-            'Độ che phủ mảng xanh đạt trên 95% diện tích tự nhiên.',
+            'Di sản cây xanh cổ thụ: Hơn 5.400 cây sao đen, dầu rái, xà cừ trên 100 năm tuổi tạo tầng tán mát.',
+            'Độ che phủ tán cây đô thị: Đạt mức 3.9m²/người dân nội thành.',
+            'Quần thể bò sát nhỏ, sóc cây, các loài bướm đặc trưng nhiệt đới sinh sống và phát triển tự nhiên.',
           ],
           tips: [
-            'Không cho động vật hoang dã ăn thức ăn công nghiệp có đường hoặc bao bì nilon.',
-            'Tuân thủ nội quy bảo vệ rừng ngập mặn khi đi dã ngoại sinh thái.',
+            'Bảo vệ cây xanh bóng mát công cộng và tăng cường trồng cây xanh thanh lọc bụi mịn ban công.',
+            'Báo ngay cho cơ quan công viên cây xanh khi phát hiện cây nghiêng mục trước mùa mưa bão.',
+          ],
+        };
+      }
+
+      if (category === 'aerial') {
+        if (isCanGio) {
+          return {
+            title: `Quần xã Chim nước Rừng ngập mặn Cần Giờ - ${data.name}`,
+            description: `Quần thể chim nước và chim di cư quốc tế ven biển Đông. [Tham khảo sinh cảnh vùng — không phải kiểm kê tại phường]`,
+            details: [
+              HABITAT_DISCLAIMER_NOTE,
+              'Sân chim Cần Giờ và bãi bồi ven biển Đông.',
+              ...bioAerial.highlights,
+              'Các loài chim quý hiếm: Bồ nông chân xám, cò thìa, choắt mỏ cong, diệc lửa, bói cá lớn.',
+              'Mùa di trú đỉnh điểm từ tháng 10 đến tháng 4 hàng năm với hàng ngàn cá thể chim bay về tránh rét.',
+            ],
+            tips: [
+              'Tuyệt đối cấm sử dụng bẫy lưới tàng hình, súng cao su săn bắn chim di cư ven rừng.',
+            ],
+          };
+        }
+        if (isConDao) {
+          return {
+            title: `Quần xã Chim biển & Chim Yến Côn Đảo - ${data.name}`,
+            description: `Quần thể chim hải đảo và chim yến tự nhiên. [Tham khảo sinh cảnh vùng — không phải kiểm kê tại phường]`,
+            details: [
+              HABITAT_DISCLAIMER_NOTE,
+              'Vách đá hải đảo và vùng trời Vườn quốc gia Côn Đảo.',
+              ...bioAerial.highlights,
+              'Quần thể chim yến hàng Côn Đảo làm tổ trên vách đá tự nhiên.',
+              'Các loài chim biển: Hải âu xám, ó cá săn mồi biển sâu, bồ câu Nicobar cực kỳ quý hiếm.',
+            ],
+            tips: [
+              'Bảo tồn nghiêm ngặt các hang yến tự nhiên theo quy định Vườn quốc gia.',
+            ],
+          };
+        }
+        return {
+          title: `Quần xã Sinh vật Trên trời - ${data.name}`,
+          category: 'Hệ sinh thái chim & côn trùng bay',
+          description: `Quần thể chim và côn trùng có ích thích nghi môi trường đô thị. [Tham khảo sinh cảnh vùng — không phải kiểm kê tại phường]`,
+          details: [
+            HABITAT_DISCLAIMER_NOTE,
+            'Quần thể chim đô thị: Bồ câu hoang dã, chim sẻ nhà, chim chích bông, chim yến hàng làm tổ nhà cao tầng.',
+            ...bioAerial.highlights,
+            'Côn trùng thụ phấn: Ong mật, bướm hoa công viên, chuồn chuồn kim giúp cân bằng sinh thái cây xanh.',
+            'Tần suất xuất hiện cao vào sáng sớm (05:30 - 07:00) và chiều mát (16:30 - 18:00).',
+          ],
+          tips: [
+            'Không sử dụng bẫy dính hay súng tự chế tại các công viên và khu dân cư.',
+            'Bố trí khay nước sạch nhỏ ở ban công hoặc sân thượng để chim trời có nơi uống nước ngày nắng.',
+          ],
+        };
+      }
+
+      // Amphibian (Lưỡng cư & Bò sát)
+      if (isCanGio || isNhaBeDistrict) {
+        return {
+          title: `Quần xã Sinh vật Lưỡng cư Vùng ngập mặn - ${data.name}`,
+          description: `Đặc trưng lưỡng cư vùng giáp ranh bùn lầy ven biển. [Tham khảo sinh cảnh vùng — không phải kiểm kê tại phường]`,
+          details: [
+            HABITAT_DISCLAIMER_NOTE,
+            'Khu vực phân bố: Rừng ngập mặn, bãi bồi phù sa sông Soài Rạp và rạch dừa nước.',
+            ...bioAmphibian.highlights,
+            'Loài đặc trưng: Cá thòi lòi leo cây (Periophthalmus) có thể thở cả dưới nước lẫn trên cạn.',
+            'Cua đá bãi bồi, cá bống sao, rắn ráo nước lợ, thằn lằn cát ven biển.',
+            'Đóng vai trò phân hủy lá đước rụng và chuyển hóa mùn bã hữu cơ thành chất dinh dưỡng cho biển.',
+          ],
+          tips: [
+            'Bảo tồn sinh cảnh thảm bùn tự nhiên, không đổ trạc xà bần san lấp rạch bãi bồi.',
           ],
         };
       }
       if (isConDao) {
         return {
-          title: `Quần xã Thực & Động vật Vườn quốc gia Côn Đảo - ${data.name}`,
-          description: `Tình trạng: ${bioTerrestrial.status}. ${bioTerrestrial.count > 0 ? `Ghi nhận ${bioTerrestrial.count} loài đặc hữu rừng nhiệt đới hải đảo.` : 'Hệ sinh thái rừng nhiệt đới nguyên sinh hải đảo.'}`,
+          title: `Quần xã Bò sát & Lưỡng cư Hải đảo - ${data.name}`,
+          description: `Bò sát và động vật bán ngập đặc hữu hải đảo Côn Đảo. [Tham khảo sinh cảnh vùng — không phải kiểm kê tại phường]`,
           details: [
-            'Rừng nhiệt đới hải đảo nguyên sinh: Độ che phủ tán cây đạt 88.2%.',
-            ...bioTerrestrial.highlights,
-            'Loài đặc hữu Côn Đảo: Sóc đen Côn Đảo (Ratufa bicolor condorensis), chuột hươu, bồ câu Nicobar.',
-            'Thực vật hải đảo: Cây phong ba, bàng vuông, nho rừng, cây găng néo.',
+            HABITAT_DISCLAIMER_NOTE,
+            'Sinh cảnh: Bờ suối đá rừng nhiệt đới và bãi cát ven biển Côn Đảo.',
+            ...bioAmphibian.highlights,
+            'Cua xe tăng (Cardisoma carnifex) - loài cua cạn khổng lồ đặc trưng rừng ngập mặn Côn Đảo.',
+            'Thằn lằn ngón Côn Đảo (Cyrtodactylus condorensis) - loài bò sát đặc hữu duy nhất của quần đảo.',
           ],
           tips: [
-            'Giữ nguyên vẹn thảm thực vật rừng, không hái phong lan hay lấy hạt cây rừng.',
+            'Không săn bắt cua xe tăng và thằn lằn ngón làm đặc sản ẩm thực.',
           ],
         };
       }
       return {
-        title: `Quần xã Sinh vật Trên cạn - ${data.name}`,
-        category: 'Hệ sinh thái cạn',
-        description: `Tình trạng: ${bioTerrestrial.status}. ${bioTerrestrial.count > 0 ? `Đã thống kê ${bioTerrestrial.count} loài thực vật bóng mát và động vật đô thị.` : 'Thảm thực vật bóng mát và động vật cảnh quan đô thị.'}`,
+        title: `Quần xã Sinh vật Lưỡng cư - ${data.name}`,
+        category: 'Hệ sinh thái lưỡng cư',
+        description: `Quần thể lưỡng cư thích nghi vùng giáp ranh nước - cạn đô thị. [Tham khảo sinh cảnh vùng — không phải kiểm kê tại phường]`,
         details: [
-          'Khu bảo tồn mảng xanh trọng điểm: Thảo Cầm Viên Sài Gòn, Công viên Tao Đàn, Gia Định, 23 Tháng 9.',
-          ...bioTerrestrial.highlights,
-          'Di sản cây xanh cổ thụ: Hơn 5.400 cây sao đen, dầu rái, xà cừ trên 100 năm tuổi tạo tầng tán mát.',
-          'Độ che phủ tán cây đô thị: Đạt mức 3.9m²/người dân nội thành.',
-          'Quần thể bò sát nhỏ, sóc cây, các loài bướm đặc trưng nhiệt đới sinh sống ổn định.',
-        ],
-        tips: [
-          'Bảo vệ cây xanh bóng mát công cộng và tăng cường trồng cây xanh thanh lọc bụi mịn ban công.',
-          'Báo ngay cho cơ quan công viên cây xanh khi phát hiện cây nghiêng mục trước mùa mưa bão.',
-        ],
-      };
-    }
-
-    if (category === 'aerial') {
-      if (isCanGio) {
-        return {
-          title: `Quần xã Chim nước Rừng ngập mặn Cần Giờ - ${data.name}`,
-          description: `Tình trạng: ${bioAerial.status}. ${bioAerial.count > 0 ? `Xác định ${bioAerial.count} loài chim nước và chim di cư quốc tế.` : 'Quần thể chim nước và chim di cư quốc tế.'}`,
-          details: [
-            'Sân chim Cần Giờ và bãi bồi ven biển Đông.',
-            ...bioAerial.highlights,
-            'Các loài chim quý hiếm: Bồ nông chân xám, cò thìa, choắt mỏ cong, diệc lửa, bói cá lớn.',
-            'Mùa di trú đỉnh điểm từ tháng 10 đến tháng 4 hàng năm với hàng ngàn cá thể chim bay về tránh rét.',
-          ],
-          tips: [
-            'Tuyệt đối cấm sử dụng bẫy lưới tàng hình, súng cao su săn bắn chim di cư ven rừng.',
-          ],
-        };
-      }
-      if (isConDao) {
-        return {
-          title: `Quần xã Chim biển & Chim Yến Côn Đảo - ${data.name}`,
-          description: `Tình trạng: ${bioAerial.status}. ${bioAerial.count > 0 ? `Đã ghi nhận ${bioAerial.count} loài chim hải đảo quý hiếm.` : 'Quần thể chim hải đảo và chim yến tự nhiên.'}`,
-          details: [
-            'Vách đá hải đảo và vùng trời Vườn quốc gia Côn Đảo.',
-            ...bioAerial.highlights,
-            'Quần thể chim yến hàng Côn Đảo làm tổ trên vách đá tự nhiên.',
-            'Các loài chim biển: Hải âu xám, ó cá săn mồi biển sâu, bồ câu Nicobar cực kỳ quý hiếm.',
-          ],
-          tips: [
-            'Bảo tồn nghiêm ngặt các hang yến tự nhiên theo quy định Vườn quốc gia.',
-          ],
-        };
-      }
-      return {
-        title: `Quần xã Sinh vật Trên trời - ${data.name}`,
-        category: 'Hệ sinh thái chim & côn trùng bay',
-        description: `Tình trạng: ${bioAerial.status}. ${bioAerial.count > 0 ? `Đã xác định ${bioAerial.count} loài chim và côn trùng có ích.` : 'Quần thể chim và côn trùng có ích thích nghi đô thị.'}`,
-        details: [
-          'Quần thể chim đô thị: Bồ câu hoang dã, chim sẻ nhà, chim chích bông, chim yến hàng làm tổ nhà cao tầng.',
-          ...bioAerial.highlights,
-          'Côn trùng thụ phấn: Ong mật, bướm hoa công viên, chuồn chuồn kim giúp cân bằng sinh thái cây xanh.',
-          'Tần suất xuất hiện cao vào sáng sớm (05:30 - 07:00) và chiều mát (16:30 - 18:00).',
-        ],
-        tips: [
-          'Không sử dụng bẫy dính hay súng tự chế tại các công viên và khu dân cư.',
-          'Bố trí khay nước sạch nhỏ ở ban công hoặc sân thượng để chim trời có nơi uống nước ngày nắng.',
-        ],
-      };
-    }
-
-    // Amphibian (Lưỡng cư & Bò sát)
-    if (isCanGio || isNhaBeDistrict) {
-      return {
-        title: `Quần xã Sinh vật Lưỡng cư Vùng ngập mặn - ${data.name}`,
-        description: `Tình trạng: ${bioAmphibian.status}. ${bioAmphibian.count > 0 ? `Đã ghi nhận ${bioAmphibian.count} loài thích nghi vùng giáp ranh bùn lầy.` : 'Đặc trưng lưỡng cư vùng giáp ranh bùn lầy ven biển.'}`,
-        details: [
-          'Khu vực phân bố: Rừng ngập mặn, bãi bồi phù sa sông Soài Rạp và rạch dừa nước.',
+          HABITAT_DISCLAIMER_NOTE,
+          'Khu vực sinh sống: Vùng đất ẩm bãi bồi, bờ kè sinh thái, thảm cỏ bờ rạch, hồ cảnh quan.',
           ...bioAmphibian.highlights,
-          'Loài đặc trưng: Cá thòi lòi leo cây (Periophthalmus) có thể thở cả dưới nước lẫn trên cạn.',
-          'Cua đá bãi bồi, cá bống sao, rắn ráo nước lợ, thằn lằn cát ven biển.',
-          'Đóng vai trò phân hủy lá đước rụng và chuyển hóa mùn bã hữu cơ thành chất dinh dưỡng cho biển.',
+          'Các loài phổ biến: Cóc nhà, thạch sùng, nhái bén, ếch đồng ven ngoại thành.',
+          'Vai trò sinh thái trọng yếu: Là thiên địch tự nhiên tiêu diệt muỗi vằn, lăng quăng và sâu bọ hại cây.',
         ],
         tips: [
-          'Bảo tồn sinh cảnh thảm bùn tự nhiên, không đổ trạc xà bần san lấp rạch bãi bồi.',
+          'Bảo tồn thảm cỏ tự nhiên ven rạch để duy trì môi trường sinh sản của các loài lưỡng cư.',
         ],
       };
-    }
-    if (isConDao) {
-      return {
-        title: `Quần xã Bò sát & Lưỡng cư Hải đảo - ${data.name}`,
-        description: `Tình trạng: ${bioAmphibian.status}. ${bioAmphibian.count > 0 ? `Đã ghi nhận ${bioAmphibian.count} loài bò sát và động vật bán ngập Côn Đảo.` : 'Bò sát và động vật bán ngập đặc hữu Côn Đảo.'}`,
-        details: [
-          'Sinh cảnh: Bờ suối đá rừng nhiệt đới và bãi cát ven biển Côn Đảo.',
-          ...bioAmphibian.highlights,
-          'Cua xe tăng (Cardisoma carnifex) - loài cua cạn khổng lồ đặc trưng rừng ngập mặn Côn Đảo.',
-          'Thằn lằn ngón Côn Đảo (Cyrtodactylus condorensis) - loài bò sát đặc hữu duy nhất của quần đảo.',
-        ],
-        tips: [
-          'Không săn bắt cua xe tăng và thằn lằn ngón làm đặc sản ẩm thực.',
-        ],
-      };
-    }
-    return {
-      title: `Quần xã Sinh vật Lưỡng cư - ${data.name}`,
-      category: 'Hệ sinh thái lưỡng cư',
-      description: `Tình trạng: ${bioAmphibian.status}. ${bioAmphibian.count > 0 ? `Đã ghi nhận ${bioAmphibian.count} loài sống tại vùng giáp ranh nước - cạn.` : 'Quần thể lưỡng cư thích nghi vùng giáp ranh nước - cạn.'}`,
-      details: [
-        'Khu vực sinh sống: Vùng đất ẩm bãi bồi, bờ kè sinh thái, thảm cỏ bờ rạch, hồ cảnh quan.',
-        ...bioAmphibian.highlights,
-        'Các loài phổ biến: Cóc nhà, thạch sùng, nhái bén, ếch đồng ven ngoại thành.',
-        'Vai trò sinh thái trọng yếu: Là thiên địch tự nhiên tiêu diệt muỗi vằn, lăng quăng và sâu bọ hại cây.',
-      ],
-      tips: [
-        'Bảo tồn thảm cỏ tự nhiên ven rạch để duy trì môi trường sinh sản của các loài lưỡng cư.',
-      ],
-    };
     };
 
     const baseContent = buildDetails();
@@ -480,15 +512,15 @@ export const EnvironmentTab: React.FC<EnvironmentTabProps> = ({
               `Tình trạng chi tiết: ${currentWeather.statusDetail}`,
               `Nhiệt độ hiện tại: ${currentWeather.temp}`,
               `Độ ẩm không khí: ${currentWeather.humidity}`,
-              `Áp suất khí quyển: ${currentWeather.surfacePressure || '1012 hPa'}`,
-              `Điểm sương: ${currentWeather.dewPoint || '24.5°C'}`,
+              `Áp suất khí quyển: ${currentWeather.surfacePressure || 'Không có dữ liệu'}`,
+              `Điểm sương: ${currentWeather.dewPoint || 'Không có dữ liệu'}`,
               `Phân loại dữ liệu: ${climateTypeLabel}`,
               `Nguồn kiểm chứng: ${climateSource}`,
               `Thời gian quan trắc / mô hình: ${climateTimestamp}`,
             ],
             tips: [
               'Dữ liệu vi khí hậu được phân tích dựa trên mô hình số trị Open-Meteo chuẩn hóa.',
-              'Theo dõi định kỳ trạm đo vi khí hậu trước 17:00 hàng ngày để cập nhật diễn biến.',
+              'Theo dõi định kỳ mô hình vi khí hậu trước 17:00 hàng ngày để cập nhật diễn biến.',
             ],
           })
         }
@@ -522,7 +554,7 @@ export const EnvironmentTab: React.FC<EnvironmentTabProps> = ({
             Chỉ số môi trường
           </h2>
           <span className="text-xs font-semibold text-[#0284C7] dark:text-sky-300 bg-[#E0F2FE] dark:bg-sky-950/60 border border-transparent dark:border-sky-800 px-2 py-0.5 rounded-md">
-            Quan trắc tự động
+            Mô hình ước tính/dự báo
           </span>
         </div>
 
@@ -533,22 +565,24 @@ export const EnvironmentTab: React.FC<EnvironmentTabProps> = ({
             id="env-air-btn"
             onClick={() =>
               onOpenDetail({
-                title: 'Chỉ số Chất lượng Không khí (AQI)',
+                title: 'Chỉ số Chất lượng Không khí (US AQI)',
                 category: 'Chỉ số môi trường',
-                description: `AQI: ${airQuality.aqi ?? 72} - Đánh giá: ${airQuality.status || 'Trung bình'}`,
+                description: `US AQI: ${airQuality.aqi !== null ? airQuality.aqi : 'Không có dữ liệu'} - Đánh giá: ${airQuality.status || 'Chưa có dữ liệu'}`,
                 details: [
-                  `Chỉ số US-AQI: ${airQuality.aqi ?? 72} (Ngưỡng an toàn WHO: < 50)`,
-                  `Bụi mịn PM2.5: ${airQuality.pollutants.pm2_5 ?? 24.5} µg/m³ (QCVN 05:2023: 50 µg/m³ 24h)`,
-                  `Bụi thô PM10: ${airQuality.pollutants.pm10 ?? 32.0} µg/m³ (QCVN 05:2023: 100 µg/m³ 24h)`,
-                  `Ozone mặt đất O3: ${airQuality.pollutants.o3 ?? 44.0} µg/m³`,
-                  `Khí thải NO2: ${airQuality.pollutants.no2 ?? 39.5} µg/m³`,
-                  `Khí thải SO2: ${airQuality.pollutants.so2 ?? 13.5} µg/m³`,
-                  `Khí thải CO: ${airQuality.pollutants.co ?? 880} µg/m³`,
+                  `Chỉ số US AQI: ${airQuality.aqi !== null ? airQuality.aqi : 'Không có dữ liệu'} (Ngưỡng an toàn WHO: < 50)`,
+                  `Bụi mịn PM2.5: ${airQuality.pollutants.pm2_5 !== null ? `${airQuality.pollutants.pm2_5} µg/m³` : 'Không có dữ liệu'} (QCVN 05:2023: 50 µg/m³ 24h)`,
+                  `Bụi thô PM10: ${airQuality.pollutants.pm10 !== null ? `${airQuality.pollutants.pm10} µg/m³` : 'Không có dữ liệu'} (QCVN 05:2023: 100 µg/m³ 24h)`,
+                  `Ozone mặt đất O3: ${airQuality.pollutants.o3 !== null ? `${airQuality.pollutants.o3} µg/m³` : 'Không có dữ liệu'} (Chuẩn 8h)`,
+                  `Khí thải NO2: ${airQuality.pollutants.no2 !== null ? `${airQuality.pollutants.no2} µg/m³` : 'Không có dữ liệu'} (Chuẩn 24h)`,
+                  `Khí thải SO2: ${airQuality.pollutants.so2 !== null ? `${airQuality.pollutants.so2} µg/m³` : 'Không có dữ liệu'} (Chuẩn 24h)`,
+                  `Khí thải CO: ${airQuality.pollutants.co !== null ? `${airQuality.pollutants.co} µg/m³` : 'Không có dữ liệu'} (Chuẩn 8h)`,
                   `Đánh giá sức khỏe: ${airQuality.categoryText}`,
+                  `Lưu ý nguồn: Dữ liệu mô hình CAMS toàn cầu (~40 km), phản ánh nền khu vực, không phải đo tại phường`,
                   `Nguồn gốc: ${airQuality.source}`,
-                  `Thời điểm quan trắc / mô hình: ${airQuality.timestamp}`,
+                  `Thời điểm mô hình dự báo: ${airQuality.timestamp}`,
                 ],
                 tips: [
+                  'Dữ liệu mô hình CAMS toàn cầu (~40 km), phản ánh nền khu vực, không phải đo tại phường.',
                   'Xem bảng chỉ số chi tiết theo giờ và 6 chất ô nhiễm tại thẻ "Thời tiết".',
                   'QCVN 05:2023/BTNMT là quy chuẩn kỹ thuật quốc gia bắt buộc áp dụng.',
                 ],
@@ -569,7 +603,7 @@ export const EnvironmentTab: React.FC<EnvironmentTabProps> = ({
                 color: airQuality.colorHex,
               }}
             >
-              AQI {airQuality.aqi ?? 72} • {airQuality.status}
+              {airQuality.aqi !== null ? `US AQI ${airQuality.aqi}` : 'Chưa có AQI'} • {airQuality.status}
             </span>
           </button>
           {/* Nước */}
@@ -643,23 +677,44 @@ export const EnvironmentTab: React.FC<EnvironmentTabProps> = ({
           <button
             type="button"
             id="env-geology-btn"
-            onClick={() =>
-              onOpenDetail({
-                title: 'Chỉ số Nền Địa chất Đô thị',
-                category: 'Chỉ số môi trường',
-                description: `${envIndexes.geology.value} - Đánh giá: ${envIndexes.geology.quality}`,
-                details: [
-                  envIndexes.geology.note,
-                  'Tầng địa chất móng công trình: Lớp sét dẻo cứng chịu tải trọng cao.',
-                  'Tốc độ sụt lún trung bình tích lũy: Dưới 3.2 mm/năm (ổn định).',
-                  'Số lượng mốc trắc địa vệ tinh GNSS theo dõi liên tục: 12 trạm.',
-                ],
-                tips: [
-                  'Tuân thủ quy định khảo sát địa chất khi xây dựng công trình ngầm.',
-                  'Bảo tồn mạch nước ngầm tầng sâu, hạn chế khoan giếng tùy tiện.',
-                ],
-              })
-            }
+            onClick={() => {
+              if (geoRecord.hasLocalRecord) {
+                onOpenDetail({
+                  title: `Địa chất & Biến động bề mặt - ${data.name}`,
+                  category: 'Chỉ số địa tầng & viễn thám',
+                  description: `Hệ tầng: ${geoRecord.geology.formationName}`,
+                  details: [
+                    `Thạch học & cấu tạo tầng: ${geoRecord.geology.lithology}.`,
+                    `Sức chịu tải tính toán: ${geoRecord.geology.bearingCapacity}.`,
+                    `Địa hình số hóa DEM: ${geoRecord.topography.elevationMsl} (${geoRecord.topography.terrainType}).`,
+                    `Tốc độ biến dạng bề mặt InSAR: ${geoRecord.subsidence.insarRateMmYear || 'Chưa ghi nhận biến dạng lớn trong chu kỳ đo'}.`,
+                    `Lưu ý bắt buộc InSAR: ${INSAR_MANDATORY_LABEL}.`,
+                    `Nguồn số liệu: ${geoRecord.geology.source} | Viễn thám: ${geoRecord.subsidence.dataSource}.`,
+                    geoRecord.generalNote,
+                  ],
+                  tips: [
+                    'Khảo sát địa chất công trình kỹ lưỡng trước khi thi công móng tầng hầm hoặc nhà cao tầng.',
+                    'Hạn chế khai thác nước ngầm tầng sâu để giảm nguy cơ sụt lún tích lũy bề mặt.',
+                  ],
+                });
+              } else {
+                onOpenDetail({
+                  title: `Chỉ số Địa chất & Lún bề mặt - ${data.name}`,
+                  category: 'Chỉ số địa tầng đô thị',
+                  description: 'Chưa có dữ liệu địa chất cục bộ',
+                  details: [
+                    'Hiện tại chưa có báo cáo khoan khảo sát địa chất công trình hoặc mốc trắc địa quan trắc lún cục bộ riêng tại phường này.',
+                    'Ứng dụng tuân thủ nguyên tắc minh bạch khoa học: Không tự suy đoán hoặc gán nhãn nền ổn định khi chưa có tài liệu kiểm chứng chính thức.',
+                    `Lưu ý InSAR: ${INSAR_MANDATORY_LABEL}.`,
+                    'Khi có công trình xây dựng, cần thực hiện khoan khảo sát địa chất theo quy chuẩn QCVN 03:2022/BXD.',
+                  ],
+                  tips: [
+                    'Tuân thủ quy định khảo sát địa chất trước khi xây dựng công trình.',
+                    'Không khoan giếng khai thác nước ngầm trái phép.',
+                  ],
+                });
+              }
+            }}
             className="bg-[#F5F4F0] dark:bg-[#1E293B] hover:bg-[#ECEBE6] dark:hover:bg-[#334155]/70 border border-transparent dark:border-slate-700 active:scale-95 transition-all rounded-[18px] py-4.5 px-3 flex flex-col items-center justify-center gap-2 text-center cursor-pointer shadow-2xs"
           >
             <div className="w-8 h-8 flex items-center justify-center text-[#0D9488] dark:text-teal-400">
@@ -668,8 +723,14 @@ export const EnvironmentTab: React.FC<EnvironmentTabProps> = ({
             <span className="text-[14px] font-bold text-[#334155] dark:text-slate-200">
               Địa chất
             </span>
-            <span className="text-[11px] font-semibold text-[#0D9488] dark:text-teal-300 bg-[#CCFBF1] dark:bg-teal-950/70 border border-transparent dark:border-teal-800 px-2 py-0.5 rounded-full">
-              {envIndexes.geology.quality}
+            <span
+              className={`text-[10.5px] font-semibold px-2 py-0.5 rounded-full leading-tight text-center ${
+                geoRecord.hasLocalRecord
+                  ? 'text-[#0D9488] dark:text-teal-300 bg-[#CCFBF1] dark:bg-teal-950/70 border border-transparent dark:border-teal-800'
+                  : 'text-slate-600 dark:text-slate-400 bg-slate-200/80 dark:bg-slate-800 border border-slate-300/60 dark:border-slate-700'
+              }`}
+            >
+              {geoRecord.hasLocalRecord ? 'Tham khảo vùng' : 'Chưa có dữ liệu'}
             </span>
           </button>
         </div>
@@ -777,6 +838,27 @@ export const EnvironmentTab: React.FC<EnvironmentTabProps> = ({
                 <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </div>
+            {/* Thanh thông tin mô tả định tính sinh cảnh vùng */}
+            <div className="p-3 bg-slate-50 dark:bg-slate-800/80 rounded-2xl border border-slate-200/80 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <Info className="w-4 h-4 text-emerald-600 shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5 flex-wrap">
+                    <span>{wardHabitat.habitatZone}</span>
+                    <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-1.5 py-0.2 rounded">
+                      Sinh cảnh đặc trưng
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5 line-clamp-2">
+                    {wardHabitat.habitatDescription}
+                  </p>
+                </div>
+              </div>
+              <span className="text-[10.5px] font-semibold text-slate-500 dark:text-slate-400 italic shrink-0 self-end sm:self-center">
+                * {wardHabitat.disclaimer}
+              </span>
+            </div>
+
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
               {/* Dưới nước */}
               <button
@@ -794,8 +876,11 @@ export const EnvironmentTab: React.FC<EnvironmentTabProps> = ({
                   <div className="w-9 h-9 rounded-xl bg-sky-100 dark:bg-sky-950/80 text-sky-600 dark:text-sky-300 flex items-center justify-center group-hover:scale-105 transition-transform">
                     <Waves className="w-5 h-5 stroke-[2.2]" />
                   </div>
-                  <span className="text-[10.5px] font-black px-2 py-0.5 rounded-full bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-300 border border-sky-200 dark:border-sky-800 font-mono">
-                    {bioUnderwater.count > 0 ? `${bioUnderwater.count} loài` : 'Tham khảo'}
+                  <span
+                    className="text-[10.5px] font-bold px-2 py-0.5 rounded-full bg-sky-100 dark:bg-sky-950 text-sky-800 dark:text-sky-300 border border-sky-200 dark:border-sky-800"
+                    title="Tham khảo sinh cảnh vùng — không phải kiểm kê tại phường"
+                  >
+                    Tham khảo
                   </span>
                 </div>
 
@@ -836,8 +921,11 @@ export const EnvironmentTab: React.FC<EnvironmentTabProps> = ({
                   <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-950/80 text-emerald-600 dark:text-emerald-300 flex items-center justify-center group-hover:scale-105 transition-transform">
                     <Footprints className="w-5 h-5 stroke-[2.2]" />
                   </div>
-                  <span className="text-[10.5px] font-black px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-mono">
-                    {bioTerrestrial.count > 0 ? `${bioTerrestrial.count} loài` : 'Tham khảo'}
+                  <span
+                    className="text-[10.5px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+                    title="Tham khảo sinh cảnh vùng — không phải kiểm kê tại phường"
+                  >
+                    Tham khảo
                   </span>
                 </div>
 
@@ -878,8 +966,11 @@ export const EnvironmentTab: React.FC<EnvironmentTabProps> = ({
                   <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-950/80 text-amber-600 dark:text-amber-300 flex items-center justify-center group-hover:scale-105 transition-transform">
                     <Feather className="w-5 h-5 stroke-[2.2]" />
                   </div>
-                  <span className="text-[10.5px] font-black px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 font-mono">
-                    {bioAerial.count > 0 ? `${bioAerial.count} loài` : 'Tham khảo'}
+                  <span
+                    className="text-[10.5px] font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800"
+                    title="Tham khảo sinh cảnh vùng — không phải kiểm kê tại phường"
+                  >
+                    Tham khảo
                   </span>
                 </div>
 
@@ -920,8 +1011,11 @@ export const EnvironmentTab: React.FC<EnvironmentTabProps> = ({
                   <div className="w-9 h-9 rounded-xl bg-teal-100 dark:bg-teal-950/80 text-teal-600 dark:text-teal-300 flex items-center justify-center group-hover:scale-105 transition-transform">
                     <Droplet className="w-5 h-5 stroke-[2.2]" />
                   </div>
-                  <span className="text-[10.5px] font-black px-2 py-0.5 rounded-full bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800 font-mono">
-                    {bioAmphibian.count > 0 ? `${bioAmphibian.count} loài` : 'Tham khảo'}
+                  <span
+                    className="text-[10.5px] font-bold px-2 py-0.5 rounded-full bg-teal-100 dark:bg-teal-950 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800"
+                    title="Tham khảo sinh cảnh vùng — không phải kiểm kê tại phường"
+                  >
+                    Tham khảo
                   </span>
                 </div>
 
@@ -1190,7 +1284,7 @@ export const EnvironmentTab: React.FC<EnvironmentTabProps> = ({
                       Toàn cảnh Quần Xã Sinh Vật Toàn TP.HCM
                     </span>
                     <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-md bg-emerald-200/80 dark:bg-emerald-800 text-emerald-900 dark:text-emerald-100">
-                      1.400+ loài • 168 xã/phường
+                      5 phân vùng sinh cảnh • 168 xã/phường
                     </span>
                   </div>
                   <p className="text-[11px] text-emerald-800 dark:text-emerald-300/90 truncate mt-0.5">
@@ -1214,19 +1308,19 @@ export const EnvironmentTab: React.FC<EnvironmentTabProps> = ({
           id="env-alert-card"
           onClick={() =>
             onOpenDetail({
-              title: data.alerts.environmentAlert.title,
+              title: environmentAlert.title,
               category: 'Cảnh báo thủy triều & ngập',
-              description: data.alerts.environmentAlert.desc,
+              description: environmentAlert.desc,
               details: [
-                'Độ cao mực nước đo tại trạm Phú An: 1.48m (dưới báo động 2).',
-                'Khung giờ triều đỉnh: 17:15 - 19:30 chiều tối nay.',
-                'Các tuyến đường có nguy cơ đọng nước cục bộ: Bến Vân Đồn, Tôn Thất Thuyết, Calmette.',
-                'Hệ thống cống ngăn triều Bến Nghé đang trong trạng thái sẵn sàng hạ cửa van đóng khi mực nước vượt 1.50m.',
+                'Theo dõi thông tin dự báo khí tượng thủy văn và cảnh báo ngập triều khu vực TP.HCM.',
+                'Khung giờ triều đỉnh có thể gây đọng nước cục bộ tại các tuyến đường trũng thấp ven sông, kênh rạch.',
+                'Chủ động phương án kê cao vật dụng và chọn tuyến đường phù hợp khi di chuyển trong khung giờ cao điểm.',
+                'Tham khảo thông tin vận hành hệ thống cống ngăn triều và các trạm bơm thoát nước đô thị.',
               ],
               tips: [
-                data.alerts.environmentAlert.actionAdvice,
+                environmentAlert.actionAdvice,
                 'Người dân di chuyển bằng phương tiện gầm thấp nên chủ động chọn tuyến đường cao ráo hơn.',
-                'Đội bơm di động công ty thoát nước đã ứng trực tại hiện trường.',
+                'Cập nhật thông tin cảnh báo từ cơ quan khí tượng thủy văn và lực lượng ứng trực địa phương.',
               ],
             })
           }
@@ -1237,10 +1331,10 @@ export const EnvironmentTab: React.FC<EnvironmentTabProps> = ({
           </div>
           <div className="flex-1">
             <h3 className="text-[16px] font-bold text-[#78350F] dark:text-amber-200 leading-snug">
-              {data.alerts.environmentAlert.title}
+              {environmentAlert.title}
             </h3>
             <p className="text-[14px] text-[#92400E] dark:text-amber-300/90 mt-0.5 leading-snug">
-              {data.alerts.environmentAlert.desc}
+              {environmentAlert.desc}
             </p>
           </div>
           <ChevronRight className="w-5 h-5 text-[#B45309] dark:text-amber-400 mt-1 shrink-0 opacity-60" />

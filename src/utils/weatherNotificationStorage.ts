@@ -52,6 +52,10 @@ export interface WeatherStorageConfig {
 const STORAGE_KEY_NOTIFICATIONS = 'eco_weather_notifications_cache_v3';
 const STORAGE_KEY_CONFIG = 'eco_weather_storage_config_v2';
 
+// Hằng số ngưỡng cảnh báo gió & gió giật (dễ tinh chỉnh)
+export const WIND_WARNING_THRESHOLD_KMH = 39; // Gió mạnh từ Cấp 6 (≥ 39 km/h)
+export const WIND_GUST_WARNING_THRESHOLD_KMH = 50; // Gió giật mạnh (≥ 50 km/h)
+
 // Helper: Format DD/MM/YYYY
 function formatDate(date: Date): string {
   const d = String(date.getDate()).padStart(2, '0');
@@ -123,7 +127,7 @@ export function generateGenericAdvisoryNotifications(
           type: 'uv',
           severity: 'low',
           title: `[Hôm nay] Lưu ý bức xạ tia cực tím (UV)`,
-          desc: `Thời tiết nhiệt đới đô thị thường có bức xạ UV cao vào giữa trưa. Mở ứng dụng khi có kết nối mạng để xem chỉ số UV đo đạc thực tế từ trạm khí tượng.`,
+          desc: `Thời tiết nhiệt đới đô thị thường có bức xạ UV cao vào giữa trưa. Mở ứng dụng khi có kết nối mạng để xem chỉ số UV mô hình ước tính cho khu vực.`,
           isCached: true,
           cachedAt: cachedTimeStr,
           source: 'system_alert',
@@ -242,7 +246,7 @@ export function generateGenericAdvisoryNotifications(
           type: 'info',
           severity: 'low',
           title: `[Lịch sử -2 ngày] Chuỗi số liệu vi khí hậu`,
-          desc: `Đồng bộ trực tuyến để tra cứu dữ liệu đo đạc nhiệt độ, độ ẩm và mưa từ các trạm quan trắc tự động.`,
+          desc: `Đồng bộ trực tuyến để tra cứu dữ liệu dự báo mô hình đã lưu về nhiệt độ, độ ẩm và mưa.`,
           isCached: true,
           cachedAt: cachedTimeStr,
           source: 'system_alert',
@@ -318,17 +322,17 @@ export function generateDynamicNotifications(
       const realUv = current?.uvIndex ?? (day0?.maxUvIndex ?? 0);
       const uvInfo = getUvClassification(realUv);
 
-      let uvTitle = `[Hôm nay] Bức xạ UV đo được: ${realUv.toFixed(1)} (${uvInfo.text})`;
-      let uvDesc = `Số liệu đo từ ${stationName}: Chỉ số UV bề mặt hiện là ${realUv.toFixed(1)}.`;
+      let uvTitle = `[Hôm nay] Bức xạ UV mô hình ước tính: ${realUv.toFixed(1)} (${uvInfo.text})`;
+      let uvDesc = `Số liệu ước tính cho ${stationName}: Chỉ số UV bề mặt hiện là ${realUv.toFixed(1)}.`;
       if (realUv >= 8) {
         uvTitle = `[Hôm nay] Cảnh báo bức xạ UV rất cao: ${realUv.toFixed(1)}`;
-        uvDesc = `Số liệu trạm ${stationName}: Chỉ số UV đạt ${realUv.toFixed(1)} (${uvInfo.text}). Khuyến cáo hạn chế tiếp xúc nắng trực tiếp từ 10:30 đến 14:00, sử dụng kem chống nắng và kính bảo hộ mắt.`;
+        uvDesc = `Số liệu ước tính cho ${stationName}: Chỉ số UV đạt ${realUv.toFixed(1)} (${uvInfo.text}). Khuyến cáo hạn chế tiếp xúc nắng trực tiếp từ 10:30 đến 14:00, sử dụng kem chống nắng và kính bảo hộ mắt.`;
       } else if (realUv >= 6) {
         uvTitle = `[Hôm nay] Bức xạ UV ở mức cao: ${realUv.toFixed(1)}`;
-        uvDesc = `Chỉ số UV đo được tại trạm là ${realUv.toFixed(1)}. Khuyến cáo che chắn và đội nón rộng vành khi di chuyển ngoài trời.`;
+        uvDesc = `Chỉ số UV mô hình ước tính là ${realUv.toFixed(1)}. Khuyến cáo che chắn và đội nón rộng vành khi di chuyển ngoài trời.`;
       } else {
         uvTitle = `[Hôm nay] Bức xạ UV ở mức an toàn: ${realUv.toFixed(1)}`;
-        uvDesc = `Chỉ số bức xạ cực tím đo được là ${realUv.toFixed(1)} (${uvInfo.text}), thuận lợi cho các hoạt động di chuyển và sinh thái ngoài trời.`;
+        uvDesc = `Chỉ số bức xạ cực tím mô hình ước tính là ${realUv.toFixed(1)} (${uvInfo.text}), thuận lợi cho các hoạt động di chuyển và sinh thái ngoài trời.`;
       }
 
       items.push({
@@ -406,7 +410,7 @@ export function generateDynamicNotifications(
           type: 'info',
           severity: 'low',
           title: `[Hôm nay] Thời tiết ${districtName}: ${realCondition}, ${realTemp}°C`,
-          desc: `Dữ liệu đo đạc thực tế từ ${stationName}: Nhiệt độ ${realTemp}°C (cảm nhận ${realFeelsLike}°C)${day0 ? `, dao động ${day0.minTemp}°C - ${day0.maxTemp}°C` : ''}, độ ẩm ${realHumidity}%, xác suất mưa ${realRainProb}%. Thời tiết ổn định.`,
+          desc: `Dữ liệu mô hình ước tính cho ${stationName}: Nhiệt độ ${realTemp}°C (cảm nhận ${realFeelsLike}°C)${day0 ? `, dao động ${day0.minTemp}°C - ${day0.maxTemp}°C` : ''}, độ ẩm ${realHumidity}%, xác suất mưa ${realRainProb}%. Thời tiết ổn định.`,
           isCached: true,
           cachedAt: cachedTimeStr,
           source: 'sensor_reading',
@@ -417,7 +421,7 @@ export function generateDynamicNotifications(
       // Thông báo 3: Vi khí hậu & Gió / Môi trường thực tế
       const windSpeed = current?.windSpeed ?? (day0?.maxWindSpeed ?? 10);
       const windGust = current?.windGust ?? Math.round(windSpeed * 1.3);
-      if (windSpeed >= 25 || windGust >= 35) {
+      if (windSpeed >= WIND_WARNING_THRESHOLD_KMH || windGust >= WIND_GUST_WARNING_THRESHOLD_KMH) {
         items.push({
           id: `live-notif-d0-wind-${districtId}`,
           dateOffset: 0,
@@ -428,8 +432,8 @@ export function generateDynamicNotifications(
           districtName,
           type: 'warning',
           severity: 'medium',
-          title: `[Hôm nay] Gió giật mạnh tại khu vực: ${windSpeed} - ${windGust} km/h`,
-          desc: `Cảm biến siêu âm tháp 10m ghi nhận gió giật đạt ${windGust} km/h. Chú ý an toàn khi di chuyển qua các tuyến đường nhiều cây cao hoặc công trình thi công.`,
+          title: `[Hôm nay] Cảnh báo gió mạnh khu vực: ${windSpeed} - ${windGust} km/h`,
+          desc: `Mô hình dự báo ước tính gió giật đạt ${windGust} km/h (phong tốc ${windSpeed} km/h). Chú ý an toàn khi di chuyển qua các tuyến đường nhiều cây cao hoặc công trình thi công.`,
           isCached: true,
           cachedAt: cachedTimeStr,
           source: 'sensor_reading',
@@ -446,7 +450,7 @@ export function generateDynamicNotifications(
           districtName,
           type: 'info',
           severity: 'low',
-          title: `[Hôm nay] Khí áp bề mặt & Điểm sương trạm`,
+          title: `[Hôm nay] Khí áp bề mặt & Điểm sương khu vực`,
           desc: `Khí áp bề mặt ${current?.surfacePressure ?? 1008} hPa, điểm sương ${current?.dewPoint ?? 23}°C, phong tốc ${windSpeed} km/h. Môi trường đô thị ở trạng thái khuếch tán bình thường.`,
           isCached: true,
           cachedAt: cachedTimeStr,
@@ -477,7 +481,7 @@ export function generateDynamicNotifications(
           type: isRainy ? 'rain' : 'info',
           severity: dayRecord.totalRainfall >= 15 ? 'high' : (isRainy ? 'medium' : 'low'),
           title: `[Lịch sử ${offset === -1 ? 'Hôm qua' : `${Math.abs(offset)} ngày trước`}] ${rainTitle}, nhiệt độ ${dayRecord.minTemp}°C - ${dayRecord.maxTemp}°C`,
-          desc: `Số liệu quan trắc trạm ${dayRecord.stationName || stationName}: Xác suất mưa đạt đỉnh ${dayRecord.maxRainChance}%, độ ẩm trung bình ${dayRecord.avgHumidity}%, khí áp ${dayRecord.surfacePressure || 1008} hPa.`,
+          desc: `Số liệu mô hình ước tính cho ${dayRecord.stationName || stationName}: Xác suất mưa đạt đỉnh ${dayRecord.maxRainChance}%, độ ẩm trung bình ${dayRecord.avgHumidity}%, khí áp ${dayRecord.surfacePressure || 1008} hPa.`,
           isCached: true,
           cachedAt: cachedTimeStr,
           source: 'sensor_reading',
@@ -496,7 +500,7 @@ export function generateDynamicNotifications(
             type: 'uv',
             severity: 'medium',
             title: `[Lịch sử ${offset === -1 ? 'Hôm qua' : `${Math.abs(offset)} ngày trước`}] Bức xạ UV cực đại ghi nhận ${dayRecord.maxUvIndex.toFixed(1)}`,
-            desc: `Đỉnh bức xạ đo được vào khung giờ 11:30 - 13:30. Tốc độ gió cao nhất trong ngày ${dayRecord.maxWindSpeed.toFixed(1)} km/h.`,
+            desc: `Đỉnh bức xạ mô hình ước tính vào khung giờ 11:30 - 13:30. Tốc độ gió cao nhất trong ngày ${dayRecord.maxWindSpeed.toFixed(1)} km/h.`,
             isCached: true,
             cachedAt: cachedTimeStr,
             source: 'sensor_reading',
@@ -516,7 +520,7 @@ export function generateDynamicNotifications(
           type: 'info',
           severity: 'low',
           title: `[Lịch sử ${offset === -1 ? 'Hôm qua' : `${Math.abs(offset)} ngày trước`}] Nhật ký thời tiết khu vực`,
-          desc: `Dữ liệu lịch sử quan trắc đã lưu trữ thành công từ trạm ${stationName}.`,
+          desc: `Dữ liệu mô hình dự báo đã lưu trữ thành công từ điểm lưới ${stationName}.`,
           isCached: true,
           cachedAt: cachedTimeStr,
           source: 'sensor_reading',

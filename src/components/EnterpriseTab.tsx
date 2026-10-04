@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mountain, Droplet, Wind, Leaf, ChevronRight, Satellite } from 'lucide-react';
+import { Mountain, Droplet, Wind, Leaf, ChevronRight, Satellite, Info } from 'lucide-react';
 import { DistrictData, ModalContent } from '../types';
 import { getGeologySubsidenceRecord } from '../utils/geologySubsidenceData';
 
@@ -27,6 +27,12 @@ export const EnterpriseTab: React.FC<EnterpriseTabProps> = ({ data, onOpenDetail
 
   return (
     <div className="flex flex-col gap-5 px-5 pb-6">
+      {/* Nhãn cố định hướng dẫn tham khảo */}
+      <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/60 rounded-xl px-3.5 py-2.5 text-xs text-amber-800 dark:text-amber-200 flex items-center gap-2">
+        <Info className="w-4 h-4 shrink-0 text-amber-600 dark:text-amber-400" />
+        <span>Nội dung hướng dẫn tham khảo — không phải số liệu quan trắc hay thống kê chính thức.</span>
+      </div>
+
       {/* Đánh giá tổng quát (Màu tím oải hương mềm mại) */}
       <div
         id="enterprise-eval-card"
@@ -36,13 +42,13 @@ export const EnterpriseTab: React.FC<EnterpriseTabProps> = ({ data, onOpenDetail
             category: 'Kinh tế & Doanh nghiệp',
             description: `${enterprise.assessmentSubtitle} tại ${data.name}.`,
             details: [
-              'Chỉ số thuận lợi kinh doanh xanh (Green Index): 78/100.',
-              'Cơ sở hạ tầng cấp điện, cấp nước sạch và xử lý nước thải tập trung hoàn thiện 99%.',
-              'Chính sách ưu đãi: Giảm 20% phí thuê mặt bằng cho các mô hình kinh doanh tuần hoàn và đạt chứng chỉ ESG.',
-              'Mạng lưới logistics nội đô bằng xe điện đang được mở rộng và thí điểm.',
+              'Khung định hướng phát triển xanh và áp dụng tiêu chí ESG trong hoạt động doanh nghiệp.',
+              'Khuyến nghị kết nối hạ tầng cấp điện, cấp nước sạch và hệ thống xử lý nước thải tập trung.',
+              'Tham khảo các chính sách hỗ trợ, ưu đãi mặt bằng cho mô hình kinh doanh tuần hoàn và phát triển bền vững.',
+              'Định hướng phát triển mạng lưới logistics giảm phát thải và sử dụng phương tiện năng lượng sạch.',
             ],
             tips: [
-              'Doanh nghiệp có thể đăng ký thẩm định tiêu chuẩn Xanh để hưởng hỗ trợ tín dụng ưu đãi từ Quỹ Bảo vệ Môi trường TP.HCM.',
+              'Doanh nghiệp có thể tìm hiểu tiêu chí thẩm định dự án Xanh để tiếp cận các chương trình hỗ trợ tín dụng môi trường.',
             ],
           })
         }
@@ -83,8 +89,8 @@ export const EnterpriseTab: React.FC<EnterpriseTabProps> = ({ data, onOpenDetail
                   `Ghi chú tổng hợp: ${geoRecord.generalNote}`,
                 ],
                 tips: [
-                  'Khoan khảo sát địa chất công trình tối thiểu 3 lỗ khoan đối với công trình cấp II trở lên.',
-                  'Tuân thủ quy chuẩn xây dựng QCVN 03:2022/BXD về móng và tầng ngầm.',
+                  'Thực hiện khoan khảo sát địa chất công trình theo quy định phân cấp công trình trước khi thiết kế nền móng.',
+                  'Tuân thủ quy chuẩn xây dựng QCVN 03:2022/BXD (Cần đối chiếu phiên bản hiện hành) về kết cấu móng và công trình ngầm.',
                 ],
               })
             }
@@ -137,19 +143,18 @@ export const EnterpriseTab: React.FC<EnterpriseTabProps> = ({ data, onOpenDetail
             id="impact-water-card"
             onClick={() =>
               onOpenDetail({
-                title: 'Chi tiết Ảnh hưởng Nguồn nước Thải Doanh Nghiệp',
-                category: 'Giám sát Nước thải & Tiêu chuẩn QCVN',
-                description: `Hiện trạng quản lý nước thải tại ${data.name}.`,
+                title: 'Hướng Dẫn Quản Lý Nước Thải Doanh Nghiệp',
+                category: 'Khuyến nghị & Tham chiếu Quy chuẩn',
+                description: `Hướng dẫn quản lý và kiểm soát nước thải tại ${data.name}.`,
                 details: [
-                  '94% cơ sở kinh doanh F&B, giặt là, dịch vụ lưu trú đã lắp đặt bể tách dầu mỡ sơ cấp.',
-                  'Lưu lượng nước xả thải trung bình khu vực: 1.200 m³/ngày đêm qua trạm xử lý nước thải tập trung.',
-                  'Tỷ lệ mẫu kiểm tra định kỳ đạt quy chuẩn QCVN 14:2008/BTNMT: Đạt 92.5%.',
-                  'Nguồn dữ liệu: Sở Tài nguyên và Môi trường TP.HCM & Trung tâm Y tế dự phòng quận/huyện.',
-                  'Phương pháp: Lấy mẫu phân tích hóa lý định kỳ 6 tháng/lần tại hố ga thu gom.',
+                  'Khuyến nghị các cơ sở F&B, kinh doanh dịch vụ ăn uống, lưu trú lắp đặt bể tách dầu mỡ sơ bộ trước khi thoát ra cống.',
+                  'Hướng dẫn tham chiếu quy chuẩn kỹ thuật quốc gia về nước thải sinh hoạt: QCVN 14:2008/BTNMT (Cần đối chiếu phiên bản hiện hành).',
+                  'Khuyến nghị các cơ sở tuân thủ ngưỡng giới hạn thông số ô nhiễm (BOD5, COD, TSS, dầu mỡ động thực vật) theo quy chuẩn hiện hành.',
+                  'Nước thải sản xuất, kinh doanh cần qua hệ thống xử lý sơ bộ đạt tiêu chuẩn đấu nối với mạng lưới thoát nước khu vực.',
                 ],
                 tips: [
                   'Không xả dầu mỡ thừa trực tiếp vào đường ống cống thoát nước chung của tòa nhà.',
-                  'Bảo dưỡng và nạo vét bể tách dầu mỡ tối thiểu 1 lần/tháng.',
+                  'Bảo dưỡng và nạo vét bể tách dầu mỡ định kỳ để đảm bảo hiệu quả tách lọc.',
                 ],
               })
             }
@@ -167,7 +172,7 @@ export const EnterpriseTab: React.FC<EnterpriseTabProps> = ({ data, onOpenDetail
               </span>
             </div>
             <div className="text-[11.5px] text-slate-600 dark:text-slate-300 mt-1">
-              94% cơ sở F&B lắp đặt bể tách mỡ • Nước thải qua trạm xử lý đạt QCVN 14:2008/BTNMT.
+              Khuyến nghị lắp đặt bể tách mỡ • Tham chiếu quy chuẩn nước thải QCVN 14:2008/BTNMT (Cần đối chiếu phiên bản hiện hành).
             </div>
           </div>
 
@@ -176,14 +181,14 @@ export const EnterpriseTab: React.FC<EnterpriseTabProps> = ({ data, onOpenDetail
             id="impact-air-card"
             onClick={() =>
               onOpenDetail({
-                title: 'Chi tiết Khí thải, Bụi & Tiếng ồn Thương mại',
-                category: 'Giám sát Môi trường Không khí Đô thị',
-                description: `Chỉ số kiểm soát khí thải tại ${data.name}.`,
+                title: 'Hướng Dẫn Kiểm Soát Khí Thải & Tiếng Ồn Thương Mại',
+                category: 'Khuyến nghị & Tham chiếu Quy chuẩn',
+                description: `Hướng dẫn kiểm soát khí thải và tiếng ồn tại ${data.name}.`,
                 details: [
-                  'Chỉ số khí thải SO2, NOx từ các hệ thống máy phát điện dự phòng: Nằm trong quy chuẩn QCVN 19:2009/BTNMT.',
-                  'Độ ồn ban ngày khu vực kinh doanh hỗn hợp: 64 dB (ngưỡng cho phép tối đa 70 dB theo QCVN 26:2010/BTNMT).',
-                  'Khuyến khích chuyển đổi các bếp ăn thương mại sang năng lượng điện thay vì gas hóa lỏng.',
-                  'Nguồn dữ liệu: Trạm quan trắc tự động kết hợp thanh tra môi trường định kỳ.',
+                  'Khuyến nghị vận hành hệ thống máy phát điện dự phòng tuân thủ QCVN 19:2009/BTNMT (Cần đối chiếu phiên bản hiện hành) về khí thải công nghiệp.',
+                  'Tham chiếu ngưỡng giới hạn tiếng ồn tối đa cho phép theo QCVN 26:2010/BTNMT (Cần đối chiếu phiên bản hiện hành) tại khu vực sinh hoạt và thương mại.',
+                  'Khuyến khích chuyển đổi các bếp ăn thương mại sang năng lượng sạch, lắp đặt hệ thống chụp hút khói và lọc mùi.',
+                  'Khuyến nghị cơ sở kinh doanh chủ động rà soát, bảo dưỡng định kỳ các nguồn phát sinh khí thải và tiếng ồn.',
                 ],
                 tips: [
                   'Lắp đặt hệ thống lọc than hoạt tính cho các đường ống thông gió nhà hàng, quán ăn.',
@@ -204,7 +209,7 @@ export const EnterpriseTab: React.FC<EnterpriseTabProps> = ({ data, onOpenDetail
               </span>
             </div>
             <div className="text-[11.5px] text-slate-600 dark:text-slate-300 mt-1">
-              Khí thải phát điện đạt QCVN 19:2009 • Độ ồn 64 dB (ngưỡng giới hạn 70 dB).
+              Khuyến nghị kiểm soát khí thải QCVN 19:2009/BTNMT • Ngưỡng tiếng ồn QCVN 26:2010/BTNMT (Cần đối chiếu phiên bản hiện hành).
             </div>
           </div>
         </div>
@@ -225,10 +230,10 @@ export const EnterpriseTab: React.FC<EnterpriseTabProps> = ({ data, onOpenDetail
               category: 'Chính sách phát triển xanh',
               description: 'Bộ khung tiêu chuẩn chuyển đổi số và chuyển đổi xanh dành cho doanh nghiệp nội đô.',
               details: [
-                '1. Chứng nhận Doanh nghiệp Xanh (Green Enterprise Certification): Miễn giảm phí bảo vệ môi trường trong 2 năm đầu.',
-                '2. Hỗ trợ 30% kinh phí lắp đặt pin năng lượng mặt trời mái nhà cho văn phòng và nhà xưởng.',
-                '3. Cam kết loại bỏ 100% đồ nhựa dùng một lần trong chuỗi cung ứng sản phẩm quà tặng và bao bì.',
-                '4. Tham gia thị trường tín chỉ carbon thử nghiệm của TP.HCM giai đoạn 2026.',
+                '1. Định hướng Chứng nhận Doanh nghiệp Xanh: Tham gia các chương trình đánh giá và hỗ trợ ưu đãi môi trường của thành phố.',
+                '2. Khuyến khích đầu tư điện mặt trời mái nhà và giải pháp tiết kiệm năng lượng cho văn phòng, cơ sở sản xuất.',
+                '3. Kế hoạch hành động giảm thiểu đồ nhựa dùng một lần trong bao bì và chuỗi cung ứng.',
+                '4. Tiếp cận các chương trình đào tạo về kiểm kê khí nhà kính và lộ trình giảm phát thải carbon.',
               ],
               tips: [
                 'Tải trọn bộ tài liệu hướng dẫn chuyển đổi ESG được tích hợp sẵn không cần kết nối mạng.',

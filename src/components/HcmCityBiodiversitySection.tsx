@@ -29,7 +29,7 @@ import {
   Info,
 } from 'lucide-react';
 import { DISTRICTS_DATA, HCM_DISTRICT_GROUPS } from '../data/mockData';
-import { getGeologySubsidenceRecord } from '../utils/geologySubsidenceData';
+import { getGeologySubsidenceRecord, INSAR_MANDATORY_LABEL } from '../utils/geologySubsidenceData';
 import { DistrictData, ModalContent } from '../types';
 import {
   HCM_BIODIVERSITY_SPECIES,
@@ -37,6 +37,7 @@ import {
   SpeciesItem,
   enrichSpeciesItem,
   getDistrictBiodiversityMetadata,
+  getWardHabitatSummary,
 } from '../data/biodiversitySpeciesData';
 import { BiodiversityTrendChart } from './BiodiversityTrendChart';
 
@@ -282,41 +283,6 @@ export const HcmCityBiodiversitySection: React.FC<HcmCityBiodiversitySectionProp
     return Object.values(DISTRICTS_DATA);
   }, []);
 
-  // Tổng hợp dữ liệu thống kê sinh thái toàn thành phố
-  const totalStats = useMemo(() => {
-    let totalUnderwater = 0;
-    let totalTerrestrial = 0;
-    let totalAerial = 0;
-    let totalAmphibian = 0;
-    let wardsWithData = 0;
-
-    allDistricts.forEach((d) => {
-      if (d.biodiversity) {
-        totalUnderwater += d.biodiversity.underwater?.count || 0;
-        totalTerrestrial += d.biodiversity.terrestrial?.count || 0;
-        totalAerial += d.biodiversity.aerial?.count || 0;
-        totalAmphibian += d.biodiversity.amphibian?.count || 0;
-        wardsWithData++;
-      }
-    });
-
-    const hasAnyLocalData = wardsWithData > 0;
-
-    return {
-      hasAnyLocalData,
-      totalUnderwater,
-      totalTerrestrial,
-      totalAerial,
-      totalAmphibian,
-      totalWardsCount: allDistricts.length,
-      averageSpeciesPerWard: hasAnyLocalData
-        ? Math.round(
-            (totalUnderwater + totalTerrestrial + totalAerial + totalAmphibian) / wardsWithData
-          )
-        : 0,
-    };
-  }, [allDistricts]);
-
   // Lọc danh sách xã/phường phục vụ tìm kiếm & tra cứu
   const filteredDistricts = useMemo(() => {
     return allDistricts.filter((d) => {
@@ -355,7 +321,7 @@ export const HcmCityBiodiversitySection: React.FC<HcmCityBiodiversitySectionProp
                   Quần Xã Sinh Vật Toàn Bộ TP.HCM
                 </h3>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                  Tổng hợp dữ liệu đa dạng sinh học 168 phường/xã, 5 phân vùng sinh thái & Vườn di sản Côn Đảo
+                  Tổng quan sinh cảnh 5 phân vùng sinh thái, hành lang xanh và Vườn di sản Côn Đảo
                 </p>
               </div>
             </div>
@@ -369,8 +335,8 @@ export const HcmCityBiodiversitySection: React.FC<HcmCityBiodiversitySectionProp
           </div>
         </div>
 
-        {/* Thẻ 4 trụ cột Quần xã sinh thái toàn đô thị */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
+        {/* Thông tin 4 trụ cột Quần xã sinh thái định tính theo sinh cảnh vùng */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 pt-1">
           {/* Dưới nước */}
           <div className="bg-sky-50/80 dark:bg-sky-950/40 border border-sky-200/70 dark:border-sky-800/60 rounded-2xl p-3 flex flex-col justify-between">
             <div className="flex items-center justify-between gap-1">
@@ -379,15 +345,15 @@ export const HcmCityBiodiversitySection: React.FC<HcmCityBiodiversitySectionProp
                 Dưới nước
               </span>
               <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-white/80 dark:bg-slate-800 font-bold text-sky-700 dark:text-sky-300 shadow-2xs">
-                280+ loài
+                Sinh cảnh nước
               </span>
             </div>
             <div className="mt-2">
-              <span className="text-lg font-black text-sky-950 dark:text-sky-100">
-                {totalStats.totalUnderwater.toLocaleString('vi-VN')}
+              <span className="text-xs font-bold text-sky-950 dark:text-sky-100 block leading-snug">
+                Sông Sài Gòn • Rừng ngập mặn Cần Giờ • Rạn san hô Côn Đảo
               </span>
-              <span className="text-[10.5px] text-sky-700 dark:text-sky-400 block truncate">
-                Lượt ghi nhận điểm đo
+              <span className="text-[10px] text-sky-700 dark:text-sky-400 block mt-1">
+                Tham khảo sinh cảnh vùng — không phải kiểm kê tại phường
               </span>
             </div>
           </div>
@@ -400,15 +366,15 @@ export const HcmCityBiodiversitySection: React.FC<HcmCityBiodiversitySectionProp
                 Trên cạn
               </span>
               <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-white/80 dark:bg-slate-800 font-bold text-emerald-700 dark:text-emerald-300 shadow-2xs">
-                920+ loài
+                Sinh cảnh cạn
               </span>
             </div>
             <div className="mt-2">
-              <span className="text-lg font-black text-emerald-950 dark:text-emerald-100">
-                {totalStats.totalTerrestrial.toLocaleString('vi-VN')}
+              <span className="text-xs font-bold text-emerald-950 dark:text-emerald-100 block leading-snug">
+                Cây cổ thụ di sản • Rừng phòng hộ ven biển • Rừng hải đảo
               </span>
-              <span className="text-[10.5px] text-emerald-700 dark:text-emerald-400 block truncate">
-                Mảng xanh & rừng phòng hộ
+              <span className="text-[10px] text-emerald-700 dark:text-emerald-400 block mt-1">
+                Tham khảo sinh cảnh vùng — không phải kiểm kê tại phường
               </span>
             </div>
           </div>
@@ -421,15 +387,15 @@ export const HcmCityBiodiversitySection: React.FC<HcmCityBiodiversitySectionProp
                 Trên trời
               </span>
               <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-white/80 dark:bg-slate-800 font-bold text-amber-700 dark:text-amber-300 shadow-2xs">
-                230+ loài
+                Chim & côn trùng
               </span>
             </div>
             <div className="mt-2">
-              <span className="text-lg font-black text-amber-950 dark:text-amber-100">
-                {totalStats.totalAerial.toLocaleString('vi-VN')}
+              <span className="text-xs font-bold text-amber-950 dark:text-amber-100 block leading-snug">
+                Chim di cư quốc tế • Bãi bồi ven biển • Chim yến vách đá
               </span>
-              <span className="text-[10.5px] text-amber-700 dark:text-amber-400 block truncate">
-                Chim bản địa & di trú mùa
+              <span className="text-[10px] text-amber-700 dark:text-amber-400 block mt-1">
+                Tham khảo sinh cảnh vùng — không phải kiểm kê tại phường
               </span>
             </div>
           </div>
@@ -439,21 +405,25 @@ export const HcmCityBiodiversitySection: React.FC<HcmCityBiodiversitySectionProp
             <div className="flex items-center justify-between gap-1">
               <span className="text-[11.5px] font-bold text-teal-900 dark:text-teal-300 flex items-center gap-1">
                 <Droplet className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
-                Lưỡng cư
+                Lưỡng cư & Bò sát
               </span>
               <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-white/80 dark:bg-slate-800 font-bold text-teal-700 dark:text-teal-300 shadow-2xs">
-                72+ loài
+                Vùng giáp ranh
               </span>
             </div>
             <div className="mt-2">
-              <span className="text-lg font-black text-teal-950 dark:text-teal-100">
-                {totalStats.totalAmphibian.toLocaleString('vi-VN')}
+              <span className="text-xs font-bold text-teal-950 dark:text-teal-100 block leading-snug">
+                Bãi bồi cửa sông • Động vật bán ngập Côn Đảo • Thiên địch tự nhiên
               </span>
-              <span className="text-[10.5px] text-teal-700 dark:text-teal-400 block truncate">
-                Vùng bãi bồi & giáp ranh cạn
+              <span className="text-[10px] text-teal-700 dark:text-teal-400 block mt-1">
+                Tham khảo sinh cảnh vùng — không phải kiểm kê tại phường
               </span>
             </div>
           </div>
+        </div>
+
+        <div className="text-[11px] text-slate-500 dark:text-slate-400 italic">
+          * Nguyên tắc trung thực khoa học: Ứng dụng không thực hiện phép cộng dồn số loài cơ học giữa các phường/xã để tránh đếm lặp loài.
         </div>
       </div>
 
@@ -1403,13 +1373,7 @@ export const HcmCityBiodiversitySection: React.FC<HcmCityBiodiversitySectionProp
           <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 border border-slate-200/80 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-900 custom-scrollbar">
             {filteredDistricts.map((d) => {
               const isCurrent = d.id === currentDistrictId;
-              const hasBio = !!d.biodiversity;
-              const totalSpecies = hasBio
-                ? (d.biodiversity?.underwater?.count || 0) +
-                  (d.biodiversity?.terrestrial?.count || 0) +
-                  (d.biodiversity?.aerial?.count || 0) +
-                  (d.biodiversity?.amphibian?.count || 0)
-                : 0;
+              const wardHab = getWardHabitatSummary(d.id, d.name, d.districtGroup);
 
               return (
                 <div
@@ -1429,12 +1393,8 @@ export const HcmCityBiodiversitySection: React.FC<HcmCityBiodiversitySectionProp
                       <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                         {d.adminType}
                       </span>
-                      <span className={`text-[9.5px] font-semibold px-1.5 py-0.5 rounded-md border ${
-                        getDistrictBiodiversityMetadata(d.id, d.name).isFieldSurveyDistrict
-                          ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
-                          : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'
-                      }`}>
-                        {getDistrictBiodiversityMetadata(d.id, d.name).isFieldSurveyDistrict ? 'Khảo sát thực địa' : 'Tham chiếu vùng'}
+                      <span className="text-[9.5px] font-semibold px-1.5 py-0.5 rounded-md border bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700">
+                        Tham khảo sinh cảnh vùng
                       </span>
                       {isCurrent && (
                         <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 font-semibold">
@@ -1446,39 +1406,19 @@ export const HcmCityBiodiversitySection: React.FC<HcmCityBiodiversitySectionProp
                       {d.subTitle}
                     </p>
 
-                    {/* Huy hiệu 4 nhóm sinh vật hoặc nhãn tham chiếu */}
-                    {hasBio ? (
-                      <div className="flex items-center gap-3 mt-1.5 text-[11px] font-mono flex-wrap">
-                        <span className="text-sky-700 dark:text-sky-300 flex items-center gap-1" title="Loài dưới nước">
-                          <Waves className="w-3 h-3 text-sky-500" />
-                          {d.biodiversity?.underwater?.count ?? 0}
-                        </span>
-                        <span className="text-emerald-700 dark:text-emerald-300 flex items-center gap-1" title="Loài trên cạn">
-                          <Footprints className="w-3 h-3 text-emerald-500" />
-                          {d.biodiversity?.terrestrial?.count ?? 0}
-                        </span>
-                        <span className="text-amber-700 dark:text-amber-300 flex items-center gap-1" title="Loài trên trời">
-                          <Feather className="w-3 h-3 text-amber-500" />
-                          {d.biodiversity?.aerial?.count ?? 0}
-                        </span>
-                        <span className="text-teal-700 dark:text-teal-300 flex items-center gap-1" title="Loài lưỡng cư">
-                          <Droplet className="w-3 h-3 text-teal-500" />
-                          {d.biodiversity?.amphibian?.count ?? 0}
-                        </span>
-                        <span className="text-slate-400 font-sans">•</span>
-                        <span className="text-slate-600 dark:text-slate-300 font-sans text-[10.5px]">
-                          Tổng: <strong>{totalSpecies} loài</strong>
-                        </span>
-                        <span className="text-slate-400 font-sans">•</span>
-                        <span className="text-blue-600 dark:text-blue-400 font-sans text-[10.5px] italic">
-                          {d.biodiversity?.terrestrial?.status}
-                        </span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-                        <span className="italic">Chưa có số liệu kiểm kê riêng cấp {d.adminType || 'xã'} • Tham chiếu danh mục sinh thái toàn thành phố (49 loài trọng điểm)</span>
-                      </div>
-                    )}
+                    {/* Mô tả định tính theo sinh cảnh vùng */}
+                    <div className="flex items-center gap-2 mt-1.5 text-[11px] flex-wrap">
+                      <span className="inline-flex items-center gap-1 font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-2 py-0.5 rounded-md text-[10.5px]">
+                        <Compass className="w-3 h-3 text-emerald-600" />
+                        {wardHab.habitatZone}
+                      </span>
+                      <span className="text-slate-600 dark:text-slate-300 text-[10.5px]">
+                        {wardHab.habitatDescription}
+                      </span>
+                      <span className="text-slate-400 dark:text-slate-500 text-[10px] italic">
+                        ({wardHab.disclaimer})
+                      </span>
+                    </div>
                   </div>
 
                   {/* Nút thao tác nhanh */}
@@ -1488,32 +1428,19 @@ export const HcmCityBiodiversitySection: React.FC<HcmCityBiodiversitySectionProp
                       id={`btn-inspect-ward-${d.id}`}
                       onClick={() => {
                         const geo = getGeologySubsidenceRecord(d.id, d.name, d.location?.lat, d.location?.lng);
-                        const bioMeta = getDistrictBiodiversityMetadata(d.id, d.name);
                         onOpenDetail({
-                          title: `Quần xã Sinh vật & Địa chất tại ${d.name}`,
-                          category: 'Hồ sơ sinh thái & địa tầng địa bàn',
-                          description: hasBio
-                            ? `Tổng số ${totalSpecies} loài ghi nhận. Trạng thái sinh thái: ${d.biodiversity?.terrestrial?.status || 'Tham chiếu'}.`
-                            : `Hồ sơ sinh thái & địa chất tham chiếu cho ${d.name}.`,
+                          title: `Hồ sơ Sinh cảnh & Địa chất tại ${d.name}`,
+                          category: 'Tham khảo sinh cảnh vùng',
+                          description: `${wardHab.habitatZone} — ${wardHab.disclaimer}`,
                           details: [
-                            hasBio
-                              ? `Dưới nước (${d.biodiversity?.underwater?.count} loài ghi nhận): ${d.biodiversity?.underwater?.status}. Điểm nhấn: ${d.biodiversity?.underwater?.highlights?.join(', ')}.`
-                              : `Dưới nước: Không có dữ liệu kiểm kê riêng lẻ tại xã/phường (Tham chiếu danh mục loài chung).`,
-                            hasBio
-                              ? `Trên cạn (${d.biodiversity?.terrestrial?.count} loài ghi nhận): ${d.biodiversity?.terrestrial?.status}. Điểm nhấn: ${d.biodiversity?.terrestrial?.highlights?.join(', ')}.`
-                              : `Trên cạn: Không có dữ liệu kiểm kê riêng lẻ tại xã/phường.`,
-                            hasBio
-                              ? `Trên trời (${d.biodiversity?.aerial?.count} loài ghi nhận): ${d.biodiversity?.aerial?.status}. Điểm nhấn: ${d.biodiversity?.aerial?.highlights?.join(', ')}.`
-                              : `Trên trời: Không có dữ liệu kiểm kê riêng lẻ tại xã/phường.`,
-                            hasBio
-                              ? `Lưỡng cư (${d.biodiversity?.amphibian?.count} loài ghi nhận): ${d.biodiversity?.amphibian?.status}. Điểm nhấn: ${d.biodiversity?.amphibian?.highlights?.join(', ')}.`
-                              : `Lưỡng cư: Không có dữ liệu kiểm kê riêng lẻ tại xã/phường.`,
-                            `Cơ sở tham chiếu sinh thái (${bioMeta.isFieldSurveyDistrict ? 'Vùng có điểm khảo sát thực địa' : 'Tham chiếu vùng'}): ${bioMeta.dataSource} — ${bioMeta.dataNotice}.`,
-                            `Phương pháp đối chiếu sinh thái: ${bioMeta.surveyMethod}.`,
+                            `Mô tả sinh cảnh vùng: ${wardHab.habitatDescription}.`,
+                            `Ghi chú phương pháp: ${wardHab.disclaimer}.`,
+                            'Cơ sở dữ liệu: Không hiển thị số đếm loài theo khuôn mẫu cấp phường để tránh sai lệch khoa học và đếm lặp loài.',
                             `Đặc điểm địa chất: Hệ tầng ${geo.geology.formationName} (${geo.geology.lithology}) - Sức chịu tải: ${geo.geology.bearingCapacity}.`,
-                            `Địa hình số hóa DEM: ${geo.topography.elevationMsl} (${geo.topography.terrainType}).`,
-                            `Sụt lún bề mặt InSAR Sentinel-1: ${geo.subsidence.insarRateMmYear || 'Chưa có mốc đo thực địa tại phường — Tham chiếu mô hình radar vùng'} (${geo.subsidence.statusLabel}).`,
-                            `Nguồn dữ liệu trắc địa & vệ tinh: Địa chất (${geo.geology.source}), Viễn thám radar (${geo.subsidence.dataSource}, ${geo.subsidence.surveyMethod}).`,
+                            `Địa hình mô hình số DEM: ${geo.topography.elevationMsl} (${geo.topography.terrainType}).`,
+                            `Biến động bề mặt InSAR: ${geo.subsidence.insarRateMmYear || 'Chưa có mốc đo cục bộ riêng tại phường'} (${geo.subsidence.statusLabel}).`,
+                            `Lưu ý bắt buộc InSAR: ${INSAR_MANDATORY_LABEL}.`,
+                            `Nguồn dữ liệu: Địa chất (${geo.geology.source}), Viễn thám radar (${geo.subsidence.dataSource}, ${geo.subsidence.surveyMethod}).`,
                           ],
                           tips: [
                             'Tích cực tham gia các phong trào trồng cây xanh và ngày Chủ nhật xanh tại địa phương.',
