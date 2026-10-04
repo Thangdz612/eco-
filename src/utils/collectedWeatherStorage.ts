@@ -338,13 +338,17 @@ export async function syncCollectedWeatherOnline(
 
     // Cập nhật dữ liệu vào DISTRICTS_DATA trong bộ nhớ
     if (targetDistrict) {
+      const altStr = typeof liveResult.elevation === 'number'
+        ? `${Math.round(liveResult.elevation)} m (DEM mô hình)`
+        : 'Không có dữ liệu';
+
       if (!targetDistrict.weather) {
         targetDistrict.weather = {
           temp: `${Math.round(liveResult.current.temperature)}°C`,
           condition: liveResult.current.condition,
           description: `${districtName}: Nhiệt độ ${liveResult.current.temperature}°C`,
           humidity: `${liveResult.current.humidity}%`,
-          altitude: '10 m',
+          altitude: altStr,
           uvIndex: `UV ${liveResult.current.uvIndex.toFixed(1)}`,
           uvLevel: getUvLevel(liveResult.current.uvIndex),
           lightIntensity: `${Math.round(liveResult.current.solarRadiation)} W/m²`,
@@ -355,6 +359,7 @@ export async function syncCollectedWeatherOnline(
       targetDistrict.weather.temp = `${Math.round(liveResult.current.temperature)}°C`;
       targetDistrict.weather.humidity = `${liveResult.current.humidity}%`;
       targetDistrict.weather.condition = liveResult.current.condition;
+      targetDistrict.weather.altitude = altStr;
       targetDistrict.weather.uvIndex = `UV ${liveResult.current.uvIndex.toFixed(1)}`;
       targetDistrict.weather.uvLevel = getUvLevel(liveResult.current.uvIndex);
       targetDistrict.weather.lightIntensity = `${Math.round(liveResult.current.solarRadiation)} W/m²`;
@@ -549,7 +554,7 @@ export function getCachedCurrentLiveWeather(
       condition: d.weather.condition || 'Thời tiết ổn định',
       description: d.weather.description || `${name}: ${d.weather.temp}`,
       humidity: d.weather.humidity || 'Không có dữ liệu',
-      altitude: d.weather.altitude || 'Không có dữ liệu',
+      altitude: (d.weather.altitude && d.weather.altitude !== '10 m' && d.weather.altitude !== '10 m (Mô hình DEM)') ? d.weather.altitude : 'Không có dữ liệu',
       uvIndex: d.weather.uvIndex || 'Không có dữ liệu',
       uvLevel: d.weather.uvLevel || 'Không có dữ liệu',
       lightIntensity: d.weather.lightIntensity || 'Không có dữ liệu',
@@ -597,13 +602,17 @@ export function getCachedCurrentLiveWeather(
       ? `${Number(liveCurrent.surfacePressure).toFixed(1)} hPa`
       : undefined;
 
+    const altStr = typeof liveCurrent.elevation === 'number'
+      ? `${Math.round(liveCurrent.elevation)} m (DEM mô hình)`
+      : (d?.weather?.altitude && d.weather.altitude !== '10 m' && d.weather.altitude !== '10 m (Mô hình DEM)' ? d.weather.altitude : 'Không có dữ liệu');
+
     return {
       hasData: true,
       temp: tempStr,
       condition: cond,
       description: `${name}: Nhiệt độ ${tempStr}, Độ ẩm ${humStr}, Gió ${windStr}`,
       humidity: humStr,
-      altitude: '10 m',
+      altitude: altStr,
       uvIndex: uvStr,
       uvLevel,
       lightIntensity: `${Math.round(liveCurrent.solarRadiation ?? 0)} W/m²`,
@@ -635,13 +644,17 @@ export function getCachedCurrentLiveWeather(
       const humStr = `${hData.humidity}%`;
       const uvStr = `UV ${Number(hData.uvIndex ?? 0).toFixed(1)}`;
 
+      const altRangeStr = typeof (today as any).elevation === 'number'
+        ? `${Math.round((today as any).elevation)} m (DEM mô hình)`
+        : (d?.weather?.altitude && d.weather.altitude !== '10 m' && d.weather.altitude !== '10 m (Mô hình DEM)' ? d.weather.altitude : 'Không có dữ liệu');
+
       return {
         hasData: true,
         temp: tempStr,
         condition: hData.condition || 'Ổn định',
         description: `${name}: Nhiệt độ ${tempStr}, Độ ẩm ${humStr}`,
         humidity: humStr,
-        altitude: '10 m',
+        altitude: altRangeStr,
         uvIndex: uvStr,
         uvLevel: hData.uvLevel || getUvLevel(hData.uvIndex ?? 0),
         lightIntensity: `${Math.round(hData.solarRadiation ?? 0)} W/m²`,

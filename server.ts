@@ -1,22 +1,61 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
-import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
-import { DEFAULT_LOCATION } from './src/utils/geolocation';
 
 dotenv.config();
 
-let aiClient: GoogleGenAI | null = null;
-function getGeminiClient(): GoogleGenAI {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error('GEMINI_API_KEY is not configured');
+// Simple in-memory rate limiting by IP (60 requests/minute)
+interface RateLimitRecord {
+  count: number;
+  resetTime: number;
+}
+const ipRateLimits = new Map<string, RateLimitRecord>();
+
+function checkRateLimit(ip: string, limit = 60, windowMs = 60000): boolean {
+  const now = Date.now();
+  const record = ipRateLimits.get(ip);
+  if (!record || now > record.resetTime) {
+    ipRateLimits.set(ip, { count: 1, resetTime: now + windowMs });
+    return true;
   }
-  if (!aiClient) {
-    aiClient = new GoogleGenAI({ apiKey });
+  if (record.count >= limit) {
+    return false;
   }
-  return aiClient;
+  record.count += 1;
+  return true;
+}
+
+// Clean up expired rate limit records every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, record] of ipRateLimits.entries()) {
+    if (now > record.resetTime) {
+      ipRateLimits.delete(ip);
+    }
+  }
+}, 300000);
+
+// Validate coordinates: lat within [8.5, 11.3] and lng within [106.3, 107.2]
+function parseAndValidateCoordinates(
+  rawLat: any,
+  rawLng: any
+): { valid: true; lat: number; lng: number } | { valid: false; error: string } {
+  if (rawLat === undefined || rawLat === null || rawLat === '' || rawLng === undefined || rawLng === null || rawLng === '') {
+    return { valid: false, error: 'Thiếu tham số tọa độ lat hoặc lng.' };
+  }
+  const lat = Number(rawLat);
+  const lng = Number(rawLng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    return { valid: false, error: 'Tọa độ lat và lng phải là số hợp lệ.' };
+  }
+  if (lat < 8.5 || lat > 11.3 || lng < 106.3 || lng > 107.2) {
+    return {
+      valid: false,
+      error: `Tọa độ nằm ngoài phạm vi khu vực cho phép (lat: 8.5 - 11.3, lng: 106.3 - 107.2). Nhận được: lat=${lat}, lng=${lng}`,
+    };
+  }
+  return { valid: true, lat, lng };
 }
 
 async function startServer() {
@@ -30,6 +69,23 @@ async function startServer() {
 
   app.use(express.json());
 
+  // In-memory rate limiting middleware for API routes
+  app.use('/api', (req, res, next) => {
+    if (req.path.startsWith('/health')) {
+      return next();
+    }
+    const clientIp =
+      (req.headers['x-forwarded-for'] as string)?.split(',')[0].trim() ||
+      req.socket.remoteAddress ||
+      'unknown';
+
+    if (!checkRateLimit(clientIp, 60, 60000)) {
+      res.status(429).json({ error: 'Quá nhiều yêu cầu từ địa chỉ IP này. Vui lòng thử lại sau 1 phút.' });
+      return;
+    }
+    next();
+  });
+
   // Readiness & liveness health check routes for Cloud Run rollout
   app.get(['/api/health', '/health', '/healthz'], (_req, res) => {
     res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -38,8 +94,12 @@ async function startServer() {
   // Direct meteorological query endpoint from Open-Meteo & ECMWF
   app.get('/api/weather/live', async (req, res) => {
     try {
-      const lat = parseFloat(req.query.lat as string) || DEFAULT_LOCATION.lat;
-      const lng = parseFloat(req.query.lng as string) || DEFAULT_LOCATION.lng;
+      const coordValidation = parseAndValidateCoordinates(req.query.lat, req.query.lng);
+      if (!coordValidation.valid) {
+        res.status(400).json({ error: coordValidation.error });
+        return;
+      }
+      const { lat, lng } = coordValidation;
 
       const params = new URLSearchParams({
         latitude: lat.toFixed(4),
@@ -76,8 +136,12 @@ async function startServer() {
   // Direct atmospheric & air quality query endpoint from Open-Meteo Air Quality & Copernicus CAMS
   app.get('/api/air-quality/live', async (req, res) => {
     try {
-      const lat = parseFloat(req.query.lat as string) || DEFAULT_LOCATION.lat;
-      const lng = parseFloat(req.query.lng as string) || DEFAULT_LOCATION.lng;
+      const coordValidation = parseAndValidateCoordinates(req.query.lat, req.query.lng);
+      if (!coordValidation.valid) {
+        res.status(400).json({ error: coordValidation.error });
+        return;
+      }
+      const { lat, lng } = coordValidation;
 
       const params = new URLSearchParams({
         latitude: lat.toFixed(4),
@@ -85,6 +149,7 @@ async function startServer() {
         current: 'european_aqi,us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone',
         hourly: 'pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone,us_aqi,european_aqi',
         timezone: 'Asia/Bangkok',
+        past_days: '1',
       });
 
       const url = `https://air-quality-api.open-meteo.com/v1/air-quality?${params.toString()}`;
@@ -103,25 +168,6 @@ async function startServer() {
     } catch (err: any) {
       console.warn('Air Quality API notice:', err?.message || err);
       res.status(500).json({ error: err?.message || 'Air quality service error' });
-    }
-  });
-
-  app.post('/api/ai/chat', async (req, res) => {
-    try {
-      const { prompt } = req.body;
-      if (!prompt || typeof prompt !== 'string') {
-        res.status(400).json({ error: 'Prompt is required' });
-        return;
-      }
-      const ai = getGeminiClient();
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-      });
-      res.json({ text: response.text });
-    } catch (err: any) {
-      console.error('Gemini error:', err);
-      res.status(500).json({ error: err?.message || 'Gemini service error' });
     }
   });
 

@@ -84,10 +84,13 @@ export const WeatherTab: React.FC<WeatherTabProps> = ({
     }
   };
 
+  const rawAlt = currentWeather.altitude || data.weather?.altitude;
   const displayAltitude =
     userLocation?.altitude !== null && userLocation?.altitude !== undefined
       ? `${userLocation.altitude} m`
-      : currentWeather.altitude || data.weather?.altitude || '10 m (Mô hình DEM)';
+      : rawAlt && rawAlt !== '10 m' && rawAlt !== '10 m (Mô hình DEM)'
+      ? rawAlt
+      : 'Không có dữ liệu';
 
   // Nhãn phân loại dữ liệu thời tiết
   const isSimulation = currentWeather.dataType === 'simulation' || !currentWeather.hasData;
@@ -593,8 +596,8 @@ export const WeatherTab: React.FC<WeatherTabProps> = ({
                 `Phân loại: ${weatherTypeLabel}`,
                 `Thời gian: ${weatherTimestamp}`,
                 airQuality && airQuality.pollutants.pm2_5 !== null
-                  ? `Nồng độ bụi mịn PM2.5 đo được: ${airQuality.pollutants.pm2_5} µg/m³`
-                  : 'Chưa có số đo bụi mịn trực tiếp cho khung giờ này',
+                  ? `Nồng độ bụi mịn PM2.5 ước tính theo mô hình: ${airQuality.pollutants.pm2_5} µg/m³`
+                  : 'Chưa có dữ liệu ước tính bụi mịn cho khung giờ này',
               ],
               tips: [
                 weatherAlert.actionAdvice,

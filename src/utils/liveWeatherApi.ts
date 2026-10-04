@@ -150,7 +150,7 @@ export interface LiveWeatherResponse {
   apiUrl: string;
   latitude: number;
   longitude: number;
-  elevation: number;
+  elevation?: number;
   generationTimeMs: number;
   timezone: string;
   atmosphericStation: VietnamAtmosphericStation;
@@ -173,6 +173,7 @@ export interface LiveWeatherResponse {
     condition: string;
     isDay?: boolean;
     cloudCover?: number;
+    elevation?: number;
   };
 }
 
@@ -354,6 +355,7 @@ export function buildOpenMeteoAirQualityUrl(lat: number, lng: number): string {
     current: 'european_aqi,us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone',
     hourly: 'pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone,us_aqi,european_aqi',
     timezone: 'Asia/Ho_Chi_Minh',
+    past_days: '1',
   });
   return `https://air-quality-api.open-meteo.com/v1/air-quality?${params.toString()}`;
 }
@@ -535,7 +537,119 @@ export async function fetchDirectAirQualityData(
     }
   }
 
-  // Kiểm tra tính hợp lệ của phản hồi
+  return parseOpenMeteoAirQualityData(json, directUrl);
+}
+
+export interface AirQualityAverageStat {
+  value: number | null;
+  isAveraged: boolean;
+  label: string;
+}
+
+export interface AirQualityCalculationResult {
+  currentHourIdx: number;
+  pm25Stat: AirQualityAverageStat;
+  pm10Stat: AirQualityAverageStat;
+  no2Stat: AirQualityAverageStat;
+  so2Stat: AirQualityAverageStat;
+  o3Stat: AirQualityAverageStat;
+  coStat: AirQualityAverageStat;
+}
+
+/**
+ * Tính toán trung bình theo tiêu chuẩn QCVN 05:2023/BTNMT từ chuỗi hourly
+ * Đảm bảo currentHourIdx tìm đúng chỉ số của current.time trong chuỗi hourly (khi có past_days=1)
+ */
+export function computeAirQualityAverages(json: any): AirQualityCalculationResult {
+  const hourlyTimes: string[] = json.hourly?.time || [];
+  let currentHourIdx = -1;
+  if (json.current?.time && hourlyTimes.length > 0) {
+    currentHourIdx = hourlyTimes.indexOf(json.current.time);
+    if (currentHourIdx === -1) {
+      const curTimeMs = new Date(json.current.time).getTime();
+      let minDiff = Infinity;
+      for (let i = 0; i < hourlyTimes.length; i++) {
+        const diff = Math.abs(new Date(hourlyTimes[i]).getTime() - curTimeMs);
+        if (diff < minDiff) {
+          minDiff = diff;
+          currentHourIdx = i;
+        }
+      }
+    }
+  }
+  if (currentHourIdx === -1 && hourlyTimes.length > 0) {
+    currentHourIdx = hourlyTimes.length - 1;
+  }
+
+  // 1. Tính trung bình 24h gần nhất cho PM2.5, PM10, NO2, SO2
+  const compute24hAverage = (arr?: (number | null)[]): AirQualityAverageStat => {
+    if (!arr || currentHourIdx < 0) {
+      return { value: null, isAveraged: false, label: 'tức thời, chưa so chuẩn' };
+    }
+    const startIdx = Math.max(0, currentHourIdx - 23);
+    const slice = arr.slice(startIdx, currentHourIdx + 1).filter((v): v is number => typeof v === 'number' && !isNaN(v));
+    if (slice.length >= 24) {
+      const avg = slice.reduce((a, b) => a + b, 0) / slice.length;
+      return { value: Number(avg.toFixed(1)), isAveraged: true, label: 'TB 24h' };
+    }
+    return { value: null, isAveraged: false, label: 'tức thời, chưa so chuẩn' };
+  };
+
+  // 2. Tính trung bình 8h cho CO
+  const compute8hAverage = (arr?: (number | null)[]): AirQualityAverageStat => {
+    if (!arr || currentHourIdx < 0) {
+      return { value: null, isAveraged: false, label: 'tức thời, chưa so chuẩn' };
+    }
+    const startIdx = Math.max(0, currentHourIdx - 7);
+    const slice = arr.slice(startIdx, currentHourIdx + 1).filter((v): v is number => typeof v === 'number' && !isNaN(v));
+    if (slice.length >= 8) {
+      const avg = slice.reduce((a, b) => a + b, 0) / slice.length;
+      return { value: Math.round(avg), isAveraged: true, label: 'TB 8h' };
+    }
+    return { value: null, isAveraged: false, label: 'tức thời, chưa so chuẩn' };
+  };
+
+  // 3. Tính trung bình trượt 8h lớn nhất cho O3 (trong 24h gần nhất)
+  const computeMax8hRollingAverage = (arr?: (number | null)[]): AirQualityAverageStat => {
+    if (!arr || currentHourIdx < 0) {
+      return { value: null, isAveraged: false, label: 'tức thời, chưa so chuẩn' };
+    }
+    const windowStart = Math.max(0, currentHourIdx - 23);
+    const rollingAvgs: number[] = [];
+    for (let end = windowStart + 7; end <= currentHourIdx; end++) {
+      const start = end - 7;
+      if (start >= 0 && end < arr.length) {
+        const slice = arr.slice(start, end + 1).filter((v): v is number => typeof v === 'number' && !isNaN(v));
+        if (slice.length === 8) {
+          rollingAvgs.push(slice.reduce((a, b) => a + b, 0) / 8);
+        }
+      }
+    }
+    if (rollingAvgs.length > 0) {
+      const maxVal = Math.max(...rollingAvgs);
+      return { value: Number(maxVal.toFixed(1)), isAveraged: true, label: 'TB trượt 8h lớn nhất' };
+    }
+    return { value: null, isAveraged: false, label: 'tức thời, chưa so chuẩn' };
+  };
+
+  return {
+    currentHourIdx,
+    pm25Stat: compute24hAverage(json.hourly?.pm2_5),
+    pm10Stat: compute24hAverage(json.hourly?.pm10),
+    no2Stat: compute24hAverage(json.hourly?.nitrogen_dioxide),
+    so2Stat: compute24hAverage(json.hourly?.sulphur_dioxide),
+    o3Stat: computeMax8hRollingAverage(json.hourly?.ozone),
+    coStat: compute8hAverage(json.hourly?.carbon_monoxide),
+  };
+}
+
+/**
+ * Xử lý và chuẩn hóa đối tượng JSON Air Quality trả về từ Open-Meteo
+ */
+export function parseOpenMeteoAirQualityData(
+  json: any,
+  directUrl: string = 'https://air-quality-api.open-meteo.com/v1/air-quality'
+): AirQualityData {
   if (!json || !validateOpenMeteoAirQualityResponse(json) || !json.current) {
     return {
       aqi: null,
@@ -576,84 +690,8 @@ export async function fetchDirectAirQualityData(
   const so2Instant = json.current?.sulphur_dioxide !== undefined && json.current?.sulphur_dioxide !== null ? Number(json.current.sulphur_dioxide.toFixed(1)) : null;
   const coInstant = json.current?.carbon_monoxide !== undefined && json.current?.carbon_monoxide !== null ? Math.round(json.current.carbon_monoxide) : null;
 
-  // Tính toán trung bình theo tiêu chuẩn QCVN 05:2023/BTNMT từ chuỗi hourly
-  const hourlyTimes: string[] = json.hourly?.time || [];
-  let currentHourIdx = -1;
-  if (json.current?.time && hourlyTimes.length > 0) {
-    currentHourIdx = hourlyTimes.indexOf(json.current.time);
-    if (currentHourIdx === -1) {
-      const curTimeMs = new Date(json.current.time).getTime();
-      let minDiff = Infinity;
-      for (let i = 0; i < hourlyTimes.length; i++) {
-        const diff = Math.abs(new Date(hourlyTimes[i]).getTime() - curTimeMs);
-        if (diff < minDiff) {
-          minDiff = diff;
-          currentHourIdx = i;
-        }
-      }
-    }
-  }
-  if (currentHourIdx === -1 && hourlyTimes.length > 0) {
-    currentHourIdx = hourlyTimes.length - 1;
-  }
-
-  // 1. Tính trung bình 24h gần nhất cho PM2.5, PM10, NO2, SO2
-  const compute24hAverage = (arr?: (number | null)[]): { value: number | null; isAveraged: boolean; label: string } => {
-    if (!arr || currentHourIdx < 0) {
-      return { value: null, isAveraged: false, label: 'tức thời, chưa so chuẩn' };
-    }
-    const startIdx = Math.max(0, currentHourIdx - 23);
-    const slice = arr.slice(startIdx, currentHourIdx + 1).filter((v): v is number => typeof v === 'number' && !isNaN(v));
-    if (slice.length >= 24) {
-      const avg = slice.reduce((a, b) => a + b, 0) / slice.length;
-      return { value: Number(avg.toFixed(1)), isAveraged: true, label: 'TB 24h' };
-    }
-    return { value: null, isAveraged: false, label: 'tức thời, chưa so chuẩn' };
-  };
-
-  // 2. Tính trung bình 8h cho CO
-  const compute8hAverage = (arr?: (number | null)[]): { value: number | null; isAveraged: boolean; label: string } => {
-    if (!arr || currentHourIdx < 0) {
-      return { value: null, isAveraged: false, label: 'tức thời, chưa so chuẩn' };
-    }
-    const startIdx = Math.max(0, currentHourIdx - 7);
-    const slice = arr.slice(startIdx, currentHourIdx + 1).filter((v): v is number => typeof v === 'number' && !isNaN(v));
-    if (slice.length >= 8) {
-      const avg = slice.reduce((a, b) => a + b, 0) / slice.length;
-      return { value: Math.round(avg), isAveraged: true, label: 'TB 8h' };
-    }
-    return { value: null, isAveraged: false, label: 'tức thời, chưa so chuẩn' };
-  };
-
-  // 3. Tính trung bình trượt 8h lớn nhất cho O3 (trong 24h gần nhất)
-  const computeMax8hRollingAverage = (arr?: (number | null)[]): { value: number | null; isAveraged: boolean; label: string } => {
-    if (!arr || currentHourIdx < 0) {
-      return { value: null, isAveraged: false, label: 'tức thời, chưa so chuẩn' };
-    }
-    const windowStart = Math.max(0, currentHourIdx - 23);
-    const rollingAvgs: number[] = [];
-    for (let end = windowStart + 7; end <= currentHourIdx; end++) {
-      const start = end - 7;
-      if (start >= 0 && end < arr.length) {
-        const slice = arr.slice(start, end + 1).filter((v): v is number => typeof v === 'number' && !isNaN(v));
-        if (slice.length === 8) {
-          rollingAvgs.push(slice.reduce((a, b) => a + b, 0) / 8);
-        }
-      }
-    }
-    if (rollingAvgs.length > 0) {
-      const maxVal = Math.max(...rollingAvgs);
-      return { value: Number(maxVal.toFixed(1)), isAveraged: true, label: 'TB trượt 8h lớn nhất' };
-    }
-    return { value: null, isAveraged: false, label: 'tức thời, chưa so chuẩn' };
-  };
-
-  const pm25Stat = compute24hAverage(json.hourly?.pm2_5);
-  const pm10Stat = compute24hAverage(json.hourly?.pm10);
-  const no2Stat = compute24hAverage(json.hourly?.nitrogen_dioxide);
-  const so2Stat = compute24hAverage(json.hourly?.sulphur_dioxide);
-  const o3Stat = computeMax8hRollingAverage(json.hourly?.ozone);
-  const coStat = compute8hAverage(json.hourly?.carbon_monoxide);
+  const stats = computeAirQualityAverages(json);
+  const { pm25Stat, pm10Stat, no2Stat, so2Stat, o3Stat, coStat } = stats;
 
   const pm25Val = pm25Stat.isAveraged ? pm25Stat.value : pm25Instant;
   const pm10Val = pm10Stat.isAveraged ? pm10Stat.value : pm10Instant;
@@ -679,7 +717,7 @@ export async function fetchDirectAirQualityData(
     name: string,
     formula: string,
     val: number | null,
-    stat: { isAveraged: boolean; label: string },
+    stat: AirQualityAverageStat,
     unit: string = 'µg/m³'
   ): AirQualityPollutant => {
     const evaluated = evaluatePollutant(code, val);
@@ -1002,12 +1040,16 @@ export async function fetchDirectLiveWeatherData(
   const currentIrradiance = json.hourly?.direct_normal_irradiance?.[currentHourIdx] ?? (currentUv > 0 ? currentUv * 85 : 0);
   const currentWindGust = json.hourly?.wind_gusts_10m?.[currentHourIdx] ?? currentWind * 1.3;
 
+  const elevation = typeof json.elevation === 'number' && !isNaN(json.elevation)
+    ? Math.round(json.elevation)
+    : undefined;
+
   return {
     source: 'Mô hình dự báo số trị vi khí hậu ECMWF IFS & GFS (Open-Meteo Weather API)',
     apiUrl: directUrl,
     latitude: json.latitude,
     longitude: json.longitude,
-    elevation: json.elevation || 10,
+    elevation,
     generationTimeMs: json.generationtime_ms || 0,
     timezone: json.timezone || 'Asia/Ho_Chi_Minh',
     atmosphericStation: station,
@@ -1030,6 +1072,7 @@ export async function fetchDirectLiveWeatherData(
       condition: currentCondition,
       isDay: currentIsDay,
       cloudCover: currentCloudCover,
+      elevation,
     },
   };
 }

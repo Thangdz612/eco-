@@ -575,7 +575,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 {/* Refresh rate */}
                 <div className="flex items-center justify-between py-2">
                   <div>
-                    <div className="text-[13px] font-bold text-slate-800 dark:text-slate-200">Tần suất làm mới cảm biến</div>
+                    <div className="text-[13px] font-bold text-slate-800 dark:text-slate-200">Tần suất làm mới dữ liệu</div>
                     <div className="text-[11.5px] text-slate-500 dark:text-slate-400">Chu kỳ cập nhật vi khí hậu & áp suất</div>
                   </div>
                   <select
@@ -703,11 +703,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 </div>
               </div>
 
-              <div className="p-3 rounded-2xl bg-[#F8FAFC] dark:bg-slate-800/80 border border-[#E2E8F0] dark:border-slate-700 flex items-center justify-between text-xs text-slate-600 dark:text-slate-300 transition-colors">
-                <div className="flex items-center gap-2">
-                  <Shield className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                  <span>
-                    EcoApp bảo mật 100%: Mọi dữ liệu vị trí và cảm biến chỉ xử lý trực tiếp trên thiết bị của bạn.
+              <div className="p-3 rounded-2xl bg-[#F8FAFC] dark:bg-slate-800/80 border border-[#E2E8F0] dark:border-slate-700 flex items-start justify-between text-xs text-slate-600 dark:text-slate-300 transition-colors">
+                <div className="flex items-start gap-2">
+                  <Shield className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                  <span className="leading-relaxed">
+                    Vị trí của bạn chỉ dùng để chọn phường/xã gần nhất. Khi tải thời tiết, tọa độ của phường hoặc vị trí GPS được gửi tới dịch vụ Open-Meteo (và máy chủ của ứng dụng nếu có). EcoApp không lưu vị trí lên máy chủ.
                   </span>
                 </div>
               </div>
