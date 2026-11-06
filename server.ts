@@ -36,11 +36,15 @@ setInterval(() => {
   }
 }, 300000);
 
+type CoordValidationResult =
+  | { valid: true; lat: number; lng: number; error?: undefined }
+  | { valid: false; error: string; lat?: undefined; lng?: undefined };
+
 // Validate coordinates: lat within [8.5, 11.3] and lng within [106.3, 107.2]
 function parseAndValidateCoordinates(
   rawLat: any,
   rawLng: any
-): { valid: true; lat: number; lng: number } | { valid: false; error: string } {
+): CoordValidationResult {
   if (rawLat === undefined || rawLat === null || rawLat === '' || rawLng === undefined || rawLng === null || rawLng === '') {
     return { valid: false, error: 'Thiếu tham số tọa độ lat hoặc lng.' };
   }

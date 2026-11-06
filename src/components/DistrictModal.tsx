@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { X, Check, MapPin, Crosshair, Navigation, Search, Filter, Layers } from 'lucide-react';
-import { DISTRICTS_DATA, HCM_DISTRICT_GROUPS } from '../data/mockData';
+import { ADMIN_UNITS, HCM_DISTRICT_GROUPS } from '../data/mockData';
 import { UserLocation } from '../types';
 import { calculateDistanceKm } from '../utils/geolocation';
 import { cacheManager } from '../storage/cacheManager';
@@ -111,7 +111,8 @@ export const DistrictModal: React.FC<DistrictModalProps> = ({
     };
   }, []);
 
-  const allDistricts = useMemo(() => Object.values(DISTRICTS_DATA), []);
+  // Chỉ hiển thị 168 đơn vị hành chính cấp xã hiện hành (isActive: true)
+  const allDistricts = useMemo(() => ADMIN_UNITS, []);
 
   const weatherCacheMap = useMemo(() => {
     if (!isOpen) return {};
@@ -150,7 +151,7 @@ export const DistrictModal: React.FC<DistrictModalProps> = ({
         return false;
       }
 
-      // Search term with accent-insensitive search
+      // Search term with accent-insensitive search across name, subTitle, formerDistrict, formerProvince, code
       if (searchTerm.trim()) {
         const query = searchTerm.toLowerCase().trim();
         const queryNoTone = removeVietnameseTones(searchTerm.trim());
@@ -158,11 +159,17 @@ export const DistrictModal: React.FC<DistrictModalProps> = ({
         const nameNoTone = removeVietnameseTones(item.name);
         const subNoTone = removeVietnameseTones(item.subTitle);
         const groupNoTone = removeVietnameseTones(item.districtGroup || '');
+        const formerDistNoTone = removeVietnameseTones(item.formerDistrict || '');
+        const formerProvNoTone = removeVietnameseTones(item.formerProvince || '');
 
         const matchName = item.name.toLowerCase().includes(query) || nameNoTone.includes(queryNoTone);
         const matchSub = item.subTitle.toLowerCase().includes(query) || subNoTone.includes(queryNoTone);
         const matchGroup = item.districtGroup?.toLowerCase().includes(query) || groupNoTone.includes(queryNoTone);
-        return matchName || matchSub || matchGroup;
+        const matchFormerDist = (item.formerDistrict?.toLowerCase().includes(query) || formerDistNoTone.includes(queryNoTone));
+        const matchFormerProv = (item.formerProvince?.toLowerCase().includes(query) || formerProvNoTone.includes(queryNoTone));
+        const matchCode = item.code?.toLowerCase().includes(query);
+
+        return matchName || matchSub || matchGroup || matchFormerDist || matchFormerProv || matchCode;
       }
 
       return true;
@@ -378,6 +385,7 @@ export const DistrictModal: React.FC<DistrictModalProps> = ({
                       )}
                     </div>
                     <div className="text-[11.5px] text-slate-500 dark:text-slate-400 mt-0.5 font-normal line-clamp-1">
+                      {district.formerDistrict ? <span className="font-semibold text-slate-600 dark:text-slate-300">{district.formerDistrict} • </span> : ''}
                       {district.subTitle}
                     </div>
                     {cachedWeather && (

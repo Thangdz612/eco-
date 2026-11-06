@@ -63,6 +63,11 @@ export interface DistrictData {
   subTitle: string;
   districtGroup?: string;
   adminType?: 'phường' | 'xã' | 'đặc khu';
+  code?: string;
+  province?: string;
+  formerProvince?: string;
+  formerDistrict?: string | null;
+  isActive?: boolean;
   lat: number;
   lng: number;
   location?: { lat: number; lng: number };

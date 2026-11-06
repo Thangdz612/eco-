@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test": "tsx test/airQualityPastDays.test.ts"
+    "test": "tsx test/airQualityPastDays.test.ts && tsx test/adminUnits.test.ts"
   },
   "dependencies": {
     "@capacitor/core": "^8.5.2",
